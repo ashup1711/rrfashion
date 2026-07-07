@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { GuestSessionService } from './guest-session.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -25,6 +26,11 @@ describe('GuestSessionService', () => {
     }),
   };
 
+  const mockJwtService = {
+    sign: jest.fn().mockReturnValue('mock-token'),
+    verify: jest.fn().mockReturnValue({ sub: 'session-1' }),
+  };
+
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -36,6 +42,10 @@ describe('GuestSessionService', () => {
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: JwtService,
+          useValue: mockJwtService,
         },
       ],
     }).compile();
