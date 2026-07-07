@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
 
+permissions:
+  packages: write
+  contents: read
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/rrfashion-backend
@@ -18,7 +22,7 @@ jobs:
         shell: bash
         env:
           GHCR_USER: ${{ github.repository_owner }}
-          GHCR_TOKEN: ${{ secrets.REGISTRY_PASS }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p $HOME/.docker
           AUTH=$(printf "%s:%s" "$GHCR_USER" "$GHCR_TOKEN" | base64)
