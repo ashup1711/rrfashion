@@ -53,7 +53,11 @@ export class GuestSessionService {
    * The token uses the customer JWT secret with type='guest' so that
    * StoreAuthGuard can authenticate it alongside regular customer tokens.
    */
-  async createWithToken(): Promise<{ guestToken: string; guestSessionId: string; expiresAt: Date }> {
+  async createWithToken(): Promise<{
+    guestToken: string;
+    guestSessionId: string;
+    expiresAt: Date;
+  }> {
     const { guestSessionId, expiresAt } = await this.create();
 
     const payload = {

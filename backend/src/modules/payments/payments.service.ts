@@ -58,7 +58,7 @@ export class PaymentsService {
     };
 
     try {
-      const razorpayOrder = await this.getRazorpay().orders.create(options as any);
+      const razorpayOrder = await this.getRazorpay().orders.create(options as never);
 
       const razorpayData = JSON.parse(JSON.stringify(razorpayOrder));
 
@@ -292,6 +292,7 @@ export class PaymentsService {
       // Razorpay SDK types for v2.x don't expose .create() on payments,
       // but the API does support creating a payment directly with capture: false.
       const razorpay = this.getRazorpay();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const razorpayPayment = await (razorpay.payments as any).create({
         amount,
         currency: 'INR',

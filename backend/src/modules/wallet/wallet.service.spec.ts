@@ -143,8 +143,18 @@ describe('WalletService', () => {
   describe('getAllTransactions', () => {
     it('returns paginated transactions with user info', async () => {
       const items = [
-        { id: 'tx1', amount: 200, type: 'REFUND', user: { id: 'u1', firstName: 'John', lastName: 'Doe', email: 'john@test.com' } },
-        { id: 'tx2', amount: -100, type: 'ORDER_PAYMENT', user: { id: 'u2', firstName: 'Jane', lastName: 'Doe', email: 'jane@test.com' } },
+        {
+          id: 'tx1',
+          amount: 200,
+          type: 'REFUND',
+          user: { id: 'u1', firstName: 'John', lastName: 'Doe', email: 'john@test.com' },
+        },
+        {
+          id: 'tx2',
+          amount: -100,
+          type: 'ORDER_PAYMENT',
+          user: { id: 'u2', firstName: 'Jane', lastName: 'Doe', email: 'jane@test.com' },
+        },
       ];
       prisma.walletTransaction.findMany.mockResolvedValue(items);
       prisma.walletTransaction.count.mockResolvedValue(2);

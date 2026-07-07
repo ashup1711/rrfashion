@@ -600,7 +600,11 @@ export class InventoryService {
           quantityChange,
           type,
           reference: `adjustment:${type}`,
-          notes: notes ?? (adminId ? `Manual stock adjustment by admin ${adminId}` : 'Manual stock adjustment (system)'),
+          notes:
+            notes ??
+            (adminId
+              ? `Manual stock adjustment by admin ${adminId}`
+              : 'Manual stock adjustment (system)'),
           createdByAdminId: adminId ?? undefined,
         },
         tx,

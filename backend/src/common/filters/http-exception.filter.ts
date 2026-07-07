@@ -47,6 +47,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     };
 
     // Log the error
+    // eslint-disable-next-line no-console
     console.error(`[${request.method} ${request.url}] ${status} - ${message}`);
 
     response.status(status).json(errorResponse);

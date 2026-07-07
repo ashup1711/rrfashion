@@ -6,7 +6,12 @@ export class CreateProductDto {
   @IsString()
   name!: string;
 
-  @ApiProperty({ description: 'URL slug', example: 'cotton-kurti', required: false, readOnly: false })
+  @ApiProperty({
+    description: 'URL slug',
+    example: 'cotton-kurti',
+    required: false,
+    readOnly: false,
+  })
   @IsOptional()
   @IsString()
   slug?: string;

@@ -327,7 +327,7 @@ export class AnalyticsService {
         requestedByAdminId,
         reportType,
         format,
-        parameters: parameters as any,
+        parameters: parameters as never,
         status: 'PROCESSING',
       },
     });

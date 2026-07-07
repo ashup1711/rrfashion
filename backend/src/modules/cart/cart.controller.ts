@@ -1,13 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiCommonResponse } from '../../common/decorators/api-response.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -86,7 +77,11 @@ export class CartController {
     @Body() dto: UpdateCartItemDto,
     @GuestSessionId() guestSessionId?: string,
   ) {
-    return this.cartService.updateItem(itemId, toCartIdentifier(user, guestSessionId), dto.quantity);
+    return this.cartService.updateItem(
+      itemId,
+      toCartIdentifier(user, guestSessionId),
+      dto.quantity,
+    );
   }
 
   @UseGuards(StoreAuthGuard)

@@ -21,7 +21,7 @@ export class InquiriesService {
   }
 
   async findAll(status?: string) {
-    const where = status ? { status: status as any } : {};
+    const where = status ? { status: status as never } : {};
     return this.prisma.inquiry.findMany({
       where,
       include: {

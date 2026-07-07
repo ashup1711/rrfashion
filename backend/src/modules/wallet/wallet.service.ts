@@ -73,7 +73,9 @@ export class WalletService {
     ]);
 
     return {
-      totalBalance: (creditedResult._sum.amount?.toNumber() ?? 0) + (debitedResult._sum.amount?.toNumber() ?? 0),
+      totalBalance:
+        (creditedResult._sum.amount?.toNumber() ?? 0) +
+        (debitedResult._sum.amount?.toNumber() ?? 0),
       totalCredited: creditedResult._sum.amount?.toNumber() ?? 0,
       totalDebited: Math.abs(debitedResult._sum.amount?.toNumber() ?? 0),
       totalUsers: totalUsersResult.length,

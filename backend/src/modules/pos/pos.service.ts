@@ -251,6 +251,7 @@ export class PosService {
     };
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async processOrderMutation(deviceUuid: string, mutation: any) {
     const data = mutation.data as Record<string, unknown>;
     const orderDto: PosOrderDto = data as unknown as PosOrderDto;
@@ -258,6 +259,7 @@ export class PosService {
     await this.createOrder(deviceUuid, orderDto);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async processLockMutation(deviceUuid: string, mutation: any) {
     const data = mutation.data as Record<string, unknown>;
 
@@ -280,6 +282,7 @@ export class PosService {
     );
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async processReturnMutation(deviceUuid: string, mutation: any) {
     const data = mutation.data as Record<string, unknown>;
 

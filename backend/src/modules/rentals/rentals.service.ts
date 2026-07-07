@@ -324,12 +324,7 @@ export class RentalsService {
     return result;
   }
 
-  async findAllAdmin(params: {
-    page?: number;
-    limit?: number;
-    status?: string;
-    search?: string;
-  }) {
+  async findAllAdmin(params: { page?: number; limit?: number; status?: string; search?: string }) {
     const page = params.page ?? 1;
     const limit = params.limit ?? 10;
     const skip = (page - 1) * limit;
@@ -342,9 +337,21 @@ export class RentalsService {
 
     if (params.search) {
       where.OR = [
-        { orderItem: { order: { user: { firstName: { contains: params.search, mode: 'insensitive' } } } } },
-        { orderItem: { order: { user: { lastName: { contains: params.search, mode: 'insensitive' } } } } },
-        { orderItem: { order: { user: { email: { contains: params.search, mode: 'insensitive' } } } } },
+        {
+          orderItem: {
+            order: { user: { firstName: { contains: params.search, mode: 'insensitive' } } },
+          },
+        },
+        {
+          orderItem: {
+            order: { user: { lastName: { contains: params.search, mode: 'insensitive' } } },
+          },
+        },
+        {
+          orderItem: {
+            order: { user: { email: { contains: params.search, mode: 'insensitive' } } },
+          },
+        },
       ];
     }
 

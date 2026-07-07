@@ -43,9 +43,7 @@ export class AdminInvoicesController {
   @ApiOperation({ summary: 'Download invoice PDF as admin' })
   async downloadPdf(@Param('id') id: string, @Res() res: Response) {
     const invoice = await this.invoicesService.getByIdAdmin(id);
-    const { buffer, filename } = await this.invoicesService.getPdfForOrderAdmin(
-      invoice.orderId,
-    );
+    const { buffer, filename } = await this.invoicesService.getPdfForOrderAdmin(invoice.orderId);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${filename}"`,

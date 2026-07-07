@@ -195,10 +195,7 @@ export class VariantsService {
       _sum: { quantityAvailable: true },
     });
 
-    const totalStock = summaries.reduce(
-      (sum, s) => sum + (s._sum.quantityAvailable ?? 0),
-      0,
-    );
+    const totalStock = summaries.reduce((sum, s) => sum + (s._sum.quantityAvailable ?? 0), 0);
 
     await this.prisma.product.update({
       where: { id: productId },

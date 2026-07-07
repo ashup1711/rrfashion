@@ -21,6 +21,7 @@ export class PosController {
   @Post('devices/register')
   @ApiOperation({ summary: 'Register a POS device (returns API key)' })
   async registerDevice(@Body() dto: RegisterDeviceDto, @Req() req: Request) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const adminId = (req.user as any)?.id || 'system';
     return this.posService.registerDevice(dto, adminId);
   }
@@ -44,9 +45,7 @@ export class PosController {
   @UseGuards(PosAuthGuard)
   @Get('inventory')
   @ApiOperation({ summary: 'Get available inventory for a store' })
-  async getInventory(
-    @Query() query: GetInventoryDto,
-  ) {
+  async getInventory(@Query() query: GetInventoryDto) {
     return this.posService.getStoreInventory(query.storeId, query.search);
   }
 }

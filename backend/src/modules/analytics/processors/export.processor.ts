@@ -86,6 +86,7 @@ export class ExportProcessor extends WorkerHost {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet(reportType);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows = Array.isArray(data) ? data : (data as any)?.items || [];
     if (rows.length > 0) {
       const headers = Object.keys(rows[0]);
