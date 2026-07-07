@@ -16,16 +16,21 @@ jobs:
 
       - name: Log in to GitHub Container Registry
         shell: bash
+        env:
+          GHCR_USER: ${{ github.repository_owner }}
+          GHCR_TOKEN: ${{ secrets.REGISTRY_PASS }}
         run: |
-          # Disable macOS keychain and use file-based cred store
           mkdir -p $HOME/.docker
-          cat > $HOME/.docker/config.json << 'EOF'
+          AUTH=$(printf "%s:%s" "$GHCR_USER" "$GHCR_TOKEN" | base64)
+          cat > $HOME/.docker/config.json << EOF
           {
-            "credsStore": ""
+            "auths": {
+              "${{ env.REGISTRY }}": {
+                "auth": "$AUTH"
+              }
+            }
           }
           EOF
-          echo "${{ secrets.REGISTRY_PASS }}" | docker login ${{ env.REGISTRY }} \
-            -u ${{ github.repository_owner }} --password-stdin
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
