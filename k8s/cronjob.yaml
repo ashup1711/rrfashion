@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rrfashion-db-backup
+  namespace: rrfashion
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: pgdump
+              image: postgres:16-alpine
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: rrfashion-secrets
+                      key: POSTGRES_PASSWORD
+              command:
+                - sh
+                - -c
+                - pg_dump -h rrfashion-postgres -U postgres rr_fashion | gzip > /backups/rrfashion_$(date +%Y%m%d_%H%M%S).sql.gz
+              volumeMounts:
+                - mountPath: /backups
+                  name: backup-volume
+          restartPolicy: OnFailure
+          volumes:
+            - name: backup-volume
+              persistentVolumeClaim:
+                claimName: rrfashion-backup-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rrfashion-backup-pvc
+  namespace: rrfashion
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi

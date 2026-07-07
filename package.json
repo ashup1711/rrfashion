@@ -1,0 +1,16 @@
+{
+  "name": "rr-fashion",
+  "version": "1.0.0",
+  "description": "RR FASHION — Online fashion shopping store",
+  "private": true,
+  "scripts": {
+    "backend:start": "cd backend && npm run start",
+    "backend:dev": "cd backend && npm run start:dev",
+    "backend:build": "cd backend && npm run build",
+    "backend:prisma:generate": "cd backend && npm run prisma:generate",
+    "backend:prisma:migrate": "cd backend && npm run prisma:migrate",
+    "backend:prisma:seed": "cd backend && npm run prisma:seed",
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build"
+  }
+}

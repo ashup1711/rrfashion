@@ -1,0 +1,37 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rrfashion-ingress
+  namespace: rrfashion
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.rrfashion.com
+        - admin.rrfashion.com
+      secretName: rrfashion-tls
+  rules:
+    - host: api.rrfashion.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rrfashion-api
+                port:
+                  number: 3000
+    - host: admin.rrfashion.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rrfashion-api
+                port:
+                  number: 3000

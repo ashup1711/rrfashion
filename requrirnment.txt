@@ -1,0 +1,311 @@
+# R R Fashion — E-Commerce & Rental Platform
+## Project Plan
+
+**Company:** R R Fashion
+**Business:** Clothes — Sale (Online + Offline) & Rental
+**Stack:** Node.js, React, PostgreSQL, Redis, Docker, Kubernetes
+
+---
+
+## 1. System Overview
+
+R R Fashion needs a unified platform serving three audiences:
+
+- **Customers (Web/Storefront):** browse, buy, rent, guest checkout, track orders.
+- **Store Staff (Offline POS use):** book in-store sales, lock inventory, generate receipts.
+- **Admin/Super Admin (Admin Panel):** manage products, orders, roles, reports, inventory across both channels.
+
+Since inventory is shared between online and offline channels, **real-time stock synchronization** is the architectural backbone of this system.
+
+---
+
+## 2. High-Level Architecture
+
+```
+┌─────────────┐     ┌─────────────┐     ┌──────────────┐
+│  React Web  │     │ React Admin │     │  POS (React) │
+│  Storefront │     │   Panel     │     │  Offline App │
+└──────┬──────┘     └──────┬──────┘     └──────┬───────┘
+       │                   │                    │
+       └───────────────────┴────────────────────┘
+                       │  REST/GraphQL (HTTPS)
+                ┌──────▼───────┐
+                │  API Gateway │  (Nginx Ingress / Kong)
+                └──────┬───────┘
+       ┌───────────────┼────────────────────┐
+┌──────▼─────┐  ┌──────▼──────┐   ┌─────────▼────────┐
+│ Auth Svc   │  │ Catalog Svc │   │ Order Svc         │
+│ (JWT+RBAC) │  │ (Products,  │   │ (Cart, Checkout,  │
+│            │  │ Inventory)  │   │ Rent/Sale logic)  │
+└──────┬─────┘  └──────┬──────┘   └─────────┬─────────┘
+       │               │                    │
+┌──────▼─────┐  ┌──────▼──────┐   ┌─────────▼────────┐
+│ Payment Svc│  │ Reporting   │   │ Notification Svc  │
+│ (Razorpay) │  │ Svc (PDF/   │   │ (SMS/Email/Push   │
+│            │  │  Excel)     │   │ reminders)        │
+└────────────┘  └─────────────┘   └────────────────────┘
+       │               │                    │
+       └───────┬───────┴──────────┬─────────┘
+          ┌─────▼─────┐      ┌─────▼─────┐
+          │ PostgreSQL │      │   Redis   │
+          │ (primary)  │      │ (cache,   │
+          │            │      │ locks,    │
+          │            │      │ queues)   │
+          └────────────┘      └───────────┘
+```
+
+**Deployment:** Each service is a Docker container, orchestrated via Kubernetes (Deployments + HPA for autoscaling, ConfigMaps/Secrets for env config, Ingress for routing). Redis used for caching, session store, distributed locks (item-hold logic), and BullMQ-style job queues (reminders, report generation, email/SMS).
+
+Microservices vs modular monolith: given team size is likely small initially, **recommend starting as a modular monolith** (single Node.js app, clearly separated modules/folders) with PostgreSQL + Redis, designed so modules can be split into microservices later if scale demands it. This avoids premature complexity.
+
+---
+
+## 3. Tech Stack Detail
+
+| Layer | Technology |
+|---|---|
+| Frontend (Storefront + Admin) | React, React Query, Redux/Zustand, TailwindCSS |
+| Backend | Node.js (Express/Fastify or NestJS for structure) |
+| Database | PostgreSQL (primary transactional store) |
+| Cache/Locks/Queue | Redis (ioredis), BullMQ for background jobs |
+| Auth | JWT (access + refresh tokens), bcrypt/argon2 for passwords |
+| Payments | Razorpay (Orders API, Webhooks, Refunds) |
+| File/Report Storage | S3-compatible object storage (MinIO or AWS S3) for product images, invoices, exported reports |
+| Containerization | Docker, Docker Compose (local dev) |
+| Orchestration | Kubernetes (Deployments, Services, Ingress, HPA, CronJobs for reminders/report jobs) |
+| CI/CD | GitHub Actions → Docker Registry → K8s rollout |
+| Monitoring | Prometheus + Grafana, ELK/Loki for logs |
+| PDF/Excel Export | Puppeteer or pdfkit (PDF), exceljs (Excel) |
+| SMS/Email | Twilio/MSG91 (SMS), SendGrid/SES (email) |
+
+---
+
+## 4. Core Modules & Requirements Mapping
+
+### 4.1 Catalog & Inventory Management
+- Products have variants: size, color, fabric, brand/company, SKU, barcode.
+- Two transaction types per product: **Sale** and **Rent** (a product can be eligible for both, with separate pricing — sale price vs. rent price per day/duration).
+- Unified inventory count shared across online store, offline store(s), and rental pool — each unit tagged with status: `available`, `reserved`, `rented_out`, `sold`, `damaged`, `in_wash` (for returned rentals).
+- Multi-location/warehouse support if R R Fashion has multiple physical stores.
+- Low-stock alerts to admin.
+
+### 4.2 Online + Offline Unified Selling
+- Same product catalog and stock pool.
+- POS-style admin/staff interface for offline billing — quick search by barcode/SKU, walk-in customer (optional details), instant receipt print.
+- Every sale (online or offline) decrements the same inventory count in real time to avoid overselling.
+
+### 4.3 Clothes for Rent
+- Rental booking flow: select dates (start/end), check availability calendar for that SKU/unit, calculate rental price (per day/slab-based), security deposit handling.
+- Rental states: `booked` → `picked_up/shipped` → `in_use` → `returned` → `inspected` (damage check) → `closed`.
+- Late return penalty calculation; deposit refund/forfeit logic after inspection.
+- Block item calendar so it can't be double-booked for overlapping dates.
+
+### 4.4 Offline Booking — 1-Day Lock
+- When staff "books" an item in-store (customer trying it, deciding, etc.), the item is locked for **24 hours** using a Redis key with TTL (`lock:product:{sku_id}` → expires in 86400s).
+- If payment/confirmation doesn't happen within 24 hrs, Redis TTL auto-expires and releases stock back to available pool.
+- Admin should be able to manually release a lock early.
+- Edge case: if Redis is restarted/cache cleared, a fallback DB-based `locked_until` timestamp column should also exist as source of truth (Redis as fast-path, Postgres as durable backup) — a background job reconciles expired locks.
+
+### 4.5 Shipping Address Management
+- Customers can save multiple addresses (Home, Work, Other), set a default.
+- Address validation (pincode-based serviceability check).
+- Edge case: prevent checkout if pincode not serviceable; show estimated delivery date based on pincode/zone.
+
+### 4.6 Order Management + Courier Receipt
+- Order lifecycle: `placed` → `confirmed` → `packed` → `shipped` → `out_for_delivery` → `delivered` / `cancelled` / `returned`.
+- Courier integration: generate AWB number, print shipping label, attach courier receipt (PDF) to order.
+- Support manual courier entry (for couriers without API integration) — admin enters tracking number/provider manually.
+- Returns/exchange workflow with reverse pickup scheduling.
+- Order edge cases: partial cancellation (multi-item order, cancel one item), partial refunds, COD vs prepaid handling.
+
+### 4.7 Payments — Razorpay
+- Razorpay Orders API for checkout, Razorpay webhook listener (signature-verified) for payment confirmation — **never trust client-side success callback alone**.
+- Support: Card, UPI, Netbanking, Wallet via Razorpay Checkout.
+- Refunds via Razorpay Refunds API (full/partial) tied to order cancellations/returns.
+- Rental security deposits: capture as a separate Razorpay payment or pre-auth (hold), released/captured after item return inspection.
+- Idempotency: handle webhook retries safely (store Razorpay event ID, dedupe processing).
+- Reconciliation job: daily cron comparing Razorpay settlement report vs internal order/payment records.
+
+### 4.8 Sell with Reminders
+- Cart abandonment reminders (email/SMS/push after X hours of inactivity with items in cart).
+- Wishlist price-drop / back-in-stock reminders.
+- Rental return-due reminders (1 day before due date).
+- Repeat-purchase reminders (e.g., "it's been 3 months since you bought X").
+- Implemented via BullMQ delayed jobs + Redis, triggered by Notification Service.
+
+### 4.9 Admin Dashboard — Insights
+- Day/Week/Month/Year toggle views for: revenue, orders count, online vs offline split, sale vs rent split, average order value, new vs returning customers.
+- Charts: revenue trend, order trend, channel comparison.
+- Pre-aggregated materialized views or scheduled rollup tables in Postgres for fast dashboard queries at scale (avoid heavy real-time aggregation on raw orders table once data grows).
+
+### 4.10 Multi-Admin / Role Management (RBAC)
+- Super Admin creates roles dynamically (e.g., "Store Manager," "Inventory Staff," "Support Agent") with configurable permission sets (per module: view/create/edit/delete/export).
+- Permission matrix stored in DB: `roles`, `permissions`, `role_permissions`, `admin_users` (with `role_id`), optionally `admin_store_access` to scope a role to specific store location(s).
+- Audit log: track which admin performed which action (critical for accountability — price changes, refunds, stock adjustments).
+- Session management: ability for Super Admin to force-logout/revoke an admin's active sessions.
+
+### 4.11 Top-Selling Insights (Fabric-wise, Brand-wise, etc.)
+- Tag products with attributes: fabric type, brand/company, category, color, size.
+- Dashboard widgets: top N products by units sold / revenue, filterable and groupable by any attribute (fabric, brand, category) and by date range and channel (online/offline/rent).
+- Use Postgres aggregate queries with proper indexes on `order_items` joined to `products`; consider a separate analytics/reporting read-replica for heavy queries to avoid impacting transactional performance.
+
+### 4.12 Report Export (PDF/Excel)
+- Any dashboard table/report should have "Export PDF" and "Export Excel" buttons.
+- Large exports handled async: user requests export → background job generates file → uploads to object storage → notifies admin with download link (avoid blocking HTTP request for big reports).
+- Standard reports: Sales report, Inventory report, Rental report, Customer report, GST/Tax report (India-specific — likely needed for compliance).
+
+### 4.13 Contact Us / Inquiry
+- Public contact form (name, email, phone, message, optional product reference).
+- Inquiries land in admin panel with status: `new` → `in_progress` → `resolved`.
+- Auto-acknowledgement email/SMS to customer; assign inquiry to support staff.
+
+### 4.14 Reviews After Purchase
+- Review allowed only after order status = `delivered` (or rental `returned`/`closed`) — verified purchase badge.
+- Rating (1-5) + text + optional photo upload.
+- Admin moderation queue (approve/reject/flag) before public display, to prevent spam/abuse.
+- Edge case: prevent duplicate reviews per order-item; allow edit within a time window.
+
+### 4.15 Wishlist
+- Logged-in users only (guest wishlist can be stored in localStorage and merged into account on login/signup).
+- Notify on back-in-stock or price drop (ties into reminders module).
+
+### 4.16 Cart
+- Persistent cart for logged-in users (DB-backed), session/localStorage cart for guests.
+- Merge guest cart into user cart on login.
+- Real-time stock validation at cart and checkout (item may go out of stock or get locked by someone else between add-to-cart and checkout).
+
+### 4.17 Invoice Generation (Post-Purchase)
+- An invoice is auto-generated the moment an order is confirmed/paid (online) or completed at POS (offline) — covers both sale and rental transactions.
+- Invoice must be GST-compliant for India: invoice number (sequential, store-wise series), HSN code per item, CGST/SGST (intra-state) or IGST (inter-state) split based on store state vs shipping state, taxable value, discount line, total in words.
+- Rental invoices show line items distinctly: rental charge (per day × duration), security deposit (marked as refundable, not taxed as sale), and any late-fee/damage charge added later as a **supplementary/credit note** rather than editing the original invoice.
+- PDF generated server-side (Puppeteer/pdfkit) from a templated layout with R R Fashion branding/logo, stored in object storage (S3/MinIO), and linked permanently to the order record (`invoice_url`).
+- Delivery: emailed automatically to customer on generation; also downloadable anytime from "My Orders" (storefront) and from the admin order detail page.
+- Guest checkout orders: invoice still generated and emailed/SMS-linked using the guest's provided email/phone — no login required to access it (secure, token-based download link).
+- Partial cancellations/returns: generate a **credit note** referencing the original invoice number rather than altering the original (preserves audit trail for accounting/GST filing).
+- Numbering must never have gaps or duplicates (required for GST compliance) — generate via a Postgres sequence per store/financial year, not via application-side counters, to avoid race conditions.
+- Admin should be able to bulk-export invoices for a date range (ties into the existing PDF/Excel export module) for accounting/CA handoff.
+
+### 4.18 Guest Checkout
+- Allow purchase without registration: capture name, phone, email (optional), shipping address inline at checkout.
+- Auto-create a lightweight "guest" customer record (linked by phone/email) so order history can later be claimed if they register with the same phone/email — improves CRM/reminder targeting without forcing signup friction.
+- Rentals: consider requiring at least OTP-verified phone number for guest rentals (due to deposit/return tracking complexity) — recommend mandatory phone OTP verification for rental bookings even as guest.
+
+---
+
+## 5. Additional Edge Cases & Considerations Worth Planning For
+
+1. **Stock race conditions:** Two users (or online+offline) trying to buy/lock the last unit simultaneously — use Postgres row-level locking (`SELECT ... FOR UPDATE`) or Redis atomic decrement (`DECR`) with rollback on payment failure.
+2. **Rental damage/loss handling:** workflow for staff to mark returned item as damaged, deduct from deposit, and route item to `in_wash`/`under_repair` instead of straight back to `available`.
+3. **Partial payments / EMI via Razorpay:** decide upfront if needed; affects order status model.
+4. **Tax & invoicing:** GST-compliant invoice generation (India) — HSN codes per product, CGST/SGST/IGST split based on shipping state vs store state.
+5. **Multi-currency/single currency:** assume INR-only initially; design DB with currency field for future-proofing.
+6. **Coupon/discount engine:** percentage/flat, min cart value, category-specific, first-order-only, combinable-or-not with rentals.
+7. **Concurrent admin edits:** optimistic locking (version column) on product/order records to avoid two admins overwriting each other's changes.
+8. **Soft deletes:** never hard-delete products/orders/customers — use `deleted_at` for audit/history integrity.
+9. **Data privacy:** guest checkout data and customer PII handling should comply with applicable data protection norms; encrypt sensitive fields (phone/email) at rest if required.
+10. **Image handling:** product images need multiple sizes (thumbnail/zoom), CDN-backed delivery, lazy loading on storefront.
+11. **Search & filters:** consider Postgres full-text search initially; move to Elasticsearch/Meilisearch if catalog grows large or search becomes slow.
+12. **Mobile responsiveness:** React storefront must be fully responsive (and ideally PWA-ready) since most Indian shoppers browse on mobile.
+13. **Abandoned offline locks across staff shifts:** ensure lock ownership (which staff/store created it) is tracked so any staff can release it, not just the creator.
+14. **Order + Rental combined cart:** a single cart/checkout may contain both a "buy" item and a "rent" item — checkout flow and invoice need to clearly separate these with different terms (rent has return-by date, deposit line item).
+15. **Refund timing for cancelled offline-locked-then-unpaid items:** no payment was taken, so just release stock — no refund logic needed, only inventory release.
+16. **Webhook security:** verify Razorpay webhook signatures; protect endpoint from replay attacks; log raw payloads for dispute resolution.
+17. **Disaster recovery:** scheduled Postgres backups (point-in-time recovery), Redis used only as cache/lock layer (never sole source of truth for critical state).
+18. **Rate limiting & abuse prevention:** especially on guest checkout, contact form, and OTP endpoints (prevent spam/SMS-bombing).
+19. **SEO for storefront:** server-side rendering or static generation (Next.js) may be worth considering instead of plain CRA/Vite React if SEO/organic traffic matters for sales.
+20. **Internationalization:** if R R Fashion plans multi-language (Hindi/English) storefront in future, structure copy/text via i18n from day one.
+
+---
+
+## 6. Database Schema (Key Tables — High Level)
+
+```
+users (id, name, email, phone, password_hash, is_guest, created_at, ...)
+admin_users (id, name, email, password_hash, role_id, store_id, is_active, ...)
+roles (id, name, created_by_admin_id, ...)
+permissions (id, module, action)
+role_permissions (role_id, permission_id)
+
+products (id, name, description, category_id, brand, fabric, hsn_code, ...)
+product_variants (id, product_id, size, color, sku, sale_price, rent_price_per_day, ...)
+inventory_units (id, variant_id, store_id, status, locked_until, locked_by_admin_id, ...)
+
+carts (id, user_id, session_id, ...)
+cart_items (id, cart_id, variant_id, qty, type[sale/rent], rent_start, rent_end)
+
+orders (id, user_id, order_number, channel[online/offline], status, total_amount, ...)
+order_items (id, order_id, variant_id, type[sale/rent], qty, price, rent_start, rent_end, deposit_amount)
+shipping_addresses (id, user_id, line1, city, state, pincode, is_default, ...)
+courier_receipts (id, order_id, courier_name, awb_number, receipt_file_url, source[manual/api], entered_by_admin_id, ...)
+
+payments (id, order_id, razorpay_order_id, razorpay_payment_id, status, amount, type[payment/refund/deposit], ...)
+
+invoices (id, order_id, invoice_number, store_id, financial_year, type[invoice/credit_note], pdf_url, taxable_value, cgst, sgst, igst, total_amount, created_at)
+
+reviews (id, order_item_id, user_id, rating, comment, status, created_at)
+wishlists (id, user_id, variant_id, created_at)
+
+inquiries (id, name, email, phone, message, status, assigned_admin_id, created_at)
+
+reports_exports (id, requested_by_admin_id, report_type, format[pdf/xlsx], file_url, status, created_at)
+
+audit_logs (id, admin_id, action, entity, entity_id, before_json, after_json, created_at)
+```
+
+---
+
+## 7. Suggested Build Phases (Roadmap)
+
+**Phase 1 — Foundation (Weeks 1-3)**
+Auth (customer + admin), RBAC base, product catalog CRUD, inventory model, Docker/local dev setup.
+
+**Phase 2 — Core Commerce (Weeks 4-7)**
+Cart, guest checkout, shipping addresses, Razorpay integration, order management, offline-first POS (local-first PWA + sync engine) with 1-day lock mechanism, manual courier entry, GST invoice generation.
+
+**Phase 3 — Rentals (Weeks 8-10)**
+Rental booking calendar, deposit handling, return/inspection workflow.
+
+**Phase 4 — Engagement & Insights (Weeks 11-13)**
+Wishlist, reviews, reminders (BullMQ jobs), admin dashboard with date-range insights, top-seller widgets.
+
+**Phase 5 — Reporting, Polish, Hardening (Weeks 14-16)**
+PDF/Excel export, contact/inquiry module, audit logs, performance tuning, security review, load testing, Kubernetes production deployment + monitoring.
+
+*(Timelines are illustrative — actual estimates depend on team size and should be revisited after detailed sprint planning.)*
+
+---
+
+## 8. Offline-First POS Architecture (Stakeholder-Confirmed Requirement)
+
+Store staff need to continue billing/locking/selling even with **no internet connectivity**, with automatic sync once connectivity returns. This is a significant architectural decision affecting the POS client design.
+
+**Approach:**
+
+- **POS as a local-first PWA (React + IndexedDB):** the POS app runs in-browser with a local IndexedDB store mirroring a subset of data it needs (product catalog, prices, current stock snapshot for its store, customer lookup cache). Service Worker caches the app shell so it loads with no network.
+- **Local write queue:** every offline action (sale, lock item, return) is written to IndexedDB immediately and pushed into an outbox queue with a client-generated UUID + timestamp + store_id + device_id. UI updates optimistically from local state.
+- **Sync engine:** when connectivity returns, the outbox is replayed against the backend Sync API in original order. Backend processes idempotently (dedupes by client UUID) and returns authoritative results.
+- **Conflict resolution (critical — same SKU may get sold offline by two devices, or sold offline while also sold online):**
+  - Each inventory unit's stock changes are resolved using a **last-write-wins-with-reconciliation** strategy: server is the source of truth for final stock count; if an offline sale would oversell (e.g., two stores/devices sold the last unit offline before either synced), the **first transaction by server-received timestamp wins**, and the conflicting sale is flagged `needs_review` for admin/staff to manually resolve (refund, substitute item, or backorder) rather than silently failing.
+  - This is a deliberate trade-off: offline sales must never block the cashier, but the system must surface conflicts transparently rather than hide overselling.
+- **Periodic background sync:** in addition to sync-on-reconnect, a background interval (e.g., every 60s when online) pulls latest catalog/price/stock updates down to the local store, so staff see near-real-time data when online.
+- **1-day item lock while offline:** lock requests created offline are timestamped locally; on sync, the server applies the 24-hour TTL starting from the **original local lock time** (not sync time) to stay accurate, with the Redis TTL set accordingly (adjusted for elapsed offline time) and Postgres `locked_until` as the durable fallback as already planned.
+- **Receipt printing offline:** receipts generated locally from cached templates (no server round-trip needed) using a local print queue; a "synced ✓ / pending sync ⏳" indicator shown per transaction so staff know what's still pending upload.
+- **Sync status visibility:** POS UI shows a persistent connectivity + pending-sync-count indicator; admin dashboard shows a per-device "last synced at" so issues can be caught early (e.g., a store device stuck offline for days).
+- **Data scope kept local:** only the relevant store's inventory/catalog is mirrored locally (not the entire national catalog) to keep IndexedDB size and sync payloads manageable, especially once multi-store rolls out.
+
+This offline-first design directly supports the **future multi-store rollout** — each store's POS instance independently caches and syncs only its own scoped data, so adding new store locations later doesn't require architectural rework.
+
+## 9. Open Questions — Resolved (Stakeholder Decisions)
+
+| Question | Decision | Impact on Design |
+|---|---|---|
+| Single vs multi-store | **Single store now, multi-store planned for the future** | `store_id` is included on `inventory_units`, `admin_users`, `orders`, and `invoices` from day one (even with one store active) so multi-store rollout later is a data/config change, not a schema migration. |
+| GST invoicing | **Mandatory from day one** | Already reflected in §4.17 (Invoice Generation) — invoice numbering, HSN codes, CGST/SGST/IGST split, credit notes are part of Phase 1/2, not deferred. |
+| Rental deposit handling | **Deposit collected for both online and offline rentals** | Online: deposit captured via Razorpay as a separate payment line item (or pre-auth hold) at booking time, refunded/forfeited via Razorpay Refund API post-inspection. Offline: deposit collected as cash/card/UPI at the POS and recorded in `payments` (type=`deposit`, channel=`offline`), refunded via cash/manual entry at return, logged with an admin signature/approval for accountability. |
+| Offline POS connectivity | **Must work fully offline, auto-sync when online returns** | See full architecture in §8 above — this is now a first-class requirement affecting POS client design, sync API, and conflict-resolution strategy from Phase 1. |
+| Courier integration | **Manual entry only (no courier API initially)** | Admin/staff manually enter courier name + AWB/tracking number + upload/scan the physical courier receipt (image/PDF) against the order. Architecture still leaves room for a future courier API plug-in (Delhivery/Shiprocket) without redesign — `courier_receipts` table already supports either manual or API-sourced data via a `source` field. |
+| Expected scale | **To be sized — assume moderate initial load, design for growth** | Recommend starting Kubernetes with conservative resource requests + Horizontal Pod Autoscaler (HPA) on CPU/memory for API pods, so capacity grows automatically with real order volume rather than over-provisioning upfront. Revisit sizing once actual daily order estimates are available from the business side. |
+
+---
+
+*This plan is a living document — refine module priorities and timelines after stakeholder review.*
