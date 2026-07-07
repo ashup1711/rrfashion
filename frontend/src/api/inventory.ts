@@ -1,4 +1,3 @@
-import apiClient from './client';
 import adminClient from './admin-client';
 import type {
   InventoryVariantDetail,
