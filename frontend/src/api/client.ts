@@ -131,9 +131,9 @@ apiClient.interceptors.response.use(
         localStorage.removeItem('auth_token');
         localStorage.removeItem('refresh_token');
 
-        // Redirect to login (customer or admin)
-        const isAdminRoute = window.location.pathname.startsWith('/admin');
-        window.location.href = isAdminRoute ? '/admin/login' : '/auth/login';
+        // Redirect to login (customer or admin) via hash router
+        const isAdminRoute = window.location.hash.startsWith('#/admin');
+        window.location.href = isAdminRoute ? '/rrfashion/#/admin/login' : '/rrfashion/#/auth/login';
 
         return Promise.reject(refreshError);
       } finally {
