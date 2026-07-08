@@ -54,6 +54,10 @@ jobs:
         shell: bash
         run: docker info
 
+      - name: Clean up previous deployment
+        shell: bash
+        run: docker compose down --remove-orphans --volumes
+
       - name: Start dependencies (PostgreSQL, Redis, MinIO)
         shell: bash
         run: |
@@ -71,6 +75,11 @@ jobs:
         run: |
           sleep 5
           curl -sf http://localhost:3000/api/health && echo "Health OK"
+
+      - name: Clean up
+        if: always()
+        shell: bash
+        run: docker compose down --remove-orphans
 
   deploy-frontend:
     runs-on: ubuntu-latest
