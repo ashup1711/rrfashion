@@ -39,11 +39,16 @@ adminClient.interceptors.response.use(
   },
   async (error: AxiosError) => {
     if (error.response?.status === 401) {
+      const hadToken = !!localStorage.getItem('admin_token');
       localStorage.removeItem('admin_token');
       localStorage.removeItem('admin_refresh_token');
-      window.location.href = '/rrfashion/#/admin/login';
+      if (hadToken) {
+        window.location.href = '/rrfashion/#/admin/login';
+      }
     }
-    return Promise.reject(error);
+    const errorData = error.response?.data as { error?: { message?: string } } | undefined;
+    const message = errorData?.error?.message || error.message || 'An unexpected error occurred';
+    return Promise.reject(new Error(message));
   },
 );
 
