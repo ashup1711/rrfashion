@@ -108,9 +108,14 @@ jobs:
 
       - name: Build
         working-directory: frontend
-        env:
-          VITE_API_URL: ${{ vars.FRONTEND_API_URL || 'http://localhost:3000/api' }}
         run: npm run build
+
+      - name: Inject runtime API URL
+        working-directory: frontend
+        run: |
+          API_URL='${{ vars.FRONTEND_API_URL }}'
+          if [ -z "$API_URL" ]; then API_URL='http://localhost:3000/api'; fi
+          echo "window.__RUNTIME_ENV__ = { API_URL: '$API_URL' };" > dist/runtime-env.js
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
