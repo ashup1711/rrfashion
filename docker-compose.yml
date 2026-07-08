@@ -50,7 +50,51 @@ services:
       timeout: 5s
       retries: 3
 
+  backend:
+    build:
+      context: ./backend
+    container_name: rrfashion-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/rr_fashion?schema=public"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_BUCKET: rrfashion
+      MINIO_USE_SSL: "false"
+      STORAGE_DRIVER: local
+      UPLOAD_DIR: /app/uploads
+      JWT_SECRET: "change-in-production"
+      JWT_ADMIN_SECRET: "change-in-production"
+      JWT_EXPIRES_IN: "15m"
+      JWT_ADMIN_EXPIRES_IN: "15m"
+      REFRESH_EXPIRES_IN: "7d"
+      BCRYPT_SALT_ROUNDS: "12"
+    command: >
+      sh -c "npx prisma migrate deploy && node dist/main"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    volumes:
+      - backend_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+  backend_uploads:

@@ -46,7 +46,6 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
   deploy-backend:
-    needs: build-and-push
     runs-on: [self-hosted, macos]
     steps:
       - uses: actions/checkout@v4
@@ -55,53 +54,23 @@ jobs:
         shell: bash
         run: docker info
 
-      - name: Setup kind cluster
+      - name: Start dependencies (PostgreSQL, Redis, MinIO)
         shell: bash
         run: |
-          # Install kind
-          if ! command -v kind &>/dev/null; then
-            if command -v brew &>/dev/null; then
-              brew install kind
-            else
-              KIND_VERSION=v0.31.0
-              mkdir -p $HOME/.local/bin
-              ARCH=amd64
-              [ "$(uname -m)" = arm64 ] && ARCH=arm64
-              curl -sfL --retry 3 \
-                "https://github.com/kubernetes-sigs/kind/releases/download/$KIND_VERSION/kind-darwin-$ARCH" \
-                -o $HOME/.local/bin/kind
-              chmod +x $HOME/.local/bin/kind
-              export PATH="$HOME/.local/bin:$PATH"
-            fi
-          fi
-          kind version
+          docker compose up -d postgres redis minio --wait
+          echo "Dependencies ready"
 
-          # Create cluster
-          kind create cluster --name rrfashion --wait 60s
-          kubectl cluster-info --context kind-rrfashion
-
-      - name: Build and load Docker image into kind
-        env:
-          IMG: rrfashion-backend:${{ github.sha }}
+      - name: Build and start backend
+        shell: bash
         run: |
-          docker build -t $IMG backend
-          kind load docker-image $IMG --name rrfashion
+          docker compose up -d backend --build --wait
+          echo "Backend started"
 
-      - name: Apply Kubernetes manifests
+      - name: Verify deployment
+        shell: bash
         run: |
-          kubectl apply -f k8s/namespace.yaml
-          kubectl apply -f k8s/deployment.yaml
-
-      - name: Update deployment image
-        env:
-          IMG: rrfashion-backend:${{ github.sha }}
-        run: |
-          kubectl set image deployment/rrfashion-api -n rrfashion \
-            api=$IMG
-
-      - name: Wait for rollout
-        run: |
-          kubectl rollout status deployment/rrfashion-api -n rrfashion --timeout=300s
+          sleep 5
+          curl -sf http://localhost:3000/api/health && echo "Health OK"
 
   deploy-frontend:
     runs-on: ubuntu-latest
