@@ -5,94 +5,37 @@ on:
     branches: [main]
 
 permissions:
-  packages: write
   contents: write
   pages: write
   id-token: write
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/rrfashion-backend
-
 jobs:
-  build-and-push:
-    runs-on: [self-hosted, macos]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Log in to GitHub Container Registry
-        shell: bash
-        env:
-          GHCR_USER: ${{ github.repository_owner }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p $HOME/.docker
-          AUTH=$(printf "%s:%s" "$GHCR_USER" "$GHCR_TOKEN" | base64)
-          cat > $HOME/.docker/config.json << EOF
-          {
-            "auths": {
-              "${{ env.REGISTRY }}": {
-                "auth": "$AUTH"
-              }
-            }
-          }
-          EOF
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: backend
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-
   deploy-backend:
-    needs: build-and-push
     runs-on: [self-hosted, macos]
-    env:
-      COMPOSE_PROJECT_NAME: rrfashion-ci
-      POSTGRES_HOST_PORT: 5434
-      REDIS_HOST_PORT: 6380
-      MINIO_API_PORT: 9002
-      MINIO_CONSOLE_PORT: 9003
-      BACKEND_HOST_PORT: 3001
     steps:
       - uses: actions/checkout@v4
 
       - name: Check Docker
-        shell: bash
         run: docker info
 
-      - name: Clean up previous CI deployment
-        shell: bash
+      - name: Stop and remove old containers
         run: docker compose down --remove-orphans
 
-      - name: Start dependencies (PostgreSQL, Redis, MinIO)
-        shell: bash
+      - name: Build and start all services
         run: |
-          docker compose up -d postgres redis minio --wait
-          echo "Dependencies ready"
+          docker compose up -d --build --wait --wait-timeout 180
+          echo "All services started"
 
-      - name: Build and start backend
-        shell: bash
-        run: |
-          docker compose up -d backend --build --wait --wait-timeout 180
-          echo "Backend started"
-
-      - name: Verify deployment
-        shell: bash
+      - name: Verify backend health
         run: |
           docker compose exec -T backend \
             curl -sf http://localhost:3000/api/health && echo "Health OK"
 
-      - name: Clean up
+      - name: Clean up on failure
         if: failure()
-        shell: bash
         run: docker compose down --remove-orphans
 
   deploy-frontend:
-    needs: build-and-push
     runs-on: ubuntu-latest
     environment:
       name: github-pages
