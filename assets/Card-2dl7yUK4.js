@@ -1,0 +1,1 @@
+import{j as t}from"./index-PDxUqqXh.js";const d=({children:r,className:s="",padding:e=!0,...o})=>t.jsx("div",{className:`bg-white border border-gray-200 rounded-lg shadow-sm ${e?"p-6":""} ${s}`,...o,children:r});export{d as C};
