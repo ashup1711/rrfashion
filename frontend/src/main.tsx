@@ -29,7 +29,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <AuthInitializer>
           <App />
         </AuthInitializer>
-        <Toaster richColors position="top-right" />
+        <Toaster richColors position="top-right" duration={4000} />
       </HashRouter>
     </QueryClientProvider>
   </React.StrictMode>,

@@ -23,11 +23,8 @@ const ProfileForm = ({ profile }: ProfileFormProps) => {
     phone: profile?.phone ?? '',
   });
 
-  const [successMessage, setSuccessMessage] = useState('');
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-    setSuccessMessage('');
   };
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -35,7 +32,7 @@ const ProfileForm = ({ profile }: ProfileFormProps) => {
     if (!file) return;
     try {
       await photoMutation.mutateAsync(file);
-      setSuccessMessage('Profile photo updated!');
+      toast.success('Profile photo updated!');
     } catch (err) {
       console.error('[ProfilePhoto] Upload failed:', err);
       toast.error('Failed to upload profile photo. Please try again.');
@@ -50,7 +47,7 @@ const ProfileForm = ({ profile }: ProfileFormProps) => {
         lastName: formData.lastName,
         phone: formData.phone || undefined,
       });
-      setSuccessMessage('Profile updated successfully!');
+      toast.success('Profile updated successfully!');
     } catch {
       toast.error('Failed to update profile. Please try again.');
     }
@@ -59,12 +56,6 @@ const ProfileForm = ({ profile }: ProfileFormProps) => {
   return (
     <Card>
       <h3 className="text-lg font-semibold text-gray-900 mb-6">Edit Profile</h3>
-
-      {successMessage && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded-md">
-          {successMessage}
-        </div>
-      )}
 
       {/* Profile Photo Section */}
       <div className="mb-6 pb-6 border-b border-gray-200">
