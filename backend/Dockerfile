@@ -8,7 +8,7 @@ RUN npm ci
 COPY tsconfig*.json ./
 COPY . .
 
-RUN npm run prisma:generate && npm run build
+RUN npm run prisma:generate && npm run build && npx tsc prisma/seed.ts --outDir dist/prisma --esModuleInterop --module commonjs --skipLibCheck
 
 FROM node:20-alpine AS runner
 
