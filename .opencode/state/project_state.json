@@ -1,0 +1,133 @@
+{
+  "project_setup": {
+    "has_database": true,
+    "has_backend": true,
+    "has_frontend": true,
+    "database_type": "prisma",
+    "backend_framework": "nestjs",
+    "frontend_framework": "react"
+  },
+  "prompt_analysis": {
+    "layers_affected": [
+      "backend",
+      "frontend"
+    ],
+    "change_type": "bugfix",
+    "complexity": "medium"
+  },
+  "required_agents": [
+    "node-expert",
+    "react-expert",
+    "code-review-and-qa",
+    "suggestion-agent"
+  ],
+  "pipeline_mode": "implement",
+  "research_report": ".opencode/state/suggestion_report.md",
+  "status": "in_progress",
+  "backend_code": {
+    "wallet.service.ts": "Added getAllTransactions() \u2014 paginated admin query with user include, and getStats() \u2014 aggregated wallet metrics",
+    "admin-wallet.controller.ts": "Created AdminWalletController with GET /admin/wallet/transactions and GET /admin/wallet/stats, guarded by AdminJwtAuthGuard + RolesGuard",
+    "wallet.module.ts": "Registered AdminWalletController in module controllers",
+    "admin-wallet-query.dto.ts": "Created DTO extending PaginationDto with optional type filter",
+    "wallet.service.spec.ts": "Added test coverage for getAllTransactions and getStats methods",
+    "create-variant.dto.ts": "Added InitialStockEntry nested class + initialStock field (IsArray, ValidateNested, @Type)",
+    "variants.service.ts": "Imported/injected InventoryService; create() method calls adjustStock for each initialStock entry",
+    "variants.module.ts": "Imported InventoryModule into imports array for DI resolution",
+    "inventory.service.ts": "Fixed releaseExpiredLocks() to restore quantityAvailable and decrement quantityLocked after lock expiration",
+    "pos.service.ts": "Fixed processLockMutation() to delegate to InventoryService.createLock(); added getStoreInventory() method",
+    "pos.controller.ts": "Added GET /pos/inventory endpoint for store inventory lookup",
+    "pos.module.ts": "Imported InventoryModule for DI resolution of InventoryService",
+    "get-inventory.dto.ts": "Created DTO with storeId (required), search and category (optional) query params",
+    "analytics.service.ts": "Fixed dashboard response from nested to flat structure; added getActiveRentalsCount, getTotalCustomersCount, getTotalProductsCount helpers; added revenueChart method with formatDateLabel; updated topProducts SQL to join orders for createdAt filter and include product image subquery; made getDateRange public",
+    "analytics.controller.ts": "Added GET revenue-chart endpoint; updated topProducts handler to accept view parameter with getDateRange fallback",
+    "top-products-query.dto.ts": "Added view field with IsEnum(['day','week','month','year']) and IsOptional decorators"
+  },
+  "frontend_code": {
+    "api/client.ts": "Removed admin_token from request interceptor token priority \u2014 apiClient now only uses auth_token or guest_token",
+    "api/wallet.ts": "Added adminGetWalletStats() and adminGetWalletTransactions() using adminClient, plus AdminWalletStats and AdminWalletTransactionFilters types",
+    "utils/constants.ts": "Added adminWalletStats and adminWalletTransactions query keys",
+    "hooks/useWallet.ts": "Added useAdminWalletStats and useAdminWalletTransactions hooks",
+    "pages/Admin/Wallet/index.tsx": "Replaced customer wallet hooks (useWalletBalance, useWalletTransactions) with admin hooks (useAdminWalletStats, useAdminWalletTransactions); added TotalUsers stat card (4-column grid)",
+    "store/authStore.ts": "Added isAdminAuthValidated field (default false), setAdminAuthValidated action; setAdminAuth sets isAdminAuthValidated=true; adminLogout and clearAuth reset to false",
+    "components/auth/AuthInitializer.tsx": "NEW \u2014 validates admin token via /admin/auth/me on app load for admin routes, shows LoadingSpinner during validation, redirects to /admin/login on failure",
+    "App.tsx": "Added isAdminAuthValidated check alongside isAdminAuthenticated for admin route guarding",
+    "main.tsx": "Wrapped App with AuthInitializer inside BrowserRouter",
+    "api/inventory.ts": "Added AdjustStockData interface and adjustStock() function (PATCH /admin/inventory/adjust-stock); added quantityLocked: number to InventoryListItem interface",
+    "hooks/useInventory.ts": "Added useAdjustStock mutation hook that invalidates inventory query on success",
+    "pages/Admin/Inventory/components/StockAdjustmentModal.tsx": "NEW \u2014 StockAdjustmentModal with store selector, Add/Remove/Set Absolute radio, quantity input, notes textarea, current stock display, validation, and Apply button",
+    "pages/Admin/Inventory/InventoryView.tsx": "Added Adjust Stock button in actions column, showAdjustModal/selectedAdjustItem state, StockAdjustmentModal rendering; added lockQuantity state, quantity input in lock modal, Locked column in table, quantityLocked display in variant detail stock summary (grid-cols-4), quantity validation and passing in handleCreateLock, lockQuantity reset on modal close/cancel; [NEW] Added Spec column with size/color after Product column; Added Variant Info header (SKU/Size/Color) in Detail Modal before Stock Summary; Enhanced Lock Modal with variant info display, store selector dropdown with avail/locked counts, max available indicator after qty input; Updated active locks list to show Size, Color, Qty, Store name; Added lockStoreId state; handleCreateLock validates lockStoreId and checks max available stock; onClose/Cancel reset lockStoreId",
+    "pages/Admin/Inventory/components/StockAdjustmentModal.tsx": "Updated stock info section to show product name, SKU, size, color specs, and Available/Locked/Sold summary",
+    "pages/POS/PosPage.tsx": "Updated loadProducts() to fetch from /pos/inventory endpoint with storeId param and x-pos-api-key/x-pos-device-id headers; maps quantityAvailable to stock field instead of p.stock; removed flatMap nested variants logic",
+    "types/product.ts": "Added initialStock?: { storeId: string; quantity: number }[] to CreateVariantData",
+    "pages/Admin/Products/ProductForm.tsx": "Added useStores data fetching, VariantFormData.initialStock field, emptyVariant.initialStock default, handleVariantInitialStockChange handler, collapsible Initial Stock section with per-store inputs, initialStock passed on submit, initialStock: [] in edit variant population",
+    "types/inventory.ts": "Added quantityLocked: number to InventorySummary, quantity: number to InventoryLock, quantity?: number to CreateLockData"
+  },
+  "db_schema": {
+    "schema.prisma": "Added quantityLocked field to InventorySummary model (after quantityReserved, before quantitySold); added LOCK, UNLOCK, RESERVATION, SALE_FINAL to StockMovementType enum; added partial index inventory_summary_locked_idx on (storeId, quantityLocked) WHERE quantityLocked > 0"
+  },
+  "coverage_manifests": {
+    "node-expert": ".opencode/state/coverage_backend.json",
+    "react-expert": ".opencode/state/coverage_frontend.json",
+    "db-expert-postgres": ".opencode/state/coverage_db.json"
+  },
+  "qa_report": {
+    "passed": false,
+    "errors": [
+      {
+        "type": "code_review",
+        "subtype": "type_mismatch",
+        "location": "src/components/auth/AuthInitializer.tsx:45",
+        "expected": "Type-safe access to response.permissions (or AdminMeResponse type updated to include permissions)",
+        "actual": "Direct cast from AdminMeResponse to Record<string, unknown> which TypeScript rejects \u2014 TS2352",
+        "fix": "Cast through unknown first: (response as unknown as Record<string, unknown>).permissions as string[] ?? [], or better: add permissions?: string[] to AdminMeResponse type",
+        "blocks_build": true
+      },
+      {
+        "type": "code_review",
+        "subtype": "pattern_violation",
+        "location": "src/components/auth/AuthInitializer.tsx:61 (useEffect dependency array)",
+        "expected": "useEffect should re-run when navigating to admin routes to validate the token. Dependency array should include location.pathname so SPA navigation triggers re-validation.",
+        "actual": "Empty dependency array [] means the effect only runs once on mount. SPA navigation from customer route to admin route skips validation, leaving isAdminAuthValidated=false, causing App.tsx to redirect to /admin/login even with a valid token.",
+        "fix": "Add location.pathname as dependency and guard with isAdminAuthValidated check: useEffect(() => { if (useAuthStore.getState().isAdminAuthValidated) { setIsValidating(false); return; } validateAuth(); }, [location.pathname]);",
+        "blocks_build": false
+      }
+    ],
+    "retry_count": 0,
+    "max_retries": 3,
+    "checked_contracts": [
+      "frontend-wallet-api-to-backend",
+      "frontend-auth-init-to-backend",
+      "frontend-client-token-priority",
+      "frontend-store-auth-validation-state"
+    ],
+    "code_review_passed": false,
+    "qa_verification_passed": true,
+    "notes": {
+      "requirement_coverage": "All 10 REQ-FE-* requirements are implemented with matching file evidence. research_report_coverage.json is from a previous pipeline iteration (REQ-LP-*) and does not overlap with current REQ-FE-* coverage. This is a pipeline configuration artifact, not an implementation error.",
+      "pre_existing_build_errors": [
+        "src/api/admin-users.ts: TS6133 (unused import)",
+        "src/api/inventory.ts: TS6133 (unused import)",
+        "src/api/reviews-admin.ts: TS6133 (unused import)",
+        "src/api/roles.ts: TS6133 (unused import)",
+        "src/api/stores.ts: TS6133 (unused import)",
+        "src/pages/Admin/Users/UserList.tsx: TS6133 (unused import)"
+      ],
+      "agent_files_reviewed": [
+        "src/api/client.ts",
+        "src/api/wallet.ts",
+        "src/utils/constants.ts",
+        "src/hooks/useWallet.ts",
+        "src/pages/Admin/Wallet/index.tsx",
+        "src/store/authStore.ts",
+        "src/components/auth/AuthInitializer.tsx",
+        "src/App.tsx",
+        "src/main.tsx"
+      ]
+    }
+  },
+  "loopback_targets": [
+    "react-expert"
+  ],
+  "suggestion_report": ".opencode/state/suggestion_report.md",
+  "updated_at": "2026-07-07T12:26:46.218047"
+}

@@ -1,0 +1,77 @@
+{
+  "manifest_version": "1.0",
+  "research_report": ".opencode/state/research_report.md",
+  "generated_at": "2026-07-07T06:05:00Z",
+  "requirements": [
+    {
+      "id": "REQ-LP-001",
+      "layer": "frontend",
+      "description": "Fix 3/4 empty ProductCollections — replace empty category slugs (womens-long-kurti, womens-short-kurti, womens-gown have 0 products) with populated ones",
+      "section": "What to Build / Layer: Frontend",
+      "design_doc_ref": "User report: Content sections missing/empty"
+    },
+    {
+      "id": "REQ-LP-002",
+      "layer": "frontend",
+      "description": "Replace HeroBanner placeholder colored divs with real product images fetched from API",
+      "section": "What to Build / Layer: Frontend",
+      "design_doc_ref": "User report: Design/UI/UX not matching spec — placeholder images"
+    },
+    {
+      "id": "REQ-LP-003",
+      "layer": "frontend",
+      "description": "Replace CategoryCards placeholder colored circles with real category images from API",
+      "section": "What to Build / Layer: Frontend",
+      "design_doc_ref": "User report: Categories look like unfinished placeholders"
+    },
+    {
+      "id": "REQ-LP-004",
+      "layer": "frontend",
+      "description": "Verify section spacing — body bg-deep-maroon between white sections is intentional per spec; flag if adjustment needed with empty sections",
+      "section": "What to Build / Layer: Frontend",
+      "design_doc_ref": "User report: Layout looks wrong — verify spacing"
+    },
+    {
+      "id": "REQ-LP-005",
+      "layer": "frontend",
+      "description": "Fix currency from INR (₹) to BDT (৳) in formatCurrency.ts",
+      "section": "What to Build / Layer: Frontend",
+      "design_doc_ref": "Design Spec Analysis: CRITICAL-001"
+    },
+    {
+      "id": "REQ-LP-006",
+      "layer": "frontend",
+      "description": "Inter font loading — already fixed in current index.html, no action needed",
+      "section": "What to Build / Layer: Frontend",
+      "design_doc_ref": "Design Spec Analysis: HIGH-001 — verified done"
+    },
+    {
+      "id": "REQ-LP-007",
+      "layer": "frontend",
+      "description": "Nav link font size — already correct (uses text-nav-link = 20px), no action needed",
+      "section": "What to Build / Layer: Frontend",
+      "design_doc_ref": "Design Spec Analysis: MEDIUM-001 — verified done"
+    }
+  ],
+  "total_requirements": 7,
+  "cross_stack_contracts": [
+    {
+      "id": "REQ-CR-001",
+      "description": "ProductCollection useProducts(categoryId) → GET /api/products?categoryId=X&limit=4",
+      "frontend_field": "items (ProductListResponse)",
+      "backend_field": "data.items (Product[] after envelope unwrap)"
+    },
+    {
+      "id": "REQ-CR-002",
+      "description": "CategoryCards (proposed) useCategories() → GET /api/categories",
+      "frontend_field": "Category[] with image field",
+      "backend_field": "data (Category[] after envelope unwrap)"
+    },
+    {
+      "id": "REQ-CR-003",
+      "description": "HeroBanner (proposed) useProducts(isFeatured: true) → GET /api/products?isFeatured=true",
+      "frontend_field": "ProductListResponse.items[*].images[0]",
+      "backend_field": "data.items[].images (string[] of URLs)"
+    }
+  ]
+}
