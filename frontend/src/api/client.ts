@@ -5,6 +5,7 @@ const apiClient = axios.create({
   baseURL: localStorage.getItem('api_url') || import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
   headers: {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
   },
   timeout: 15000,
 });
