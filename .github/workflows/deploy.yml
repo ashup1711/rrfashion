@@ -56,7 +56,10 @@ jobs:
 
       - name: Clean up previous deployment
         shell: bash
-        run: docker compose down --remove-orphans --volumes
+        run: |
+          docker compose down --remove-orphans --volumes
+          # Free port 3000 from any stale process
+          PID=$(lsof -ti :3000 2>/dev/null) && kill -9 $PID && echo "Killed process $PID on port 3000" || true
 
       - name: Start dependencies (PostgreSQL, Redis, MinIO)
         shell: bash
