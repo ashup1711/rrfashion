@@ -52,9 +52,17 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup kind cluster
-        uses: helm/kind-action@v1
-        with:
-          cluster_name: rrfashion
+        shell: bash
+        run: |
+          # Install kind (macOS-compatible)
+          KIND_VERSION=v0.31.0
+          curl -sL https://kind.sigs.k8s.io/dl/$KIND_VERSION/kind-darwin-arm64 -o /usr/local/bin/kind
+          chmod +x /usr/local/bin/kind
+          kind version
+
+          # Create cluster
+          kind create cluster --name rrfashion --wait 60s
+          kubectl cluster-info --context kind-rrfashion
 
       - name: Build and load Docker image into kind
         env:
