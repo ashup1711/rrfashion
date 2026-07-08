@@ -1,0 +1,12 @@
+services:
+  postgres:
+    ports: []
+
+  redis:
+    ports: []
+
+  minio:
+    ports: []
+
+  backend:
+    ports: []

@@ -48,6 +48,9 @@ jobs:
   deploy-backend:
     needs: build-and-push
     runs-on: [self-hosted, macos]
+    env:
+      COMPOSE_PROJECT_NAME: rrfashion-ci
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
     steps:
       - uses: actions/checkout@v4
 
@@ -55,12 +58,9 @@ jobs:
         shell: bash
         run: docker info
 
-      - name: Clean up previous deployment
+      - name: Clean up previous CI deployment
         shell: bash
-        run: |
-          docker compose down --remove-orphans --volumes
-          # Free port 3000 from any stale process
-          PID=$(lsof -ti :3000 2>/dev/null) && kill -9 $PID && echo "Killed process $PID on port 3000" || true
+        run: docker compose down --remove-orphans --volumes
 
       - name: Start dependencies (PostgreSQL, Redis, MinIO)
         shell: bash
@@ -77,8 +77,8 @@ jobs:
       - name: Verify deployment
         shell: bash
         run: |
-          sleep 5
-          curl -sf http://localhost:3000/api/health && echo "Health OK"
+          docker exec rrfashion-ci-backend \
+            curl -sf http://localhost:3000/api/health && echo "Health OK"
 
       - name: Clean up
         if: always()
