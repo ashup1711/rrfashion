@@ -24,7 +24,11 @@ async function bootstrap() {
   app.enableCors({
     origin:
       process.env.NODE_ENV === 'production'
-        ? ['https://rrfashion.com', 'https://admin.rrfashion.com']
+        ? [
+            'https://rrfashion.com',
+            'https://admin.rrfashion.com',
+            'https://ashup1711.github.io',
+          ]
         : true,
     credentials: true,
   });
