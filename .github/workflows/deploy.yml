@@ -7,6 +7,8 @@ on:
 permissions:
   packages: write
   contents: write
+  pages: write
+  id-token: write
 
 env:
   REGISTRY: ghcr.io
@@ -50,11 +52,7 @@ jobs:
     runs-on: [self-hosted, macos]
     env:
       COMPOSE_PROJECT_NAME: rrfashion-ci
-      POSTGRES_HOST_PORT: 5434
-      REDIS_HOST_PORT: 6380
-      MINIO_API_PORT: 9002
-      MINIO_CONSOLE_PORT: 9003
-      BACKEND_HOST_PORT: 3001
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
     steps:
       - uses: actions/checkout@v4
 
@@ -64,7 +62,7 @@ jobs:
 
       - name: Clean up previous CI deployment
         shell: bash
-        run: docker compose down --remove-orphans --volumes
+        run: docker compose down --remove-orphans
 
       - name: Start dependencies (PostgreSQL, Redis, MinIO)
         shell: bash
@@ -92,6 +90,9 @@ jobs:
   deploy-frontend:
     needs: build-and-push
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -117,8 +118,11 @@ jobs:
           if [ -z "$API_URL" ]; then API_URL='http://localhost:3000/api'; fi
           echo "window.__RUNTIME_ENV__ = { API_URL: '$API_URL' };" > dist/runtime-env.js
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./frontend/dist
+          path: ./frontend/dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

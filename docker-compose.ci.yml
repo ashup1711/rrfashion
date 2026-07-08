@@ -1,0 +1,16 @@
+services:
+  postgres:
+    container_name: rrfashion-ci-postgres
+    ports: []
+
+  redis:
+    container_name: rrfashion-ci-redis
+    ports: []
+
+  minio:
+    container_name: rrfashion-ci-minio
+    ports: []
+
+  backend:
+    container_name: rrfashion-ci-backend
+    ports: []
