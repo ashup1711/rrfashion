@@ -77,7 +77,7 @@ jobs:
       - name: Verify deployment
         shell: bash
         run: |
-          docker exec rrfashion-ci-backend \
+          docker compose exec -T backend \
             curl -sf http://localhost:3000/api/health && echo "Health OK"
 
       - name: Clean up
