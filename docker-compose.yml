@@ -72,7 +72,7 @@ services:
       REFRESH_EXPIRES_IN: "7d"
       BCRYPT_SALT_ROUNDS: "12"
     command: >
-      sh -c "npx prisma migrate deploy && npm run prisma:seed && node dist/main"
+      sh -c "npx prisma migrate deploy && npm run prisma:seed; node dist/main"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:3000/api/health"]
       interval: 10s

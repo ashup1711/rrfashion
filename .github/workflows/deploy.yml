@@ -77,7 +77,7 @@ jobs:
       - name: Build and start backend
         shell: bash
         run: |
-          docker compose up -d backend --build --wait
+          docker compose up -d backend --build --wait --wait-timeout 180
           echo "Backend started"
 
       - name: Verify deployment
