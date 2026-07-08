@@ -104,6 +104,8 @@ jobs:
 
       - name: Build
         working-directory: frontend
+        env:
+          VITE_API_URL: ${{ vars.FRONTEND_API_URL || 'http://localhost:3000/api' }}
         run: npm run build
 
       - name: Deploy to GitHub Pages
