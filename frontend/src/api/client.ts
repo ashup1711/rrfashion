@@ -1,8 +1,11 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import type { ApiError, ApiErrorResponse } from '../types/api';
 
+function getApiUrl() {
+  return localStorage.getItem('api_url') || window.__RUNTIME_ENV__?.API_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+}
+
 const apiClient = axios.create({
-  baseURL: localStorage.getItem('api_url') || window.__RUNTIME_ENV__?.API_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
   headers: {
     'Content-Type': 'application/json',
     'ngrok-skip-browser-warning': 'true',
@@ -31,6 +34,7 @@ const processQueue = (error: unknown, token: string | null = null) => {
 // Request interceptor — attach the best available token (priority: auth_token > guest_token)
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
+    config.baseURL = getApiUrl();
     const authToken = localStorage.getItem('auth_token');
     const guestToken = localStorage.getItem('guest_token');
 
@@ -107,7 +111,7 @@ apiClient.interceptors.response.use(
           : '/auth/refresh';
 
         const { data: refreshData } = await axios.post(
-          `${apiClient.defaults.baseURL}${refreshUrl}`,
+          `${getApiUrl()}${refreshUrl}`,
           { refreshToken },
         );
 
