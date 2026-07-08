@@ -87,7 +87,7 @@ jobs:
             curl -sf http://localhost:3000/api/health && echo "Health OK"
 
       - name: Clean up
-        if: always()
+        if: failure()
         shell: bash
         run: docker compose down --remove-orphans
 
