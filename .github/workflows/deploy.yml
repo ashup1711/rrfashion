@@ -46,6 +46,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
   deploy-backend:
+    needs: build-and-push
     runs-on: [self-hosted, macos]
     steps:
       - uses: actions/checkout@v4
@@ -85,6 +86,7 @@ jobs:
         run: docker compose down --remove-orphans
 
   deploy-frontend:
+    needs: build-and-push
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
