@@ -51,24 +51,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check Docker
+        shell: bash
+        run: docker info
+
       - name: Setup kind cluster
         shell: bash
         run: |
-          # Install kind via brew (already installed or cached on macOS runners)
-          if command -v kind &>/dev/null; then
-            echo "kind already installed"
-          elif command -v brew &>/dev/null; then
-            brew install kind
-          else
-            KIND_VERSION=v0.31.0
-            mkdir -p $HOME/.local/bin
-            ARCH=amd64
-            [ "$(uname -m)" = arm64 ] && ARCH=arm64
-            curl -sfL --retry 3 \
-              "https://github.com/kubernetes-sigs/kind/releases/download/$KIND_VERSION/kind-darwin-$ARCH" \
-              -o $HOME/.local/bin/kind
-            chmod +x $HOME/.local/bin/kind
-            export PATH="$HOME/.local/bin:$PATH"
+          # Install kind
+          if ! command -v kind &>/dev/null; then
+            if command -v brew &>/dev/null; then
+              brew install kind
+            else
+              KIND_VERSION=v0.31.0
+              mkdir -p $HOME/.local/bin
+              ARCH=amd64
+              [ "$(uname -m)" = arm64 ] && ARCH=arm64
+              curl -sfL --retry 3 \
+                "https://github.com/kubernetes-sigs/kind/releases/download/$KIND_VERSION/kind-darwin-$ARCH" \
+                -o $HOME/.local/bin/kind
+              chmod +x $HOME/.local/bin/kind
+              export PATH="$HOME/.local/bin:$PATH"
+            fi
           fi
           kind version
 
