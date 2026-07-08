@@ -52,7 +52,11 @@ jobs:
     runs-on: [self-hosted, macos]
     env:
       COMPOSE_PROJECT_NAME: rrfashion-ci
-      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+      POSTGRES_HOST_PORT: 5434
+      REDIS_HOST_PORT: 6380
+      MINIO_API_PORT: 9002
+      MINIO_CONSOLE_PORT: 9003
+      BACKEND_HOST_PORT: 3001
     steps:
       - uses: actions/checkout@v4
 
