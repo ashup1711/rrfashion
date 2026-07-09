@@ -6,10 +6,10 @@ metadata:
 data:
   NODE_ENV: "production"
   PORT: "3000"
-  DATABASE_URL: "postgresql://postgres:postgres@host.minikube.internal:5433/rr_fashion?schema=public"
-  REDIS_HOST: "host.minikube.internal"
+  DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/rr_fashion?schema=public"
+  REDIS_HOST: "redis"
   REDIS_PORT: "6379"
-  MINIO_ENDPOINT: "host.minikube.internal"
+  MINIO_ENDPOINT: "minio"
   MINIO_PORT: "9000"
   MINIO_BUCKET: "rrfashion"
   MINIO_USE_SSL: "false"

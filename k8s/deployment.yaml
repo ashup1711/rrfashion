@@ -6,7 +6,7 @@ metadata:
   labels:
     app: rrfashion-api
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -24,6 +24,16 @@ spec:
         prometheus.io/port: "3000"
         prometheus.io/path: "/api/metrics"
     spec:
+      initContainers:
+        - name: prisma-migrate
+          image: rrfashion/backend:latest
+          imagePullPolicy: IfNotPresent
+          command: ["npx", "prisma", "migrate", "deploy"]
+          envFrom:
+            - configMapRef:
+                name: rrfashion-config
+            - secretRef:
+                name: rrfashion-secrets
       containers:
         - name: api
           image: rrfashion/backend:latest

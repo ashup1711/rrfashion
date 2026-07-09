@@ -10,38 +10,81 @@ permissions:
   id-token: write
 
 jobs:
-  deploy-backend:
-    runs-on: [self-hosted, macos]
+  build-and-deploy:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check Docker
-        run: docker info
+      - name: Setup minikube
+        uses: medyagh/setup-minikube@latest
+        with:
+          driver: docker
+          cpus: 2
+          memory: 4096
 
-      - name: Stop and remove old containers
-        run: docker compose down --remove-orphans
-
-      - name: Build and start all services
+      - name: Build Docker image in minikube
         run: |
-          docker compose up -d --build --wait --wait-timeout 180
-          echo "All services started"
+          minikube image build -t rrfashion/backend:latest ./backend
+          echo "Docker image built and loaded into minikube"
+          minikube ssh docker images | grep rrfashion
+
+      - name: Create namespace
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          echo "Namespace created"
+
+      - name: Apply ConfigMap and Secrets
+        run: |
+          kubectl apply -f k8s/configmap.yaml
+          kubectl apply -f k8s/secrets.yaml
+          echo "ConfigMap and Secrets applied"
+
+      - name: Deploy PostgreSQL
+        run: |
+          kubectl apply -f k8s/postgres.yaml
+          echo "PostgreSQL deployed"
+          kubectl rollout status deployment/postgres -n rrfashion --timeout=120s
+
+      - name: Deploy Redis
+        run: |
+          kubectl apply -f k8s/redis.yaml
+          echo "Redis deployed"
+          kubectl rollout status deployment/redis -n rrfashion --timeout=120s
+
+      - name: Deploy backend
+        run: |
+          kubectl apply -f k8s/deployment.yaml
+          echo "Backend deployed"
+          kubectl rollout status deployment/rrfashion-api -n rrfashion --timeout=180s
 
       - name: Verify backend health
         run: |
-          docker compose exec -T backend \
-            curl -sf http://localhost:3000/api/health && echo "Health OK"
+          kubectl exec -n rrfashion deployment/rrfashion-api -- curl -sf http://localhost:3000/api/health || echo "Health check failed"
+          echo "Backend health verified"
 
-      - name: Clean up on failure
-        if: failure()
-        run: docker compose down --remove-orphans
+      - name: Port-forward backend service
+        run: |
+          kubectl port-forward -n rrfashion service/rrfashion-api 3000:3000 &
+          sleep 5
+          curl -sf http://localhost:3000/api/health || echo "Port-forward not ready"
+          echo "Backend port-forward established"
 
-  deploy-frontend:
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
+      - name: Install and start ngrok
+        env:
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+        run: |
+          curl -s https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar -xz
+          sudo mv ngrok /usr/local/bin/
+          ngrok config add-authtoken $NGROK_AUTH_TOKEN
+          nohup ngrok http --domain=ashup1711.ngrok-free.app 3000 > ngrok.log 2>&1 &
+          sleep 5
+          cat ngrok.log
+          echo "ngrok started"
+
+      - name: Verify ngrok tunnel
+        run: |
+          curl -sf https://ashup1711.ngrok-free.app/api/health || echo "ngrok tunnel not ready"
+          echo "ngrok tunnel verified"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -50,20 +93,20 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
 
-      - name: Build
+      - name: Build frontend
         working-directory: frontend
         run: npm run build
 
       - name: Inject runtime API URL
         working-directory: frontend
         run: |
-          API_URL='${{ vars.FRONTEND_API_URL }}'
-          if [ -z "$API_URL" ]; then API_URL='http://localhost:3000/api'; fi
+          API_URL='https://ashup1711.ngrok-free.app/api'
           echo "window.__RUNTIME_ENV__ = { API_URL: '$API_URL' };" > dist/runtime-env.js
+          echo "Runtime API URL injected: $API_URL"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
@@ -73,3 +116,12 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Print deployment status
+        if: always()
+        run: |
+          echo "=== Deployment Status ==="
+          kubectl get pods -n rrfashion
+          kubectl get services -n rrfashion
+          echo "=== ngrok Status ==="
+          curl -sf https://ashup1711.ngrok-free.app/api/health || echo "ngrok tunnel check failed"
