@@ -1,5 +1,21 @@
 export const API_BASE_URL = (typeof window !== 'undefined' ? (localStorage.getItem('api_url') || window.__RUNTIME_ENV__?.API_URL) : undefined) || import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
+/** Backend origin (without /api suffix) — used to resolve relative asset URLs. */
+export const BACKEND_ORIGIN = API_BASE_URL.replace(/\/api$/, '');
+
+/**
+ * Resolve a potentially relative backend asset URL (e.g. /uploads/...)
+ * to an absolute URL. Passes through blob: and https:// URLs unchanged.
+ */
+export function resolveImageUrl(url: string): string {
+  if (!url) return '';
+  if (url.startsWith('blob:') || url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  // Relative path — prefix with backend origin
+  return `${BACKEND_ORIGIN}${url}`;
+}
+
 export const ROUTES = {
   // Customer routes
   HOME: '/',

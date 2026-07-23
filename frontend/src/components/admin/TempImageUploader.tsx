@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { toast } from 'sonner';
 import type { TempImage } from '../../hooks/useTempImages';
+import { resolveImageUrl } from '../../utils/constants';
 
 interface TempImageUploaderProps {
   tempImages: TempImage[];
@@ -154,7 +155,7 @@ const TempImageUploader: React.FC<TempImageUploaderProps> = ({
               className="relative group aspect-square rounded-lg overflow-hidden border border-gray-200 bg-gray-50"
             >
               <img
-                src={image.url}
+                src={resolveImageUrl(image.url)}
                 alt="Preview"
                 className="w-full h-full object-cover"
                 loading="lazy"

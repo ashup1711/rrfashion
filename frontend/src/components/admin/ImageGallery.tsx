@@ -16,6 +16,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { toast } from 'sonner';
 import { deleteVariantImage, reorderVariantImages } from '../../api/product-images';
+import { resolveImageUrl } from '../../utils/constants';
 
 interface GalleryImage {
   id: string;
@@ -62,7 +63,7 @@ const SortableImage = ({ image, onDelete }: SortableImageProps) => {
       className="relative group aspect-square rounded-lg overflow-hidden border border-gray-200 bg-gray-50"
     >
       <img
-        src={image.url}
+        src={resolveImageUrl(image.url)}
         alt={image.altText || 'Product image'}
         className="w-full h-full object-cover"
         loading="lazy"
