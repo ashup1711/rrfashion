@@ -586,7 +586,7 @@ async function main() {
       stock: 10,
       images: [
         'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=800&q=80',
-        'https://images.unsplash.com/photo-1583391733956-3750e0c4d5cd?w=800&q=80',
+        'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=800&q=80',
       ],
     },
     [
@@ -647,7 +647,7 @@ async function main() {
       brandName: 'W',
       stock: 35,
       images: [
-        'https://images.unsplash.com/photo-1583391733956-3750e0c4d5cd?w=800&q=80',
+        'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=800&q=80',
       ],
     },
     [
@@ -679,7 +679,7 @@ async function main() {
       stock: 30,
       images: [
         'https://images.unsplash.com/photo-1542272604-787c3835535d?w=800&q=80',
-        'https://images.unsplash.com/photo-1604176354204-9268c78242b6?w=800&q=80',
+        'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&q=80',
       ],
     },
     [
