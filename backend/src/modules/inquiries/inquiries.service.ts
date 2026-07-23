@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateInquiryDto } from './dto/create-inquiry.dto';
 import { UpdateInquiryDto } from './dto/update-inquiry.dto';
+
+const VALID_STATUSES = ['NEW', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const;
 
 @Injectable()
 export class InquiriesService {
@@ -21,7 +23,21 @@ export class InquiriesService {
   }
 
   async findAll(status?: string) {
-    const where = status ? { status: status as never } : {};
+    let where: Record<string, unknown> = {};
+
+    if (status) {
+      // Special case: "ASSIGNED" means inquiries where assignedAdminId is not null
+      if (status === 'ASSIGNED') {
+        where = { assignedAdminId: { not: null } };
+      } else if (!VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
+        throw new BadRequestException(
+          `Invalid status "${status}". Valid values: ${[...VALID_STATUSES, 'ASSIGNED'].join(', ')}`,
+        );
+      } else {
+        where = { status };
+      }
+    }
+
     return this.prisma.inquiry.findMany({
       where,
       include: {
