@@ -1,6 +1,10 @@
+import { resolveImageUrl } from './constants';
+
 export function imageUrl(url: string | null | undefined, version?: number): string {
   if (!url) return '/images/placeholder.svg';
-  const separator = url.includes('?') ? '&' : '?';
+  // Resolve relative backend URLs to absolute (e.g. /uploads/... → https://backend/uploads/...)
+  const absoluteUrl = resolveImageUrl(url);
+  const separator = absoluteUrl.includes('?') ? '&' : '?';
   const t = version ?? Date.now();
-  return `${url}${separator}t=${t}`;
+  return `${absoluteUrl}${separator}t=${t}`;
 }
