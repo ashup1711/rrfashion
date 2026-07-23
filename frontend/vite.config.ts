@@ -21,7 +21,13 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        globIgnores: ['**/runtime-env.js'],
         runtimeCaching: [
+          // Network-only for runtime-env.js — always fetch fresh API URL from server
+          {
+            urlPattern: /\/runtime-env\.js$/,
+            handler: 'NetworkOnly',
+          },
           // Stale-while-revalidate for app shell assets (JS, CSS, HTML)
           // CacheFirst can serve stale chunks after deployment, causing errors
           // StaleWhileRevalidate serves cached content immediately but fetches updates in the background
