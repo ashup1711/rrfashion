@@ -64,39 +64,8 @@ jobs:
           echo "healthy=false" >> $GITHUB_OUTPUT
           exit 1
 
-      # ── ngrok Lifecycle ─────────────────────────────────────
-      - name: Start ngrok tunnel
-        id: start-ngrok
-        run: |
-          echo "Killing any existing ngrok process..."
-          pkill -f ngrok || true
-          sleep 1
-
-          echo "Starting ngrok tunnel to http://localhost:3000 ..."
-          nohup ngrok http 3000 > /tmp/ngrok.log 2>&1 &
-          NGROK_PID=$!
-          echo "ngrok PID: $NGROK_PID"
-
-          # Wait for ngrok to be ready (poll the local API)
-          MAX_RETRIES=15
-          for i in $(seq 1 $MAX_RETRIES); do
-            if curl -sf http://localhost:4040/api/tunnels > /dev/null 2>&1; then
-              echo "ngrok API ready after ${i}s"
-              echo "pid=$NGROK_PID" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-            echo "Waiting for ngrok... (${i}/${MAX_RETRIES})"
-            sleep 2
-          done
-
-          echo "ngrok failed to start within $((MAX_RETRIES * 2))s"
-          echo "--- ngrok log ---"
-          cat /tmp/ngrok.log
-          echo "pid=" >> $GITHUB_OUTPUT
-          exit 1
-
-      # ── ngrok URL Capture & Validation ──────────────────────
-      - name: Capture ngrok public URL
+      # ── ngrok — use persistent launchd service (com.ngrok.tunnel) ──
+      - name: Capture ngrok public URL from persistent tunnel
         id: capture-ngrok-url
         run: |
           NGROK_BASE_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
@@ -125,8 +94,11 @@ jobs:
           echo "=== Docker Container Status ==="
           docker compose ps
           echo ""
-          echo "=== ngrok Log ==="
-          cat /tmp/ngrok.log 2>/dev/null || echo "(no ngrok log)"
+          echo "=== ngrok Process ==="
+          pgrep -f ngrok && echo "(running)" || echo "(not running)"
+          echo ""
+          echo "=== ngrok launchd Log (last 20 lines) ==="
+          tail -20 /tmp/ngrok-launchd.log 2>/dev/null || echo "(no launchd log)"
           echo ""
           echo "=== ngrok URL (captured) ==="
           cat ngrok-url.txt 2>/dev/null || echo "(no ngrok url file)"
