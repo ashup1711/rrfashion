@@ -1,7 +1,16 @@
 import { Controller, Get, Param, Sse, Req, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiOkResponse, ApiNotFoundResponse } from '@nestjs/swagger';
 import { Request } from 'express';
-import { Observable, interval, fromEvent, merge, map, takeUntil } from 'rxjs';
+import {
+  Observable,
+  interval,
+  fromEvent,
+  merge,
+  map,
+  takeUntil,
+  of,
+  concat,
+} from 'rxjs';
 import Redis from 'ioredis';
 import { RedisService } from '../../redis/redis.service';
 import { ImageUploadProgress } from './processors/image-upload.processor';
@@ -26,6 +35,16 @@ export class UploadController {
   ): Promise<Observable<MessageEvent>> {
     this.logger.log(`SSE connection established for upload: ${uploadId}`);
 
+    // Emit existing progress state first, so late-connecting clients
+    // (e.g. page reload, upload already completed) get the current state
+    const existingKey = `upload:${uploadId}:progress`;
+    const existingRaw = await this.redis.get(existingKey);
+    const initial$: Observable<MessageEvent> = existingRaw
+      ? of({ data: existingRaw } as MessageEvent)
+      : of({
+          data: JSON.stringify({ uploadId, status: 'processing', progress: 0 }),
+        } as MessageEvent);
+
     const subscriber = this.redis.createSubscriber();
     const channel = `upload:${uploadId}`;
 
@@ -33,7 +52,7 @@ export class UploadController {
     await subscriber.subscribe(channel);
 
     // Create observable from Redis pub/sub messages
-    const progress$ = fromEvent(subscriber, 'message').pipe(
+    const live$ = fromEvent(subscriber, 'message').pipe(
       map((args: [string, string]) => {
         const [ch, message] = args;
         if (ch === channel) {
@@ -51,8 +70,8 @@ export class UploadController {
       map(() => ({ data: JSON.stringify({ type: 'heartbeat' }) }) as MessageEvent),
     );
 
-    // Merge progress events and heartbeat, clean up on client disconnect
-    const combined$ = merge(progress$, heartbeat$).pipe(
+    // Merge init state, live events, and heartbeat; clean up on client disconnect
+    const combined$ = concat(initial$, merge(live$, heartbeat$)).pipe(
       takeUntil(
         fromEvent(req.socket, 'close').pipe(
           map(() => {
