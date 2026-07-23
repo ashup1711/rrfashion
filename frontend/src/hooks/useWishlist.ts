@@ -1,14 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { getWishlist, addToWishlist, removeFromWishlist, addAllWishlistToCart } from '../api/wishlist';
-import { useWishlistStore } from '../store/wishlistStore';
+import { getWishlist, addToWishlist, removeFromWishlist, addAllWishlistToCart, type WishlistItem as ApiWishlistItem } from '../api/wishlist';
+import { useWishlistStore, type WishlistItem as GuestWishlistItem } from '../store/wishlistStore';
 import { useAuthStore } from '../store/authStore';
 import { QUERY_KEYS } from '../utils/constants';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
+
+export type WishlistEntry = ApiWishlistItem | GuestWishlistItem;
+
+export const isApiWishlistItem = (item: WishlistEntry): item is ApiWishlistItem =>
+  (item as ApiWishlistItem).variant !== undefined;
 
 export const useWishlist = () => {
   const queryClient = useQueryClient();
-  const { setGuestItems } = useWishlistStore();
+  const { setGuestItems, guestItems } = useWishlistStore();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   // Interceptor always provides the best available token (admin_token > auth_token > guest_token)
@@ -71,8 +76,15 @@ export const useWishlist = () => {
     },
   });
 
+  const items = useMemo<WishlistEntry[]>(() => {
+    if (isAuthenticated) {
+      return wishlistQuery.data || [];
+    }
+    return guestItems;
+  }, [isAuthenticated, wishlistQuery.data, guestItems]);
+
   return {
-    items: wishlistQuery.data || [],
+    items,
     isLoading: wishlistQuery.isLoading,
     error: wishlistQuery.error,
     addItem: (variantId: string, notifyOnPriceDrop?: boolean) =>

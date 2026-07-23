@@ -1,5 +1,6 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface ModalProps {
   isOpen: boolean;
@@ -9,20 +10,32 @@ interface ModalProps {
 }
 
 const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
+  // REQ-FE-003: Store onClose in a ref to stabilize the useFocusTrap dependency chain.
+  // This prevents the focus trap effect from re-running on every render (which would
+  // steal focus from inputs when the parent component re-renders on state changes).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   const handleEscape = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+    () => {
+      onCloseRef.current();
     },
-    [onClose],
+    [],  // stable — never changes, always reads latest onClose from ref
   );
 
+  const panelRef = useFocusTrap<HTMLDivElement>(isOpen, { onEscape: handleEscape });
+
   useEffect(() => {
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
+    if (!isOpen) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleEscape();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.body.style.overflow = 'hidden';
+
     return () => {
-      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = '';
     };
   }, [isOpen, handleEscape]);
@@ -40,6 +53,8 @@ const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
 
       {/* Panel */}
       <div
+        ref={panelRef}
+        tabIndex={-1}
         className="relative bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
         role="dialog"
         aria-modal="true"

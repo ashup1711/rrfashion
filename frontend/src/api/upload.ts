@@ -2,7 +2,7 @@ import apiClient from './client';
 
 export interface UploadResponse {
   url: string;
-  filename: string;
+  key: string;
 }
 
 export const uploadFile = async (file: File): Promise<UploadResponse> => {

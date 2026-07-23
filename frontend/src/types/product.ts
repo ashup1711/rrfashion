@@ -3,7 +3,14 @@ export interface ProductImage {
   url: string;
   altText?: string;
   sortOrder: number;
-  sizeType: 'thumbnail' | 'medium' | 'large' | 'original';
+  storageKey?: string;
+  variantType: 'ORIGINAL' | 'MEDIUM' | 'THUMBNAIL';
+  width?: number;
+  height?: number;
+  fileSize?: number;
+  mimeType?: string;
+  parentImageId?: string;
+  variants?: ProductImage[];
 }
 
 export interface ProductVariant {
@@ -39,6 +46,7 @@ export interface Product {
   isActive: boolean;
   isRentable: boolean;
   isSellable: boolean;
+  saleEndDate?: string;
   fabric?: string;
   hsnCode?: string;
   careInstructions?: string;
@@ -73,6 +81,32 @@ export interface ProductFilters {
   minPrice?: number;
   maxPrice?: number;
   isFeatured?: boolean;
+  isNew?: boolean;
+  isBestSeller?: boolean;
+  isOnSale?: boolean;
+  sizes?: string[];
+  colors?: string[];
+  brands?: string[];
+  inStockOnly?: boolean;
+  onSale?: boolean;
+  inStock?: boolean;
+  outOfStock?: boolean;
+}
+
+export type ProductCountMap = Record<string, number>;
+
+export interface ProductCountsResponse {
+  categories: ProductCountMap;
+  brands: ProductCountMap;
+  inStock: number;
+  outOfStock: number;
+}
+
+export interface FilterOption {
+  value: string;
+  label: string;
+  count?: number;
+  disabled?: boolean;
 }
 
 export interface CreateProductData {
@@ -87,6 +121,8 @@ export interface CreateProductData {
   hsnCode?: string;
   isRentable?: boolean;
   isSellable?: boolean;
+  isFeatured?: boolean;
+  isActive?: boolean;
   careInstructions?: string;
   sortPriority?: number;
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import Card from '../../../components/ui/Card';
 import Input from '../../../components/ui/Input';
 import Button from '../../../components/ui/Button';
@@ -18,6 +19,12 @@ import { useBrands } from '../../../hooks/useBrands';
 import { useStores } from '../../../hooks/useStores';
 import { getInventorySummary } from '../../../api/inventory';
 import { ROUTES } from '../../../utils/constants';
+import ImageUploader from '../../../components/admin/ImageUploader';
+import ImageGallery from '../../../components/admin/ImageGallery';
+import TempImageUploader from '../../../components/admin/TempImageUploader';
+import { useTempImages } from '../../../hooks/useTempImages';
+import type { TempImage } from '../../../hooks/useTempImages';
+import { promoteImages } from '../../../api/product-images';
 
 interface VariantFormData {
   id?: string;
@@ -52,6 +59,7 @@ const ProductForm = () => {
   const { data: brands } = useBrands();
   const { data: stores } = useStores();
   const { data: existingVariants } = useProductVariants(id || '');
+  const queryClient = useQueryClient();
 
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
@@ -71,6 +79,8 @@ const ProductForm = () => {
     hsnCode: '',
     isRentable: false,
     isSellable: true,
+    isFeatured: false,
+    isActive: true,
     careInstructions: '',
     sortPriority: '0',
   });
@@ -78,6 +88,15 @@ const ProductForm = () => {
   const [variants, setVariants] = useState<VariantFormData[]>([]);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [promotionErrors, setPromotionErrors] = useState<string[]>([]);
+
+  const {
+    tempImages,
+    addImages: addTempImages,
+    removeImage: removeTempImage,
+    clearAll: clearTempImages,
+    isLoading: tempImagesLoading,
+  } = useTempImages();
 
   // Populate form when editing
   useEffect(() => {
@@ -94,6 +113,8 @@ const ProductForm = () => {
         hsnCode: product.hsnCode || '',
         isRentable: product.isRentable ?? false,
         isSellable: product.isSellable ?? true,
+        isFeatured: product.isFeatured ?? false,
+        isActive: product.isActive ?? true,
         careInstructions: product.careInstructions || '',
         sortPriority: String(product.sortPriority ?? 0),
       });
@@ -232,6 +253,7 @@ const ProductForm = () => {
 
     setSaving(true);
     setFormError('');
+    setPromotionErrors([]);
 
     try {
       const productData = {
@@ -246,6 +268,8 @@ const ProductForm = () => {
         hsnCode: formData.hsnCode || undefined,
         isRentable: formData.isRentable,
         isSellable: formData.isSellable,
+        isFeatured: formData.isFeatured,
+        isActive: formData.isActive,
         careInstructions: formData.careInstructions || undefined,
         sortPriority: formData.sortPriority ? Number(formData.sortPriority) : 0,
       };
@@ -260,8 +284,11 @@ const ProductForm = () => {
         productId = created.id;
       }
 
-      // Save variants
-      for (const variant of variants) {
+      // Save variants and collect their IDs
+      const savedVariantIds: { index: number; id: string }[] = [];
+
+      for (let index = 0; index < variants.length; index++) {
+        const variant = variants[index];
         const initialStock = variant.initialStock?.filter(
           (s) => s.quantity > 0,
         );
@@ -283,12 +310,70 @@ const ProductForm = () => {
 
         if (variant.id) {
           await updateVariant.mutateAsync({ id: variant.id, data: variantData });
+          savedVariantIds.push({ index, id: variant.id });
         } else {
-          await createVariant.mutateAsync({
+          const createdVariant = await createVariant.mutateAsync({
             productId,
             data: variantData,
           });
+          savedVariantIds.push({ index, id: createdVariant.id });
         }
+      }
+
+      // Promote temp images to variants (only for new products or when temp images exist)
+      if (tempImages.length > 0) {
+        const errors: string[] = [];
+
+        // Group temp images by their assigned variant index
+        const imagesByVariant = new Map<number, TempImage[]>();
+        for (const img of tempImages) {
+          const existing = imagesByVariant.get(img.assignedVariantIndex) || [];
+          existing.push(img);
+          imagesByVariant.set(img.assignedVariantIndex, existing);
+        }
+
+        // Promote images for each variant group
+        for (const [variantIndex, images] of imagesByVariant) {
+          const variantIdEntry = savedVariantIds.find(
+            (v) => v.index === variantIndex,
+          );
+
+          if (!variantIdEntry) {
+            errors.push(
+              `Could not assign images to variant ${variantIndex + 1}: variant not found`,
+            );
+            continue;
+          }
+
+          try {
+            await promoteImages(
+              productId,
+              variantIdEntry.id,
+              images.map((img, idx) => ({
+                tempId: img.tempId,
+                storageKey: img.storageKey,
+                sortOrder: idx,
+              })),
+            );
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Unknown error';
+            errors.push(
+              `Failed to assign images to variant ${variantIndex + 1}: ${msg}`,
+            );
+          }
+        }
+
+        if (errors.length > 0) {
+          setPromotionErrors(errors);
+          setFormError(
+            'Product saved, but some images could not be assigned. See details below.',
+          );
+          // Don't navigate away — let the user see errors and retry
+          return;
+        }
+
+        // Clear temp images on full success
+        clearTempImages();
       }
 
       navigate(ROUTES.ADMIN_PRODUCTS);
@@ -480,8 +565,45 @@ const ProductForm = () => {
               />
               <span className="text-sm text-gray-700">Available for Rent</span>
             </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                name="isFeatured"
+                checked={formData.isFeatured}
+                onChange={handleChange}
+                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span className="text-sm text-gray-700">Featured Product</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                name="isActive"
+                checked={formData.isActive}
+                onChange={handleChange}
+                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span className="text-sm text-gray-700">Active</span>
+            </label>
           </div>
         </Card>
+
+        {/* Promotion Errors */}
+        {promotionErrors.length > 0 && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+            <p className="text-sm font-medium text-yellow-800 mb-2">
+              Image Assignment Warnings:
+            </p>
+            <ul className="list-disc list-inside text-sm text-yellow-700 space-y-1">
+              {promotionErrors.map((error, idx) => (
+                <li key={idx}>{error}</li>
+              ))}
+            </ul>
+            <p className="text-xs text-yellow-600 mt-2">
+              You can edit the product to manage images.
+            </p>
+          </div>
+        )}
 
         {/* Variants */}
         <Card>
@@ -617,11 +739,79 @@ const ProductForm = () => {
                     ))}
                   </div>
                 </details>
+
+                {/* Variant Images Upload */}
+                {!isEdit && (
+                  <div className="mt-4 border-t border-gray-100 pt-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">
+                      Images for {variant.size} / {variant.color}
+                    </h4>
+                    <TempImageUploader
+                      tempImages={tempImages.filter(img => img.assignedVariantIndex === index)}
+                      onAddImages={(files) => addTempImages(files, index)}
+                      onRemoveImage={removeTempImage}
+                      disabled={saving}
+                    />
+                    {tempImages.filter(img => img.assignedVariantIndex === index).length > 0 && (
+                      <p className="text-xs text-gray-400 mt-2">
+                        {tempImages.filter(img => img.assignedVariantIndex === index).length} image(s) assigned
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
               ))}
             </div>
           )}
         </Card>
+
+        {/* Variant Images */}
+        {variants.length > 0 && variants.some((v) => v.id) && (
+          <Card>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Variant Images
+            </h2>
+            <div className="space-y-6">
+              {variants
+                .filter((v) => v.id)
+                .map((variant) => {
+                  const existing = existingVariants?.find(
+                    (ev: any) => ev.id === variant.id,
+                  );
+                  const variantImages = existing?.images || [];
+                  return (
+                    <div
+                      key={variant.id}
+                      className="border border-gray-200 rounded-lg p-4"
+                    >
+                      <h3 className="text-sm font-medium text-gray-700 mb-3">
+                        {variant.size} / {variant.color}
+                      </h3>
+                      <ImageGallery
+                        images={variantImages}
+                        productId={id || ''}
+                        variantId={variant.id!}
+                        onImageChange={() => {
+                          queryClient.invalidateQueries({ queryKey: ['product', id] });
+                          queryClient.invalidateQueries({ queryKey: ['productVariants', id] });
+                        }}
+                      />
+                      <div className="mt-3">
+                        <ImageUploader
+                          productId={id || ''}
+                          variantId={variant.id!}
+                          onUploadComplete={() => {
+                            queryClient.invalidateQueries({ queryKey: ['product', id] });
+                            queryClient.invalidateQueries({ queryKey: ['productVariants', id] });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </Card>
+        )}
 
         {/* Care Instructions */}
         <Card>

@@ -23,6 +23,13 @@ export class RedisService implements OnModuleDestroy {
     return this.client;
   }
 
+  createSubscriber(): Redis {
+    const subscriber = this.client.duplicate();
+    subscriber.on('connect', () => this.logger.log('Redis subscriber connected'));
+    subscriber.on('error', (err) => this.logger.error('Redis subscriber error', err));
+    return subscriber;
+  }
+
   async get(key: string): Promise<string | null> {
     return this.client.get(key);
   }

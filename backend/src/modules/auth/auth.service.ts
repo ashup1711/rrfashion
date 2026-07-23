@@ -38,6 +38,9 @@ export interface UserResponse {
 export interface GuestSessionMigration {
   cartItems: number;
   wishlistItems: number;
+  addresses: number;
+  orders: number;
+  reviews: number;
 }
 
 export interface AuthResponse {
@@ -289,8 +292,8 @@ export class AuthService {
   }
 
   /**
-   * Migrate a guest session's cart + wishlist into a newly authenticated
-   * user. Deletes the guest session on success.
+   * Migrate a guest session's cart, wishlist, addresses, orders, and reviews
+   * into a newly authenticated user. Deletes the guest session on success.
    */
   async migrateGuestSessionToUser(
     guestSessionId: string,
@@ -299,13 +302,14 @@ export class AuthService {
     return this.prisma.$transaction(async (tx) => {
       const session = await tx.guestSession.findUnique({
         where: { id: guestSessionId },
-        include: { cartItems: true, wishlistItems: true },
+        include: { cartItems: true, wishlistItems: true, addresses: true },
       });
 
       if (!session) {
-        return { cartItems: 0, wishlistItems: 0 };
+        return { cartItems: 0, wishlistItems: 0, addresses: 0, orders: 0, reviews: 0 };
       }
 
+      // ── Migrate cart items ──
       let userCart = await tx.cart.findUnique({ where: { userId: newUserId } });
       if (!userCart) {
         userCart = await tx.cart.create({ data: { userId: newUserId } });
@@ -341,6 +345,7 @@ export class AuthService {
         cartItemsMigrated++;
       }
 
+      // ── Migrate wishlist items ──
       let wishlistItemsMigrated = 0;
       if (session.wishlistItems.length > 0) {
         const variantIds = session.wishlistItems.map((w) => w.variantId);
@@ -363,9 +368,65 @@ export class AuthService {
         }
       }
 
+      // ── Migrate addresses ──
+      let addressesMigrated = 0;
+      const guestAddresses = session.addresses;
+      if (guestAddresses.length > 0) {
+        await tx.userAddress.createMany({
+          data: guestAddresses.map((addr) => ({
+            userId: newUserId,
+            label: addr.label,
+            line1: addr.addressLine1,
+            line2: addr.addressLine2 ?? null,
+            city: addr.city,
+            state: addr.state,
+            pincode: addr.postalCode,
+            phone: addr.phone ?? null,
+            isDefault: addr.isDefault,
+          })),
+        });
+        addressesMigrated = guestAddresses.length;
+      }
+
+      // ── Migrate orders ──
+      const ordersResult = await tx.order.updateMany({
+        where: { guestSessionId },
+        data: {
+          userId: newUserId,
+          guestSessionId: null,
+        },
+      });
+
+      // ── Migrate reviews ──
+      const reviewsResult = await tx.review.updateMany({
+        where: { guestSessionId },
+        data: {
+          userId: newUserId,
+          guestSessionId: null,
+        },
+      });
+
+      // Delete the guest session (cascades to GuestCartItem, GuestWishlistItem, GuestAddress)
       await tx.guestSession.delete({ where: { id: guestSessionId } });
 
-      return { cartItems: cartItemsMigrated, wishlistItems: wishlistItemsMigrated };
+      this.logger.log({
+        guestSessionId,
+        newUserId,
+        cartItems: cartItemsMigrated,
+        wishlistItems: wishlistItemsMigrated,
+        addresses: addressesMigrated,
+        orders: ordersResult.count,
+        reviews: reviewsResult.count,
+        action: 'guest.session.migration.complete',
+      });
+
+      return {
+        cartItems: cartItemsMigrated,
+        wishlistItems: wishlistItemsMigrated,
+        addresses: addressesMigrated,
+        orders: ordersResult.count,
+        reviews: reviewsResult.count,
+      };
     });
   }
 

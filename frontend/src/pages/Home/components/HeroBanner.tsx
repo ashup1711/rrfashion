@@ -1,76 +1,57 @@
-import { Link } from 'react-router-dom';
-import { ROUTES } from '../../../utils/constants';
-import { useProducts } from '../../../hooks/useProducts';
+import HeroSlider, { Slide } from './HeroSlider';
 
-const FALLBACK_PLACEHOLDERS = [
-  { bg: '#e3c4b3', offset: 'mt-8' },
-  { bg: '#d4a89a', offset: '-mt-12' },
-  { bg: '#f5d6c8', offset: 'mt-4' },
-  { bg: '#e8c5b5', offset: '-mt-8' },
-  { bg: '#dbb5a3', offset: 'mt-12' },
+// Enhanced hero slides with text positioning
+const HERO_SLIDES: Slide[] = [
+  {
+    id: 1,
+    image: 'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=1920&h=1080&fit=crop&q=80&auto=format',
+    alt: 'Limited Edition Fashion Collection',
+    eyebrow: 'Limited Edition',
+    headline: 'Discover Modern\nElegance',
+    cta: 'Explore Collection',
+    ctaLink: '/shop',
+    textPosition: 'left',
+  },
+  {
+    id: 2,
+    image: 'https://images.unsplash.com/photo-1490481651871-ab68de25e43f?w=1920&h=1080&fit=crop&q=80&auto=format',
+    alt: 'New Arrivals Collection',
+    eyebrow: 'New Arrivals',
+    headline: 'Crafted with\nCare',
+    cta: 'Explore Collection',
+    ctaLink: '/shop',
+    textPosition: 'center',
+  },
+  {
+    id: 3,
+    image: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=1920&h=1080&fit=crop&q=80&auto=format',
+    alt: 'Timeless Classic Collection',
+    eyebrow: 'Timeless Classic',
+    headline: 'Your Style\nRedefined',
+    cta: 'Explore Collection',
+    ctaLink: '/shop',
+    textPosition: 'left',
+  },
+  {
+    id: 4,
+    image: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=1920&h=1080&fit=crop&q=80&auto=format',
+    alt: 'Luxury Collection',
+    eyebrow: 'Luxury Collection',
+    headline: 'Elevate Your\nPresence',
+    cta: 'Explore Collection',
+    ctaLink: '/shop',
+    textPosition: 'center',
+  },
 ];
 
-const OFFSETS = ['mt-8', '-mt-12', 'mt-4', '-mt-8', 'mt-12'];
-
 const HeroBanner = () => {
-  const { data } = useProducts({ isFeatured: true, limit: 5 });
-  const products = data?.items ?? [];
-  const items = products.length > 0 ? products : [];
-
   return (
     <section
-      className="bg-pink-banner min-h-[400px] lg:h-[576px]"
-      style={{ backgroundImage: 'linear-gradient(135deg, #e79cb9 0%, #d48aa8 100%)' }}
+      className="w-full h-screen max-h-[800px] lg:max-h-[900px] min-h-[600px] relative overflow-hidden"
+      role="region"
+      aria-label="Hero banner"
     >
-      <div className="container-page h-full py-8 lg:py-0">
-        <div className="flex flex-col lg:flex-row items-start lg:items-start justify-between h-full relative gap-8 lg:gap-0">
-          <div className="pt-0 lg:pt-16 text-center lg:text-left">
-            <p className="font-display text-hero-eyebrow text-deep-maroon text-3xl lg:text-hero-eyebrow">
-              NEW
-            </p>
-            <h1 className="font-display text-hero-headline text-deep-maroon leading-[1.1] mt-2 text-4xl lg:text-hero-headline">
-              FASHION
-              <br />
-              COLLECTION
-            </h1>
-            <Link
-              to={ROUTES.SHOP}
-              className="inline-flex items-center justify-center w-full sm:w-auto lg:w-[324px] h-[60px] sm:h-[80px] lg:h-[103px] bg-mauve text-white font-display font-bold text-xl sm:text-2xl lg:text-[32px] rounded-[4px] mt-6 lg:mt-10 hover:opacity-90 transition-opacity px-6"
-            >
-              SHOP NOW
-            </Link>
-          </div>
-
-          {/* Product images - hidden on mobile */}
-          <div className="hidden lg:flex items-start gap-4 pr-4 relative">
-            {Array.from({ length: 5 }).map((_, index) => {
-              const product = items[index];
-              const placeholder = FALLBACK_PLACEHOLDERS[index];
-
-              return (
-                <div
-                  key={index}
-                  className={`w-[204px] h-[454px] border-2 border-mauve rounded-[4px] overflow-hidden shrink-0 ${OFFSETS[index]}`}
-                >
-                  {product ? (
-                    <img
-                      src={product.images?.[0] || '/images/placeholder.svg'}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div
-                      className="w-full h-full"
-                      style={{ backgroundColor: placeholder.bg }}
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+      <HeroSlider slides={HERO_SLIDES} autoplayDelay={6000} />
     </section>
   );
 };

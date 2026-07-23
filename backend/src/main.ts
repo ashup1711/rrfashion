@@ -1,4 +1,4 @@
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -24,11 +24,7 @@ async function bootstrap() {
   app.enableCors({
     origin:
       process.env.NODE_ENV === 'production'
-        ? [
-            'https://rrfashion.com',
-            'https://admin.rrfashion.com',
-            'https://ashup1711.github.io',
-          ]
+        ? ['https://rrfashion.com', 'https://admin.rrfashion.com', 'https://ashup1711.github.io']
         : true,
     credentials: true,
   });
@@ -44,7 +40,8 @@ async function bootstrap() {
     new SanitizePipe(),
   );
 
-  app.useGlobalInterceptors(new TransformInterceptor());
+  const reflector = app.get(Reflector);
+  app.useGlobalInterceptors(new TransformInterceptor(reflector));
   app.useGlobalFilters(new HttpExceptionFilter());
 
   const config = new DocumentBuilder()

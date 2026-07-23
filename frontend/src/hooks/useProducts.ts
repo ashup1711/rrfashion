@@ -1,7 +1,8 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import {
   getProducts,
   getProduct,
+  getProductCounts,
   createProduct,
   updateProduct,
   deleteProduct,
@@ -11,7 +12,7 @@ import {
   deleteVariant,
 } from '../api/products';
 import { QUERY_KEYS } from '../utils/constants';
-import type { ProductFilters, CreateProductData } from '../types/product';
+import type { ProductFilters, CreateProductData, ProductCountsResponse } from '../types/product';
 import type { CreateVariantData } from '../types/product';
 
 export const useProducts = (filters?: ProductFilters) => {
@@ -22,11 +23,34 @@ export const useProducts = (filters?: ProductFilters) => {
   });
 };
 
+export const useInfiniteProducts = (filters?: ProductFilters) => {
+  return useInfiniteQuery({
+    queryKey: [QUERY_KEYS.products, 'infinite', filters],
+    queryFn: ({ pageParam = 1 }) => getProducts({ ...filters, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      if (lastPage.meta.page < lastPage.meta.totalPages) {
+        return lastPage.meta.page + 1;
+      }
+      return undefined;
+    },
+    refetchOnWindowFocus: false,
+  });
+};
+
 export const useProduct = (id: string) => {
   return useQuery({
     queryKey: [QUERY_KEYS.product, id],
     queryFn: () => getProduct(id),
     enabled: !!id,
+  });
+};
+
+export const useProductCounts = () => {
+  return useQuery<ProductCountsResponse>({
+    queryKey: ['productCounts'],
+    queryFn: () => getProductCounts(),
+    staleTime: 5 * 60 * 1000, // 5 minutes - counts change infrequently
   });
 };
 

@@ -29,6 +29,22 @@ export const uploadProfilePhoto = async (file: File): Promise<ProfilePhotoRespon
   return data;
 };
 
+/**
+ * Upload profile photo with async two-step flow.
+ * Returns immediately with uploadId for SSE progress tracking.
+ */
+export const uploadProfilePhotoAsync = async (
+  file: File,
+): Promise<{ uploadId: string; status: string }> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await apiClient.post<{ uploadId: string; status: string }>(
+    '/profile/photo',
+    formData,
+  );
+  return data;
+};
+
 export interface DeleteAccountData {
   password: string;
   reason?: string;

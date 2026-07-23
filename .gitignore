@@ -10,3 +10,8 @@ coverage/
 test-reports/
 backend/prisma/migrations/*/migration_lock.toml
 .opencode/state/
+.opencode/plans/
+.opencode/opencode.json
+*.tsbuildinfo
+backend/uploads/
+frontend/test-design-system.html

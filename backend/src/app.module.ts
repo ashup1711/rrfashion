@@ -40,6 +40,7 @@ import { MetricsModule } from './metrics/metrics.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { RemindersModule } from './modules/reminders/reminders.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
+import { ImageUploadModule } from './modules/upload/image-upload.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { AdminJwtStrategy } from './common/strategies/admin-jwt.strategy';
 import { ThrottlerProxyGuard } from './common/guards/throttler-proxy.guard';
@@ -149,6 +150,7 @@ import { StorageModule } from './storage/storage.module';
     RemindersModule,
     AddressesModule,
     GuestModule,
+    ImageUploadModule,
     StoreAuthModule,
   ],
   providers: [

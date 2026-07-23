@@ -9,6 +9,7 @@ import { useCategories } from '../../../hooks/useCategories';
 import { useBrands } from '../../../hooks/useBrands';
 import { ROUTES } from '../../../utils/constants';
 import { formatCurrencyCompact } from '../../../utils/formatCurrency';
+import { imageUrl } from '../../../utils/imageUrl';
 import type { Column } from '../../../components/ui/DataTable';
 import type { Product } from '../../../types/product';
 
@@ -40,7 +41,7 @@ const ProductList = () => {
           <div className="w-10 h-10 bg-gray-100 rounded-md overflow-hidden flex-shrink-0">
             {product.images?.[0] ? (
               <img
-                src={product.images[0]}
+                src={imageUrl(product.images[0], product.version)}
                 alt={product.name}
                 className="w-full h-full object-cover"
               />

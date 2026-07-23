@@ -48,6 +48,27 @@ export function getOrCreateGuestSessionId(): string {
   return fresh;
 }
 
+export function setGuestSessionId(id: string): void {
+  setPersistentItem(GUEST_SESSION_KEY, id);
+}
+
 export function clearGuestSessionId(): void {
   removePersistentItem(GUEST_SESSION_KEY);
+}
+
+import { apiClient } from '../api/client';
+
+/**
+ * Initialize guest session on first load.
+ * If a guest_token already exists, returns it. Otherwise calls POST /guest/start
+ * to create a new backend guest session and stores the returned token + session ID.
+ */
+export async function initializeGuestSession(): Promise<string> {
+  const existingToken = getGuestToken();
+  if (existingToken) return existingToken;
+
+  const { data } = await apiClient.post('/guest/start');
+  setGuestToken(data.guestToken);
+  setGuestSessionId(data.guestSessionId);
+  return data.guestToken;
 }

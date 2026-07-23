@@ -1,13 +1,14 @@
 import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import Button from '../../../components/ui/Button';
 import Badge from '../../../components/ui/Badge';
 import { formatCurrency } from '../../../utils/formatCurrency';
 import { useCart } from '../../../hooks/useCart';
 import { useWishlist } from '../../../hooks/useWishlist';
-import { useAuthStore } from '../../../store/authStore';
 import type { Product, ProductVariant } from '../../../types/product';
+import SizeGuide from '../../../components/common/SizeGuide';
+import { ROUTES } from '../../../utils/constants';
 
 // Constants
 const MAX_CART_QUANTITY = 10;
@@ -16,7 +17,53 @@ interface ProductInfoProps {
   product: Product;
 }
 
+const Accordion = ({ 
+  title, 
+  children, 
+  isOpen: defaultOpen = false 
+}: { 
+  title: string; 
+  children: React.ReactNode; 
+  isOpen?: boolean 
+}) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border-b border-neutral-medium py-5">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex w-full items-center justify-between text-left"
+      >
+        <span className="text-sm font-semibold text-neutral-nearBlack uppercase tracking-widest">
+          {title}
+        </span>
+        <svg
+          className={`h-5 w-5 text-neutral-dark transition-transform duration-300 ${
+            isOpen ? 'rotate-180' : ''
+          }`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      <div
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          isOpen ? 'max-h-[500px] opacity-100 mt-4' : 'max-h-0 opacity-0'
+        }`}
+      >
+        <div className="text-body-small text-neutral-dark leading-relaxed">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ProductInfo = ({ product }: ProductInfoProps) => {
+  const navigate = useNavigate();
+  
   // Local state for variant selection and quantity
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
@@ -26,7 +73,9 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
   // Hooks for cart and wishlist
   const { addItem: addToCart, isAdding } = useCart();
   const { addItem: addToWishlist, isAdding: isAddingWishlist } = useWishlist();
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  // Size Guide modal state
+  const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
 
   // Extract unique sizes from variants
   const sizes = useMemo(() => {
@@ -82,10 +131,24 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
   const canAddToCart = selectedVariant !== null;
   const isOutOfStock = product.variants?.every((v) => !v.isActive) || product.variants?.length === 0;
 
+  // Helper function to get available colors for a specific size
+  const getAvailableColorsForSize = (size: string): string[] => {
+    if (!size) return [];
+    return product.variants
+      ?.filter(v => v.isActive && v.size === size && v.color)
+      .map(v => v.color) || [];
+  };
+
   // Handle size selection
   const handleSizeSelect = (size: string) => {
     setSelectedSize(size);
-    setSelectedColor(null); // Reset color when size changes
+    
+    const availableColors = getAvailableColorsForSize(size);
+    
+    // Only reset color if the currently selected color is not available in the new size
+    if (!selectedColor || !availableColors.includes(selectedColor)) {
+      setSelectedColor(null);
+    }
   };
 
   // Handle color selection
@@ -112,6 +175,17 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
     addToCart(selectedVariant.id, quantity, purchaseType);
   };
 
+  // Handle Buy Now (Add to cart and redirect to checkout)
+  const handleBuyNow = async () => {
+     if (!selectedVariant) {
+      toast.error('Please select a size and color');
+      return;
+    }
+    // Add to cart first, then redirect to checkout
+    await addToCart(selectedVariant.id, quantity, purchaseType);
+    navigate(ROUTES.CHECKOUT);
+  }
+
   // Handle Wishlist
   const handleWishlist = async () => {
     if (!selectedVariant) {
@@ -128,256 +202,282 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
   const showRentableBadge = product.isRentable;
 
   return (
-    <div>
+    <div className="flex flex-col h-full">
+      {/* Breadcrumb - Simple for now */}
+      <nav className="flex items-center gap-2 text-caption text-neutral-dark mb-6">
+        <Link to="/" className="hover:text-primary-500 transition-colors">Home</Link>
+        <span className="text-neutral-medium">/</span>
+        <Link to="/shop" className="hover:text-primary-500 transition-colors">Shop</Link>
+        <span className="text-neutral-medium">/</span>
+        <span className="text-neutral-nearBlack truncate max-w-[150px]">{product.name}</span>
+      </nav>
+
       {/* Badges */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 mb-4">
         {showSaleBadge && (
-          <Badge variant="danger">Sale {discountPercentage}% Off</Badge>
+          <Badge variant="danger" className="rounded-full px-4 py-1">SALE -{discountPercentage}%</Badge>
         )}
-        {showNewArrivalBadge && <Badge variant="info">New Arrival</Badge>}
-        {showRentableBadge && <Badge variant="success">Rentable</Badge>}
+        {showNewArrivalBadge && <Badge variant="info" className="rounded-full px-4 py-1">NEW ARRIVAL</Badge>}
+        {showRentableBadge && <Badge variant="success" className="rounded-full px-4 py-1">RENTABLE</Badge>}
       </div>
 
       {/* Product Name */}
-      <h1 className="mt-3 text-3xl font-bold text-gray-900">{product.name}</h1>
+      <h1 className="text-3xl lg:text-4xl font-display font-bold text-neutral-nearBlack mb-3">
+        {product.name}
+      </h1>
 
-      {/* Category and Brand */}
-      <div className="mt-2 flex items-center gap-2">
-        {product.category?.name && (
-          <p className="text-lg text-gray-500">{product.category.name}</p>
-        )}
+      {/* Brand & Category */}
+      <div className="flex items-center gap-3 mb-6">
         {product.brand?.name && (
-          <>
-            <span className="text-gray-300">|</span>
-            <p className="text-lg text-gray-500">{product.brand.name}</p>
-          </>
+          <span className="text-sm font-semibold text-neutral-dark uppercase tracking-widest border-r border-neutral-medium pr-3">
+            {product.brand.name}
+          </span>
         )}
+        <span className="text-sm text-neutral-dark">
+          {product.category?.name}
+        </span>
       </div>
 
       {/* Price Display */}
-      <div className="mt-6">
-        <div className="flex items-center gap-3">
-          <p className="text-3xl font-bold text-primary-600">
+      <div className="mb-8">
+        <div className="flex items-baseline gap-4">
+          <span className="text-3xl font-bold text-neutral-nearBlack">
             {formatCurrency(displayPrice)}
-          </p>
+          </span>
           {hasDiscount && (
-            <p className="text-lg text-gray-400 line-through">
+            <span className="text-xl text-neutral-medium line-through">
               {formatCurrency(originalPrice)}
-            </p>
+            </span>
           )}
         </div>
-        {/* Show rent price if rentable and viewing rent option */}
+        
         {product.isRentable && purchaseType === 'rent' && selectedVariant?.rentPricePerDay && (
-          <p className="mt-1 text-sm text-gray-500">
-            Rent: {formatCurrency(selectedVariant.rentPricePerDay)}/day
+          <div className="mt-2 p-3 bg-primary-50 rounded-lg border border-primary-100">
+            <p className="text-sm font-medium text-primary-700">
+              Rental Price: <span className="text-lg font-bold">{formatCurrency(selectedVariant.rentPricePerDay)}</span> / day
+            </p>
             {selectedVariant.securityDeposit && (
-              <span className="ml-2">
-                (Security Deposit: {formatCurrency(selectedVariant.securityDeposit)})
-              </span>
+              <p className="text-xs text-primary-600 mt-1">
+                + Security Deposit: {formatCurrency(selectedVariant.securityDeposit)} (Refundable)
+              </p>
             )}
-          </p>
+          </div>
         )}
       </div>
 
-      {/* Description */}
-      {product.description && (
-        <p className="mt-6 text-gray-600 leading-relaxed">{product.description}</p>
-      )}
-
-      {/* Product Type Selector (for products that are both rentable and sellable) */}
+      {/* Purchase Type Selector */}
       {product.isRentable && product.isSellable && (
-        <div className="mt-6">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Purchase Type</h3>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPurchaseType('sale')}
-              className={`px-4 py-2 border rounded-md text-sm font-medium transition-colors ${
-                purchaseType === 'sale'
-                  ? 'border-primary-500 text-primary-600 bg-primary-50'
-                  : 'border-gray-300 text-gray-700 hover:border-primary-500'
-              }`}
-            >
-              Buy
-            </button>
-            <button
-              onClick={() => setPurchaseType('rent')}
-              className={`px-4 py-2 border rounded-md text-sm font-medium transition-colors ${
-                purchaseType === 'rent'
-                  ? 'border-primary-500 text-primary-600 bg-primary-50'
-                  : 'border-gray-300 text-gray-700 hover:border-primary-500'
-              }`}
-            >
-              Rent
-            </button>
-          </div>
+        <div className="mb-8 p-1 bg-neutral-light rounded-xl flex gap-1">
+          <button
+            onClick={() => setPurchaseType('sale')}
+            className={`flex-1 py-3 px-4 rounded-lg text-sm font-bold transition-all duration-300 ${
+              purchaseType === 'sale'
+                ? 'bg-white text-neutral-nearBlack shadow-sm'
+                : 'text-neutral-dark hover:text-neutral-nearBlack'
+            }`}
+          >
+            BUY FOR OWN
+          </button>
+          <button
+            onClick={() => setPurchaseType('rent')}
+            className={`flex-1 py-3 px-4 rounded-lg text-sm font-bold transition-all duration-300 ${
+              purchaseType === 'rent'
+                ? 'bg-white text-neutral-nearBlack shadow-sm'
+                : 'text-neutral-dark hover:text-neutral-nearBlack'
+            }`}
+          >
+            RENT FOR EVENTS
+          </button>
         </div>
       )}
 
-      {/* Size Selector */}
-      <div className="mt-8">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">
-          Size {selectedSize && <span className="font-normal text-gray-500">({selectedSize})</span>}
-        </h3>
-        {sizes.length > 0 ? (
-          <div className="flex gap-2 flex-wrap" role="radiogroup" aria-label="Select size">
-            {sizes.map((size) => (
-              <button
-                key={size}
-                onClick={() => handleSizeSelect(size)}
-                role="radio"
-                aria-checked={selectedSize === size}
-                className={`min-w-[40px] h-10 px-3 border rounded-md text-sm font-medium transition-colors ${
-                  selectedSize === size
-                    ? 'border-primary-500 text-primary-600 bg-primary-50'
-                    : 'border-gray-300 text-gray-700 hover:border-primary-500 hover:text-primary-600'
-                }`}
-              >
-                {size}
-              </button>
-            ))}
+      <div className="space-y-8 mb-10">
+        {/* Size Selector */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-neutral-nearBlack uppercase tracking-wider">
+              Select Size
+            </h3>
+            <button
+              type="button"
+              onClick={() => setIsSizeGuideOpen(true)}
+              className="text-xs font-semibold text-primary-500 hover:underline"
+            >
+              Size Guide
+            </button>
           </div>
-        ) : (
-          <p className="text-sm text-gray-500">No sizes available</p>
+          {sizes.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {sizes.map((size) => (
+                <button
+                  key={size}
+                  onClick={() => handleSizeSelect(size)}
+                  className={`min-w-[56px] h-12 px-4 rounded-lg text-sm font-bold border-2 transition-all duration-300 ${
+                    selectedSize === size
+                      ? 'bg-neutral-nearBlack border-neutral-nearBlack text-white shadow-lg translate-y-[-2px]'
+                      : 'bg-white border-neutral-medium text-neutral-dark hover:border-neutral-nearBlack hover:text-neutral-nearBlack'
+                  }`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-neutral-medium">No sizes available</p>
+          )}
+        </div>
+
+        {/* Color Selector */}
+        {sizes.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-neutral-nearBlack uppercase tracking-wider">
+                Select Color
+              </h3>
+              {selectedColor && (
+                <span className="text-sm text-neutral-dark">{selectedColor}</span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {(selectedSize ? colorsForSize : Array.from(new Set(product.variants?.map(v => v.color).filter(Boolean)))).map((color) => (
+                <button
+                  key={color}
+                  onClick={() => handleColorSelect(color!)}
+                  className={`group relative flex items-center justify-center w-12 h-12 rounded-full border-2 transition-all duration-200 ${
+                    selectedColor === color
+                      ? 'border-primary-500 scale-110'
+                      : 'border-neutral-medium hover:border-neutral-dark'
+                  }`}
+                  title={color!}
+                >
+                  <span className="w-9 h-9 rounded-full bg-neutral-light border border-black/5 flex items-center justify-center overflow-hidden">
+                    {/* Placeholder for actual color hex/image if available, otherwise just text/initial */}
+                    <span className="text-[10px] font-bold text-neutral-dark uppercase">{color?.substring(0, 2)}</span>
+                  </span>
+                  {selectedColor === color && (
+                    <div className="absolute -top-1 -right-1 bg-primary-500 text-white rounded-full p-0.5 shadow-sm">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
-      </div>
 
-      {/* Color Selector */}
-      {selectedSize && colorsForSize.length > 0 && (
-        <div className="mt-6">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">
-            Color {selectedColor && <span className="font-normal text-gray-500">({selectedColor})</span>}
-          </h3>
-          <div className="flex gap-2 flex-wrap" role="radiogroup" aria-label="Select color">
-            {colorsForSize.map((color) => (
-              <button
-                key={color}
-                onClick={() => handleColorSelect(color)}
-                role="radio"
-                aria-checked={selectedColor === color}
-                className={`px-4 h-10 border rounded-md text-sm font-medium transition-colors ${
-                  selectedColor === color
-                    ? 'border-primary-500 text-primary-600 bg-primary-50'
-                    : 'border-gray-300 text-gray-700 hover:border-primary-500 hover:text-primary-600'
-                }`}
-              >
-                {color}
-              </button>
-            ))}
+        {/* Quantity & Actions */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex items-center justify-between border-2 border-neutral-medium rounded-xl p-1 h-14 sm:w-32">
+            <button
+              onClick={decreaseQuantity}
+              disabled={quantity <= 1}
+              className="w-10 h-full flex items-center justify-center text-neutral-nearBlack hover:bg-neutral-light rounded-lg disabled:opacity-30 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
+            </button>
+            <span className="text-lg font-bold text-neutral-nearBlack w-8 text-center">{quantity}</span>
+            <button
+              onClick={increaseQuantity}
+              disabled={quantity >= 10}
+              className="w-10 h-full flex items-center justify-center text-neutral-nearBlack hover:bg-neutral-light rounded-lg disabled:opacity-30 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            </button>
           </div>
-        </div>
-      )}
 
-      {/* Quantity Selector */}
-      <div className="mt-6">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Quantity</h3>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={decreaseQuantity}
-            disabled={quantity <= 1}
-            className="w-8 h-8 border border-gray-300 rounded-md flex items-center justify-center text-gray-600 hover:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            aria-label="Decrease quantity"
+          <Button
+            size="lg"
+            className="flex-1 h-14 bg-neutral-nearBlack text-white hover:bg-neutral-800 rounded-xl font-bold uppercase tracking-wider shadow-lg active:scale-95 transition-all"
+            onClick={handleAddToCart}
+            isLoading={isAdding}
+            disabled={isOutOfStock || !canAddToCart}
           >
-            -
-          </button>
-          <span className="text-lg font-medium text-gray-900 w-8 text-center">{quantity}</span>
+            {isOutOfStock ? 'Out of Stock' : 'Add to Bag'}
+          </Button>
+          
           <button
-            onClick={increaseQuantity}
-            disabled={quantity >= 10}
-            className="w-8 h-8 border border-gray-300 rounded-md flex items-center justify-center text-gray-600 hover:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            aria-label="Increase quantity"
+            onClick={handleWishlist}
+            className={`w-14 h-14 flex items-center justify-center border-2 rounded-xl transition-all duration-300 ${
+              isAddingWishlist ? 'opacity-50' : 'hover:bg-red-50 hover:border-red-200 group'
+            } border-neutral-medium`}
+            disabled={!canAddToCart}
+            aria-label="Add to wishlist"
           >
-            +
+            <svg
+              className={`w-6 h-6 transition-colors duration-300 ${isAddingWishlist ? 'text-neutral-medium' : 'text-neutral-nearBlack group-hover:text-red-500'}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+              />
+            </svg>
           </button>
         </div>
-      </div>
-
-      {/* Actions */}
-      <div className="mt-8 flex gap-4">
-        <Button
-          size="lg"
-          className="flex-1"
-          onClick={handleAddToCart}
-          isLoading={isAdding}
-          disabled={isOutOfStock || !canAddToCart}
-        >
-          {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
-        </Button>
+        
         <Button
           variant="outline"
           size="lg"
-          onClick={handleWishlist}
-          isLoading={isAddingWishlist}
-          disabled={!canAddToCart}
-          aria-label="Add to wishlist"
+          className="w-full h-14 border-neutral-nearBlack text-neutral-nearBlack hover:bg-neutral-nearBlack hover:text-white rounded-xl font-bold uppercase tracking-wider transition-all"
+          onClick={handleBuyNow}
+          disabled={isOutOfStock || !canAddToCart}
         >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-            />
-          </svg>
+          Buy Now
         </Button>
       </div>
 
-      {/* Selection Prompt */}
-      {!canAddToCart && !isOutOfStock && (
-        <p className="mt-4 text-sm text-amber-600">
-          Please select a size and color to continue
-        </p>
-      )}
+      {/* Info Accordions */}
+      <div className="mt-4">
+        <Accordion title="Product Description" isOpen={true}>
+          <p className="mb-4">{product.description}</p>
+          <ul className="list-disc pl-5 space-y-1">
+            {product.fabric && <li><span className="font-semibold">Fabric:</span> {product.fabric}</li>}
+            {product.hsnCode && <li><span className="font-semibold">HSN Code:</span> {product.hsnCode}</li>}
+            <li><span className="font-semibold">Category:</span> {product.category?.name}</li>
+            <li><span className="font-semibold">SKU:</span> {product.variants?.[0]?.sku || 'N/A'}</li>
+          </ul>
+        </Accordion>
 
-      {/* Guest user sign-in prompt */}
-      {!isAuthenticated && canAddToCart && (
-        <p className="mt-3 text-xs text-gray-500">
-          <Link to="/auth/login" className="text-primary-600 hover:underline">
-            Sign in
-          </Link>{' '}
-          to save your cart across devices
-        </p>
-      )}
+        <Accordion title="Care Instructions">
+          <p>{product.careInstructions || "Dry clean only. Handle with care to maintain the fabric quality and intricate detailing."}</p>
+        </Accordion>
 
-      {/* Product Details */}
-      <div className="mt-10 border-t border-gray-200 pt-6">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">Product Details</h3>
-        <dl className="space-y-3">
-          {product.fabric && (
-            <div className="flex justify-between">
-              <dt className="text-sm text-gray-500">Fabric</dt>
-              <dd className="text-sm text-gray-900">{product.fabric}</dd>
-            </div>
-          )}
-          {product.careInstructions && (
-            <div className="flex justify-between">
-              <dt className="text-sm text-gray-500">Care Instructions</dt>
-              <dd className="text-sm text-gray-900 text-right max-w-[200px]">
-                {product.careInstructions}
-              </dd>
-            </div>
-          )}
-          {product.hsnCode && (
-            <div className="flex justify-between">
-              <dt className="text-sm text-gray-500">HSN Code</dt>
-              <dd className="text-sm text-gray-900">{product.hsnCode}</dd>
-            </div>
-          )}
-          {product.stock !== undefined && (
-            <div className="flex justify-between">
-              <dt className="text-sm text-gray-500">Availability</dt>
-              <dd className="text-sm text-gray-900">
-                {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
-              </dd>
-            </div>
-          )}
-        </dl>
+        <Accordion title="Shipping & Returns">
+          <p className="mb-3 font-semibold text-neutral-nearBlack">Standard Delivery: 5-7 business days</p>
+          <p className="mb-4">Free shipping on orders above {formatCurrency(5000)}. We offer a 7-day hassle-free return policy for unused items with original tags intact.</p>
+          <p className="mb-2 font-semibold text-neutral-nearBlack">Rental Period & Deposits:</p>
+          <p>Rentals are for a 48-hour period. Security deposit is fully refundable upon return of the garment in original condition.</p>
+        </Accordion>
       </div>
+
+      {/* Social Share */}
+      <div className="mt-8 flex items-center gap-4">
+        <span className="text-xs font-bold text-neutral-dark uppercase tracking-widest">Share:</span>
+        <div className="flex gap-3">
+          {['facebook', 'twitter', 'instagram', 'pinterest'].map(platform => (
+            <button key={platform} className="text-neutral-dark hover:text-primary-500 transition-colors">
+              <span className="sr-only">Share on {platform}</span>
+              <div className="w-8 h-8 rounded-full bg-neutral-light flex items-center justify-center">
+                 {/* Replace with actual icons */}
+                 <span className="text-[10px] uppercase font-bold">{platform[0]}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Size Guide Modal */}
+      <SizeGuide
+        isOpen={isSizeGuideOpen}
+        onClose={() => setIsSizeGuideOpen(false)}
+        category="women"
+      />
     </div>
   );
 };

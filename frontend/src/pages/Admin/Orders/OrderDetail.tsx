@@ -166,10 +166,43 @@ const OrderDetailContent = () => {
                 <span className="text-gray-600">Shipping</span>
                 <span className="text-gray-900">₹{order.shippingCharge?.toLocaleString() ?? '0'}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Tax</span>
-                <span className="text-gray-900">₹{order.taxAmount?.toLocaleString() ?? '0'}</span>
-              </div>
+              {/* Tax breakdown */}
+              {order.taxAmount > 0 ? (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Tax</span>
+                    <span className="text-gray-900">₹{order.taxAmount?.toLocaleString() ?? '0'}</span>
+                  </div>
+                  {/* Show item-level tax breakdown if available */}
+                  {order.items?.some(item => item.cgstAmount || item.sgstAmount || item.igstAmount) && (
+                    <div className="ml-4 text-xs text-gray-500 space-y-0.5">
+                      {order.items.reduce((sum, item) => sum + (item.cgstAmount || 0), 0) > 0 && (
+                        <div className="flex justify-between">
+                          <span>CGST</span>
+                          <span>₹{order.items.reduce((sum, item) => sum + (item.cgstAmount || 0), 0).toLocaleString()}</span>
+                        </div>
+                      )}
+                      {order.items.reduce((sum, item) => sum + (item.sgstAmount || 0), 0) > 0 && (
+                        <div className="flex justify-between">
+                          <span>SGST</span>
+                          <span>₹{order.items.reduce((sum, item) => sum + (item.sgstAmount || 0), 0).toLocaleString()}</span>
+                        </div>
+                      )}
+                      {order.items.reduce((sum, item) => sum + (item.igstAmount || 0), 0) > 0 && (
+                        <div className="flex justify-between">
+                          <span>IGST</span>
+                          <span>₹{order.items.reduce((sum, item) => sum + (item.igstAmount || 0), 0).toLocaleString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Tax</span>
+                  <span className="text-gray-400 text-sm">Not applicable</span>
+                </div>
+              )}
               <hr className="my-2" />
               <div className="flex justify-between text-base">
                 <span className="font-semibold text-gray-900">Total</span>

@@ -19,6 +19,9 @@ export interface ProductFilters {
   minPrice?: number;
   maxPrice?: number;
   isFeatured?: boolean;
+  onSale?: boolean;
+  inStock?: boolean;
+  outOfStock?: boolean;
 }
 
 @Injectable()
@@ -68,6 +71,27 @@ export class ProductsService {
 
     if (filters.isFeatured !== undefined) {
       where.isFeatured = filters.isFeatured;
+    }
+
+    // On sale filter (preserves any salePrice range set by min/maxPrice above)
+    if (filters.onSale !== undefined) {
+      if (filters.onSale) {
+        if (!where.salePrice) {
+          where.salePrice = { not: null };
+        }
+      } else {
+        where.salePrice = null;
+      }
+    }
+
+    // Stock availability filter
+    if (filters.inStock !== undefined || filters.outOfStock !== undefined) {
+      if (filters.inStock && !filters.outOfStock) {
+        where.stock = { gt: 0 };
+      } else if (filters.outOfStock && !filters.inStock) {
+        where.stock = { equals: 0 };
+      }
+      // If both true or both false/undefined: no stock filter
     }
 
     // Build orderBy
@@ -138,7 +162,7 @@ export class ProductsService {
           select: { id: true, name: true, description: true },
         },
         variants: {
-          where: { deletedAt: null },
+          where: { deletedAt: null, isActive: true },
           include: {
             images: {
               orderBy: { sortOrder: 'asc' },
@@ -155,6 +179,62 @@ export class ProductsService {
     }
 
     return product;
+  }
+
+  async getProductCounts(): Promise<{
+    categories: Record<string, number>;
+    brands: Record<string, number>;
+    inStock: number;
+    outOfStock: number;
+  }> {
+    const categories = await this.prisma.category.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+    });
+
+    const categoryCounts: Record<string, number> = {};
+    for (const category of categories) {
+      categoryCounts[category.id] = await this.prisma.product.count({
+        where: {
+          categoryId: category.id,
+          deletedAt: null,
+          isActive: true,
+        },
+      });
+    }
+
+    // Brand counts
+    const brandCountsRaw = await this.prisma.product.groupBy({
+      by: ['brandId'],
+      where: {
+        deletedAt: null,
+        isActive: true,
+        brandId: { not: null },
+      },
+      _count: { _all: true },
+    });
+
+    const brandCounts: Record<string, number> = {};
+    for (const item of brandCountsRaw) {
+      if (item.brandId) {
+        brandCounts[item.brandId] = item._count._all;
+      }
+    }
+
+    // In stock / out of stock counts
+    const inStockCount = await this.prisma.product.count({
+      where: { deletedAt: null, isActive: true, stock: { gt: 0 } },
+    });
+    const outOfStockCount = await this.prisma.product.count({
+      where: { deletedAt: null, isActive: true, stock: { equals: 0 } },
+    });
+
+    return {
+      categories: categoryCounts,
+      brands: brandCounts,
+      inStock: inStockCount,
+      outOfStock: outOfStockCount,
+    };
   }
 
   async create(dto: CreateProductDto) {
@@ -429,5 +509,61 @@ export class ProductsService {
       where: { id },
       data: { deletedAt: new Date(), isActive: false },
     });
+  }
+
+  async getVariantSpecsForCart(productId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, name: true },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    // Get variants with inventory summary for stock levels
+    const variants = await this.prisma.productVariant.findMany({
+      where: {
+        productId,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        size: true,
+        color: true,
+        sku: true,
+        salePrice: true,
+        inventorySummaries: {
+          select: {
+            quantityAvailable: true,
+          },
+        },
+      },
+      orderBy: [{ size: 'asc' }, { color: 'asc' }],
+    });
+
+    // Format and calculate stock levels
+    const formattedVariants = variants.map((variant) => {
+      const totalStock = variant.inventorySummaries.reduce(
+        (sum, summary) => sum + summary.quantityAvailable,
+        0,
+      );
+
+      return {
+        id: variant.id,
+        size: variant.size,
+        color: variant.color,
+        salePrice: variant.salePrice ? Number(variant.salePrice) : undefined,
+        stock: totalStock,
+        isAvailable: totalStock > 0,
+        sku: variant.sku,
+      };
+    });
+
+    return {
+      productId: product.id,
+      variants: formattedVariants,
+    };
   }
 }

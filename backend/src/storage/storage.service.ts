@@ -1,4 +1,5 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Readable } from 'stream';
 import { StorageInterface } from './storage.interface';
 import { STORAGE_INTERFACE_TOKEN } from './storage.constants';
 
@@ -12,6 +13,19 @@ export class StorageService implements StorageInterface {
 
   async upload(key: string, body: Buffer, contentType: string): Promise<string> {
     return this.delegate.upload(key, body, contentType);
+  }
+
+  async uploadStream(
+    key: string,
+    stream: Readable,
+    contentType: string,
+    contentLength?: number,
+  ): Promise<string> {
+    return this.delegate.uploadStream(key, stream, contentType, contentLength);
+  }
+
+  async uploadFile(key: string, filePath: string, contentType: string): Promise<string> {
+    return this.delegate.uploadFile(key, filePath, contentType);
   }
 
   async download(key: string): Promise<Buffer | null> {

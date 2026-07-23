@@ -25,6 +25,41 @@ import { OrderStatus } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { Prisma } from '@prisma/client';
 
+interface CartLikeItem {
+  productId: string;
+  variantId: string | null;
+  quantity: number;
+  type: string;
+  rentStart: Date | null;
+  rentEnd: Date | null;
+}
+
+interface CartLikeItemWithDetails extends CartLikeItem {
+  product: {
+    id: string;
+    name: string;
+    basePrice: Prisma.Decimal;
+    salePrice: Prisma.Decimal | null;
+    isActive: boolean;
+  };
+  variant: {
+    id: string;
+    isActive: boolean;
+    deletedAt: Date | null;
+    salePrice: Prisma.Decimal | null;
+  } | null;
+}
+
+interface InventorySummaryLock {
+  variantId: string;
+  storeId: string;
+  quantityAvailable: number;
+  quantityReserved: number;
+  quantityLocked: number;
+  quantitySold: number;
+  updatedAt: Date;
+}
+
 const ORDER_INCLUDE = {
   items: {
     include: {
@@ -37,16 +72,6 @@ const ORDER_INCLUDE = {
     },
   },
 } as const;
-
-interface InventorySummaryLock {
-  variantId: string;
-  storeId: string;
-  quantityAvailable: number;
-  quantityReserved: number;
-  quantityLocked: number;
-  quantitySold: number;
-  updatedAt: Date;
-}
 
 @Injectable()
 export class OrdersService {
@@ -61,31 +86,59 @@ export class OrdersService {
     private readonly config: ConfigService,
   ) {}
 
-  async create(userId: string, dto: CreateOrderDto) {
-    this.logger.log({ userId, action: 'order.create.start' });
+  async create(userId: string, dto: CreateOrderDto, guestSessionId?: string) {
+    const customerLabel = guestSessionId ? 'guest' : 'customer';
+    this.logger.log({ userId, guestSessionId, action: `order.create.start.${customerLabel}` });
 
-    // 1. Find the user's cart with items including product/variant details
-    const cart = await this.prisma.cart.findUnique({
-      where: { userId },
-      include: {
-        items: {
-          include: {
-            product: {
-              select: { id: true, name: true, basePrice: true, salePrice: true, isActive: true },
-            },
-            variant: {
-              select: { id: true, isActive: true, deletedAt: true, salePrice: true },
+    // For guests, fetch guest cart items. For customers, fetch regular cart.
+    let guestCartItems: Array<CartLikeItemWithDetails> | null = null;
+    let cart: {
+      id: string;
+      items: Array<CartLikeItemWithDetails>;
+    } | null = null;
+
+    if (guestSessionId) {
+      guestCartItems = (await this.prisma.guestCartItem.findMany({
+        where: { guestSessionId },
+        include: {
+          product: {
+            select: { id: true, name: true, basePrice: true, salePrice: true, isActive: true },
+          },
+          variant: {
+            select: { id: true, isActive: true, deletedAt: true, salePrice: true },
+          },
+        },
+      })) as unknown as Array<CartLikeItemWithDetails>;
+
+      if (!guestCartItems || guestCartItems.length === 0) {
+        throw new BadRequestException('Cart is empty');
+      }
+    } else {
+      const rawCart = await this.prisma.cart.findUnique({
+        where: { userId },
+        include: {
+          items: {
+            include: {
+              product: {
+                select: { id: true, name: true, basePrice: true, salePrice: true, isActive: true },
+              },
+              variant: {
+                select: { id: true, isActive: true, deletedAt: true, salePrice: true },
+              },
             },
           },
         },
-      },
-    });
+      });
 
-    if (!cart || cart.items.length === 0) {
-      throw new BadRequestException('Cart is empty');
+      if (!rawCart || rawCart.items.length === 0) {
+        throw new BadRequestException('Cart is empty');
+      }
+      cart = { id: rawCart.id, items: rawCart.items as unknown as CartLikeItemWithDetails[] };
     }
 
-    // 2. Resolve store for inventory locking
+    const cartItems = guestCartItems || cart!.items;
+
+    // Resolve store for inventory locking
     let storeId = dto.storeId;
     if (!storeId) {
       const defaultStore = await this.prisma.storeLocation.findFirst({
@@ -98,29 +151,10 @@ export class OrdersService {
       storeId = defaultStore.id;
     }
 
-    // 3. Generate order number
+    // Generate order number
     const orderNumber = `ORD-${uuidv4().slice(0, 8).toUpperCase()}`;
 
-    // 4. Batch-fetch all variants with their product prices to avoid N+1
-    const variantIds: string[] = [];
-    for (const item of cart.items) {
-      if (item.variantId) {
-        variantIds.push(item.variantId);
-      }
-    }
-
-    const variants = await this.prisma.productVariant.findMany({
-      where: { id: { in: variantIds } },
-      include: {
-        product: {
-          select: { id: true, name: true, isActive: true, basePrice: true, salePrice: true },
-        },
-      },
-    });
-
-    const variantMap = new Map(variants.map((v) => [v.id, v]));
-
-    // 5. Build order items data with real prices from DB (REQ-BE-004)
+    // Build order items data with real prices from DB
     let subtotal = 0;
     const orderItemsData: Array<{
       productId: string;
@@ -134,32 +168,26 @@ export class OrdersService {
 
     const inventoryDecrementMap = new Map<string, number>();
 
-    for (const item of cart.items) {
+    for (const item of cartItems) {
       let unitPrice: Prisma.Decimal;
 
-      if (item.variantId && variantMap.has(item.variantId)) {
-        const variant = variantMap.get(item.variantId)!;
-
-        if (!variant.isActive || variant.deletedAt) {
+      if (item.variantId && item.variant) {
+        if (!item.variant.isActive || item.variant.deletedAt) {
           throw new BadRequestException(`Variant ${item.variantId} is not available`);
         }
 
-        if (!variant.product.isActive) {
-          throw new BadRequestException(`Product ${variant.product.name} is not active`);
-        }
-
-        // REQ-BE-004: Always use real prices from DB, never trust client
-        unitPrice = variant.salePrice || variant.product.salePrice || variant.product.basePrice;
-
-        // Track inventory decrement per variant
-        const currentQty = inventoryDecrementMap.get(item.variantId) ?? 0;
-        inventoryDecrementMap.set(item.variantId, currentQty + item.quantity);
-      } else if (!item.variantId) {
-        // Item without a variant — use product-level pricing
         if (!item.product.isActive) {
           throw new BadRequestException(`Product ${item.product.name} is not active`);
         }
 
+        unitPrice = item.variant.salePrice || item.product.salePrice || item.product.basePrice;
+
+        const currentQty = inventoryDecrementMap.get(item.variantId) ?? 0;
+        inventoryDecrementMap.set(item.variantId, currentQty + item.quantity);
+      } else if (!item.variantId) {
+        if (!item.product.isActive) {
+          throw new BadRequestException(`Product ${item.product.name} is not active`);
+        }
         unitPrice = item.product.salePrice || item.product.basePrice;
       } else {
         throw new BadRequestException(`Variant ${item.variantId} is not available`);
@@ -181,12 +209,12 @@ export class OrdersService {
 
     const totalAmount = subtotal;
 
-    // 6. Create order + decrement inventory in a Prisma $transaction with FOR UPDATE locks
+    // Create order + decrement inventory in a Prisma $transaction with FOR UPDATE locks
     const order = await this.prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
         data: {
           orderNumber,
-          userId,
+          ...(guestSessionId ? { guestSessionId } : { userId }),
           totalAmount,
           subtotal,
           shippingAddress: dto.shippingAddress as unknown as Prisma.InputJsonValue,
@@ -201,7 +229,7 @@ export class OrdersService {
         include: ORDER_INCLUDE,
       });
 
-      // REQ-BE-004/005: Decrement inventory with row-level locks to prevent overselling
+      // Decrement inventory with row-level locks to prevent overselling
       const sortedVariantIds = Array.from(inventoryDecrementMap.keys()).sort();
       for (const variantId of sortedVariantIds) {
         const qty = inventoryDecrementMap.get(variantId) ?? 0;
@@ -234,7 +262,7 @@ export class OrdersService {
         });
       }
 
-      // REQ-BE-006: Persist shipping address as a ShippingAddress record
+      // Persist shipping address as a ShippingAddress record
       await tx.shippingAddress.create({
         data: {
           orderId: created.id,
@@ -248,16 +276,23 @@ export class OrdersService {
         },
       });
 
-      // Clear the user's cart items after successful order creation
-      await tx.cartItem.deleteMany({
-        where: { cartId: cart.id },
-      });
+      // Clear the cart items after successful order creation
+      if (guestSessionId) {
+        await tx.guestCartItem.deleteMany({
+          where: { guestSessionId },
+        });
+      } else {
+        await tx.cartItem.deleteMany({
+          where: { cartId: cart!.id },
+        });
+      }
 
       return created;
     });
 
     this.logger.log({
       userId,
+      guestSessionId,
       orderId: order.id,
       orderNumber: order.orderNumber,
       totalAmount: Number(totalAmount),
@@ -265,8 +300,7 @@ export class OrdersService {
       action: 'order.created',
     });
 
-    // REQ-BE-007: Create Razorpay order for payment processing
-    // Amount must be in paise as Razorpay expects (totalAmount is in rupees)
+    // Create Razorpay order for payment processing
     const amountInPaise = Math.round(Number(totalAmount) * 100);
     let razorpayOrder: Record<string, unknown> | null = null;
     try {
@@ -281,8 +315,6 @@ export class OrdersService {
         { orderId: order.id, error: (error as Error).message },
         'Failed to create Razorpay order',
       );
-      // Don't throw — order is already created in DB. Payment can be retried later.
-      // The order will show as PENDING and the admin can manually trigger payment creation.
     }
 
     const razorpayKeyId = this.config.get<string>('RAZORPAY_KEY_ID') || '';
@@ -430,7 +462,6 @@ export class OrdersService {
 
     // If cancelling, restore inventory in a transaction
     if (dto.status === 'CANCELLED') {
-      // Resolve store for inventory restoration (fallback to default store if not set on order)
       let storeId = order.storeId;
       if (!storeId) {
         const defaultStore = await this.prisma.storeLocation.findFirst({
@@ -444,13 +475,11 @@ export class OrdersService {
       }
 
       const updatedOrder = await this.prisma.$transaction(async (tx) => {
-        // Get order items for inventory restoration
         const orderItems = await tx.orderItem.findMany({
           where: { orderId },
           select: { variantId: true, quantity: true },
         });
 
-        // Restore inventory for each item using row-level locks
         for (const item of orderItems) {
           if (!item.variantId) continue;
 
@@ -477,7 +506,6 @@ export class OrdersService {
           }
         }
 
-        // Update order status
         const updated = await tx.order.update({
           where: { id: orderId },
           data: {
@@ -488,7 +516,6 @@ export class OrdersService {
           include: ORDER_INCLUDE,
         });
 
-        // Create audit log inside the transaction
         await tx.orderStatusLog.create({
           data: {
             orderId,
@@ -510,7 +537,6 @@ export class OrdersService {
         action: 'order.status.updated',
       });
 
-      // Send notifications
       await this.sendOrderNotifications(
         order.userId,
         orderId,
@@ -521,7 +547,6 @@ export class OrdersService {
       return updatedOrder;
     }
 
-    // For non-CANCELLED statuses, simple update (no inventory changes)
     const updated = await this.prisma.order.update({
       where: { id: orderId },
       data: {
@@ -531,7 +556,6 @@ export class OrdersService {
       include: ORDER_INCLUDE,
     });
 
-    // Create audit log
     await this.prisma.orderStatusLog.create({
       data: {
         orderId,
@@ -550,20 +574,23 @@ export class OrdersService {
       action: 'order.status.updated',
     });
 
-    // Send notifications
     await this.sendOrderNotifications(order.userId, orderId, dto.status, updated.orderNumber);
 
     return updated;
   }
 
-  async findMyOrders(userId: string, query: OrderHistoryQueryDto) {
+  async findMyOrders(userId: string, query: OrderHistoryQueryDto, guestSessionId?: string) {
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 10, 100);
     const skip = (page - 1) * limit;
 
-    const where: Prisma.OrderWhereInput = {
-      userId,
-    };
+    const where: Prisma.OrderWhereInput = {};
+
+    if (guestSessionId) {
+      where.guestSessionId = guestSessionId;
+    } else {
+      where.userId = userId;
+    }
 
     if (query.status) {
       where.status = query.status;
@@ -584,6 +611,10 @@ export class OrdersService {
       id: order.id,
       orderNumber: order.orderNumber,
       status: order.status,
+      subtotal: Number(order.subtotal),
+      discountAmount: Number(order.discountAmount),
+      shippingCharge: Number(order.shippingCharge),
+      taxAmount: Number(order.taxAmount),
       totalAmount: Number(order.totalAmount),
       createdAt: order.createdAt,
       itemCount: order.items.reduce((sum, item) => sum + item.quantity, 0),
@@ -593,6 +624,7 @@ export class OrdersService {
         variant: item.variant,
         quantity: item.quantity,
         unitPrice: Number(item.unitPrice),
+        totalPrice: Number(item.totalPrice),
       })),
     }));
 
@@ -607,7 +639,7 @@ export class OrdersService {
     };
   }
 
-  async findMyOrder(userId: string, orderId: string) {
+  async findMyOrder(userId: string, orderId: string, guestSessionId?: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: ORDER_INCLUDE,
@@ -617,8 +649,14 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    if (order.userId !== userId) {
-      throw new UnauthorizedException('This order does not belong to you');
+    if (guestSessionId) {
+      if (order.guestSessionId !== guestSessionId) {
+        throw new UnauthorizedException('This order does not belong to you');
+      }
+    } else {
+      if (order.userId !== userId) {
+        throw new UnauthorizedException('This order does not belong to you');
+      }
     }
 
     return {
@@ -648,7 +686,7 @@ export class OrdersService {
     };
   }
 
-  async repurchaseOrder(userId: string, orderId: string) {
+  async repurchaseOrder(userId: string, orderId: string, guestSessionId?: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -665,20 +703,19 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    if (order.userId !== userId) {
-      throw new UnauthorizedException('This order does not belong to you');
-    }
-
-    // Get or create user's cart
-    let cart = await this.prisma.cart.findUnique({ where: { userId } });
-    if (!cart) {
-      cart = await this.prisma.cart.create({ data: { userId } });
+    if (guestSessionId) {
+      if (order.guestSessionId !== guestSessionId) {
+        throw new UnauthorizedException('This order does not belong to you');
+      }
+    } else {
+      if (order.userId !== userId) {
+        throw new UnauthorizedException('This order does not belong to you');
+      }
     }
 
     const itemsAdded: number[] = [];
     const unavailableDetails: Array<{ productName: string; reason: string }> = [];
 
-    // Execute all cart mutations atomically
     await this.prisma.$transaction(async (tx) => {
       for (const item of order.items) {
         if (!item.product.isActive) {
@@ -697,56 +734,114 @@ export class OrdersService {
           continue;
         }
 
-        // Add to cart
-        const existingItem = await tx.cartItem.findFirst({
-          where: {
-            cartId: cart.id,
-            variantId: item.variantId,
-            type: item.type,
-          },
-        });
-
-        if (existingItem) {
-          await tx.cartItem.update({
-            where: { id: existingItem.id },
-            data: { quantity: existingItem.quantity + item.quantity },
-          });
-        } else {
-          await tx.cartItem.create({
-            data: {
-              cartId: cart.id,
-              productId: item.productId,
+        if (guestSessionId) {
+          const existingItem = await tx.guestCartItem.findFirst({
+            where: {
+              guestSessionId,
               variantId: item.variantId,
-              quantity: item.quantity,
               type: item.type,
             },
           });
+
+          if (existingItem) {
+            await tx.guestCartItem.update({
+              where: { id: existingItem.id },
+              data: { quantity: existingItem.quantity + item.quantity },
+            });
+          } else {
+            await tx.guestCartItem.create({
+              data: {
+                guestSessionId,
+                productId: item.productId,
+                variantId: item.variantId,
+                quantity: item.quantity,
+                type: item.type,
+              },
+            });
+          }
+        } else {
+          let cart = await tx.cart.findUnique({ where: { userId } });
+          if (!cart) {
+            cart = await tx.cart.create({ data: { userId } });
+          }
+
+          const existingItem = await tx.cartItem.findFirst({
+            where: {
+              cartId: cart.id,
+              variantId: item.variantId,
+              type: item.type,
+            },
+          });
+
+          if (existingItem) {
+            await tx.cartItem.update({
+              where: { id: existingItem.id },
+              data: { quantity: existingItem.quantity + item.quantity },
+            });
+          } else {
+            await tx.cartItem.create({
+              data: {
+                cartId: cart.id,
+                productId: item.productId,
+                variantId: item.variantId,
+                quantity: item.quantity,
+                type: item.type,
+              },
+            });
+          }
         }
         itemsAdded.push(item.quantity);
       }
     });
 
-    // Fetch updated cart
-    const updatedCart = await this.prisma.cart.findUnique({
-      where: { id: cart.id },
-      include: {
-        items: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-                images: true,
-                basePrice: true,
-                salePrice: true,
+    // Fetch updated cart (or guest cart items for guest)
+    let cartResult: Record<string, unknown> | null = null;
+    if (guestSessionId) {
+      const updatedGuestItems = await this.prisma.guestCartItem.findMany({
+        where: { guestSessionId },
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              images: true,
+              basePrice: true,
+              salePrice: true,
+            },
+          },
+          variant: { select: { id: true, size: true, color: true, sku: true, salePrice: true } },
+        },
+      });
+      cartResult = {
+        items: updatedGuestItems,
+        guestSessionId,
+      };
+    } else {
+      const updatedCart = await this.prisma.cart.findUnique({
+        where: { userId },
+        include: {
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                  images: true,
+                  basePrice: true,
+                  salePrice: true,
+                },
+              },
+              variant: {
+                select: { id: true, size: true, color: true, sku: true, salePrice: true },
               },
             },
-            variant: { select: { id: true, size: true, color: true, sku: true, salePrice: true } },
           },
         },
-      },
-    });
+      });
+      cartResult = updatedCart;
+    }
 
     const totalAdded = itemsAdded.reduce((sum, qty) => sum + qty, 0);
 
@@ -754,12 +849,11 @@ export class OrdersService {
       itemsAdded: totalAdded,
       unavailableItems: unavailableDetails.length,
       unavailableDetails,
-      cart: updatedCart,
+      cart: cartResult,
     };
   }
 
   async guestCheckout(dto: GuestCheckoutDto) {
-    // Validate guest user exists
     const guestUser = await this.prisma.user.findUnique({
       where: { id: dto.guestId },
     });
@@ -768,12 +862,10 @@ export class OrdersService {
       throw new NotFoundException('Guest user not found');
     }
 
-    // Validate items
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException('At least one item is required');
     }
 
-    // Resolve store for inventory locking
     let storeId = dto.storeId;
     if (!storeId) {
       const defaultStore = await this.prisma.storeLocation.findFirst({
@@ -786,7 +878,6 @@ export class OrdersService {
       storeId = defaultStore.id;
     }
 
-    // Create order with items
     const orderNumber = `ORD-${uuidv4().slice(0, 8).toUpperCase()}`;
     let subtotal = 0;
 
@@ -800,7 +891,6 @@ export class OrdersService {
       type: string;
     }> = [];
 
-    // Batch-fetch all variants in a single query to avoid N+1
     const variantIds = dto.items.map((item) => item.variantId);
     const variants = await this.prisma.productVariant.findMany({
       where: { id: { in: variantIds } },
@@ -812,8 +902,6 @@ export class OrdersService {
     });
 
     const variantMap = new Map(variants.map((v) => [v.id, v]));
-
-    // Track which variants need inventory decrement
     const inventoryDecrementMap = new Map<string, number>();
 
     for (const item of dto.items) {
@@ -841,7 +929,6 @@ export class OrdersService {
         type: item.type || 'sale',
       });
 
-      // Track inventory decrement
       const currentQty = inventoryDecrementMap.get(item.variantId) ?? 0;
       inventoryDecrementMap.set(item.variantId, currentQty + item.quantity);
     }
@@ -865,13 +952,11 @@ export class OrdersService {
         include: ORDER_INCLUDE,
       });
 
-      // Update guest email
       await tx.user.update({
         where: { id: dto.guestId },
         data: { email: dto.email },
       });
 
-      // Decrement inventory for each variant with row-level locks to prevent overselling.
       const variantIds = Array.from(inventoryDecrementMap.keys()).sort();
       for (const variantId of variantIds) {
         const qty = inventoryDecrementMap.get(variantId) ?? 0;
@@ -925,7 +1010,12 @@ export class OrdersService {
     };
   }
 
-  async initiateReturn(userId: string, orderId: string, dto: InitiateReturnDto) {
+  async initiateReturn(
+    userId: string,
+    orderId: string,
+    dto: InitiateReturnDto,
+    guestSessionId?: string,
+  ) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -940,15 +1030,20 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    if (order.userId !== userId) {
-      throw new UnauthorizedException('This order does not belong to you');
+    if (guestSessionId) {
+      if (order.guestSessionId !== guestSessionId) {
+        throw new UnauthorizedException('This order does not belong to you');
+      }
+    } else {
+      if (order.userId !== userId) {
+        throw new UnauthorizedException('This order does not belong to you');
+      }
     }
 
     if (order.status !== 'DELIVERED') {
       throw new BadRequestException('Only delivered orders can be returned');
     }
 
-    // Check return policy window (default 7 days if no policy configured)
     const returnPolicy = await this.prisma.returnPolicy.findFirst({
       where: { isActive: true },
       orderBy: { updatedAt: 'desc' },
@@ -966,7 +1061,6 @@ export class OrdersService {
       );
     }
 
-    // Determine if this is a full or partial return
     const allItemsReturned = dto.itemIds.length === order.items.length;
 
     if (!allItemsReturned) {
@@ -975,7 +1069,6 @@ export class OrdersService {
       );
     }
 
-    // Update order status based on whether all items are being returned
     const newStatus: OrderStatus = allItemsReturned ? 'RETURNED' : 'PARTIALLY_CANCELLED';
 
     await this.prisma.order.update({
@@ -994,7 +1087,7 @@ export class OrdersService {
     };
   }
 
-  async applyCoupon(userId: string, dto: ApplyCouponDto) {
+  async applyCoupon(userId: string, dto: ApplyCouponDto, guestSessionId?: string) {
     return this.prisma.$transaction(
       async (tx) => {
         const now = new Date();
@@ -1019,43 +1112,39 @@ export class OrdersService {
           throw new BadRequestException('This coupon has expired');
         }
 
-        // Check global usage limit
         if (coupon.usageLimit !== null && coupon.usedCount >= coupon.usageLimit) {
           throw new ConflictException('This coupon has reached its usage limit');
         }
 
-        // Check per-user usage limit
-        const userUsageCount = await tx.couponUsage.count({
-          where: { couponId: coupon.id, userId },
-        });
+        // For guest users, skip per-user usage limit (guests don't have userId)
+        if (!guestSessionId) {
+          const userUsageCount = await tx.couponUsage.count({
+            where: { couponId: coupon.id, userId },
+          });
 
-        if (userUsageCount >= coupon.perUserLimit) {
-          throw new ConflictException(
-            'You have already used this coupon the maximum number of times',
-          );
+          if (userUsageCount >= coupon.perUserLimit) {
+            throw new ConflictException(
+              'You have already used this coupon the maximum number of times',
+            );
+          }
         }
 
-        // Check minimum cart value
         if (Number(dto.cartTotal) < Number(coupon.minCartValue)) {
           throw new BadRequestException(
             `Minimum cart value of ₹${Number(coupon.minCartValue)} required for this coupon`,
           );
         }
 
-        // Calculate discount
         let discountAmount: number;
         if (coupon.type === 'PERCENT') {
           discountAmount = (Number(dto.cartTotal) * Number(coupon.value)) / 100;
-          // Apply max discount cap if set
           if (coupon.maxDiscount !== null && discountAmount > Number(coupon.maxDiscount)) {
             discountAmount = Number(coupon.maxDiscount);
           }
         } else {
-          // FLAT discount
           discountAmount = Number(coupon.value);
         }
 
-        // Ensure discount doesn't exceed cart total
         discountAmount = Math.min(discountAmount, Number(dto.cartTotal));
 
         const finalTotal = Number(dto.cartTotal) - discountAmount;
@@ -1076,18 +1165,24 @@ export class OrdersService {
     );
   }
 
-  async getTracking(userId: string, orderId: string) {
+  async getTracking(userId: string, orderId: string, guestSessionId?: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      select: { id: true, userId: true },
+      select: { id: true, userId: true, guestSessionId: true },
     });
 
     if (!order) {
       throw new NotFoundException('Order not found');
     }
 
-    if (order.userId !== userId) {
-      throw new UnauthorizedException('This order does not belong to you');
+    if (guestSessionId) {
+      if (order.guestSessionId !== guestSessionId) {
+        throw new UnauthorizedException('This order does not belong to you');
+      }
+    } else {
+      if (order.userId !== userId) {
+        throw new UnauthorizedException('This order does not belong to you');
+      }
     }
 
     const courierReceipts = await this.prisma.courierReceipt.findMany({
@@ -1116,7 +1211,7 @@ export class OrdersService {
     };
   }
 
-  async getInvoicePdf(orderId: string, userId: string) {
+  async getInvoicePdf(orderId: string, userId: string, guestSessionId?: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -1132,8 +1227,14 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    if (order.userId !== userId) {
-      throw new UnauthorizedException('This order does not belong to you');
+    if (guestSessionId) {
+      if (order.guestSessionId !== guestSessionId) {
+        throw new UnauthorizedException('This order does not belong to you');
+      }
+    } else {
+      if (order.userId !== userId) {
+        throw new UnauthorizedException('This order does not belong to you');
+      }
     }
 
     const invoice = order.invoices[0];
@@ -1141,12 +1242,10 @@ export class OrdersService {
       throw new NotFoundException('No invoice found for this order');
     }
 
-    // Try to download from storage using pdfStorageKey first, then fallback to URL parsing
     let buffer: Buffer | null = null;
     try {
       let key = invoice.pdfStorageKey;
       if (!key) {
-        // Fallback for old invoices without pdfStorageKey
         const urlParts = invoice.pdfUrl.split('/');
         key = urlParts.slice(urlParts.indexOf('invoices')).join('/');
       }
@@ -1158,7 +1257,6 @@ export class OrdersService {
     }
 
     if (!buffer) {
-      // Fallback: try the full URL as key
       buffer = await this.storage.download(invoice.pdfUrl);
     }
 
@@ -1171,10 +1269,6 @@ export class OrdersService {
     return { buffer, filename };
   }
 
-  /**
-   * Send notifications for order status changes via WebSocket and persistent notification.
-   * Failures are logged but do not break the order update flow.
-   */
   private async sendOrderNotifications(
     userId: string | null,
     orderId: string,
@@ -1196,7 +1290,6 @@ export class OrdersService {
       return;
     }
 
-    // Real-time WebSocket push
     try {
       this.notificationsGateway.sendOrderUpdate(userId, {
         orderId,
@@ -1209,7 +1302,6 @@ export class OrdersService {
       );
     }
 
-    // Persistent notification + email/SMS via BullMQ
     try {
       await this.notificationsService.create({
         userId,

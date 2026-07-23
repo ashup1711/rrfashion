@@ -198,6 +198,10 @@ describe('CartService', () => {
       color: 'Red',
       sku: 'SKU-001',
       salePrice: null,
+      inventorySummaries: [
+        { quantityAvailable: 10, storeId: 'store-1' },
+        { quantityAvailable: 5, storeId: 'store-2' },
+      ],
     };
 
     it('should add a new item to cart', async () => {
@@ -208,7 +212,11 @@ describe('CartService', () => {
         items: [],
       });
       mockPrisma.cartItem.create.mockResolvedValue({ id: 'item-1' });
-
+      mockPrisma.cart.findUnique.mockResolvedValue({
+        id: 'cart-1',
+        userId: 'user-1',
+        items: [],
+      });
       mockPrisma.cart.findUnique.mockResolvedValue({
         id: 'cart-1',
         userId: 'user-1',
@@ -330,6 +338,45 @@ describe('CartService', () => {
         ),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('should throw BadRequestException when variant is out of stock', async () => {
+      const outOfStockVariant = {
+        ...mockVariant,
+        inventorySummaries: [],
+      };
+      mockPrisma.productVariant.findUnique.mockResolvedValue(outOfStockVariant);
+
+      await expect(
+        service.addItem(
+          { userId: 'user-1' },
+          { variantId: 'variant-1', quantity: 1, type: 'sale' },
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when adding more than available stock', async () => {
+      mockPrisma.productVariant.findUnique.mockResolvedValue(mockVariant);
+      mockPrisma.cart.findUnique.mockResolvedValue({
+        id: 'cart-1',
+        userId: 'user-1',
+        items: [
+          {
+            id: 'existing-item',
+            variantId: 'variant-1',
+            productId: 'product-1',
+            quantity: 12, // Already has 12 in cart
+            type: 'sale',
+          },
+        ],
+      });
+
+      await expect(
+        service.addItem(
+          { userId: 'user-1' },
+          { variantId: 'variant-1', quantity: 5, type: 'sale' },
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('addItem - guest', () => {
@@ -348,6 +395,10 @@ describe('CartService', () => {
       color: 'Red',
       sku: 'SKU-001',
       salePrice: null,
+      inventorySummaries: [
+        { quantityAvailable: 10, storeId: 'store-1' },
+        { quantityAvailable: 5, storeId: 'store-2' },
+      ],
     };
 
     it('should create a new guest cart item', async () => {
@@ -429,6 +480,36 @@ describe('CartService', () => {
 
       expect(result.itemCount).toBe(3);
       expect(mockPrisma.guestCartItem.update).toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException when variant is out of stock', async () => {
+      const outOfStockVariant = {
+        ...mockVariant,
+        inventorySummaries: [],
+      };
+      mockPrisma.productVariant.findUnique.mockResolvedValue(outOfStockVariant);
+
+      await expect(
+        service.addItem(
+          { guestSessionId: 'guest-1' },
+          { variantId: 'variant-1', quantity: 1, type: 'sale' },
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when adding more than available stock', async () => {
+      mockPrisma.productVariant.findUnique.mockResolvedValue(mockVariant);
+      mockPrisma.guestCartItem.findUnique.mockResolvedValue({
+        id: 'gci-1',
+        quantity: 13, // Already has 13 in cart
+      });
+
+      await expect(
+        service.addItem(
+          { guestSessionId: 'guest-1' },
+          { variantId: 'variant-1', quantity: 5, type: 'sale' },
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

@@ -22,10 +22,12 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         runtimeCaching: [
-          // Cache-first for app shell assets (JS, CSS, HTML)
+          // Stale-while-revalidate for app shell assets (JS, CSS, HTML)
+          // CacheFirst can serve stale chunks after deployment, causing errors
+          // StaleWhileRevalidate serves cached content immediately but fetches updates in the background
           {
             urlPattern: /\.(?:js|css|html)$/,
-            handler: 'CacheFirst',
+            handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'app-shell',
               expiration: { maxEntries: 50, maxAgeSeconds: 7 * 24 * 60 * 60 },

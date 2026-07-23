@@ -6,7 +6,10 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 import { StorageInterface } from './storage.interface';
+import { Readable } from 'stream';
+import * as fs from 'fs';
 
 @Injectable()
 export class S3StorageService implements StorageInterface {
@@ -57,6 +60,43 @@ export class S3StorageService implements StorageInterface {
       this.logger.error(`Failed to upload ${key}`, error);
       throw error;
     }
+  }
+
+  async uploadStream(
+    key: string,
+    stream: Readable,
+    contentType: string,
+    contentLength?: number,
+  ): Promise<string> {
+    try {
+      const upload = new Upload({
+        client: this.client,
+        params: {
+          Bucket: this.bucket,
+          Key: key,
+          Body: stream,
+          ContentType: contentType,
+          ...(contentLength !== undefined && { ContentLength: contentLength }),
+        },
+      });
+
+      upload.on('httpUploadProgress', (progress) => {
+        this.logger.debug(`S3 upload progress: ${progress.loaded}/${progress.total}`);
+      });
+
+      await upload.done();
+      this.logger.log(`Streamed ${key} to ${this.bucket}`);
+      return key;
+    } catch (error) {
+      this.logger.error(`Failed to stream ${key}`, error);
+      throw error;
+    }
+  }
+
+  async uploadFile(key: string, filePath: string, contentType: string): Promise<string> {
+    const stat = await fs.promises.stat(filePath);
+    const stream = fs.createReadStream(filePath);
+    return this.uploadStream(key, stream, contentType, stat.size);
   }
 
   async download(key: string): Promise<Buffer | null> {

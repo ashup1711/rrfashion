@@ -19,6 +19,7 @@ export const ROUTES = {
   CONTACT: '/contact',
   FAQ: '/faq',
   SHIPPING_RETURNS: '/shipping-returns',
+  COMPARE: '/compare',
 
   // Admin routes
   ADMIN_LOGIN: '/admin/login',
@@ -159,3 +160,44 @@ export const STALE_TIMES = {
   adminUsers: 1000 * 60 * 5,
   inventory: 1000 * 60 * 2,
 } as const;
+
+export const FREE_SHIPPING_THRESHOLD = 999;
+export const STANDARD_SHIPPING_FEE = 250;
+
+export type FestivePromoKey = 'diwali' | 'navratri' | 'wedding' | 'holi';
+
+export interface FestivePromo {
+  code: string;
+  discount: number;
+  startDate: string;
+  endDate: string;
+}
+
+export const FESTIVE_PROMOS: Record<FestivePromoKey, FestivePromo> = {
+  diwali: { code: 'SHINE20', discount: 20, startDate: '2026-10-15', endDate: '2026-11-15' },
+  navratri: { code: 'GARBA15', discount: 15, startDate: '2026-09-25', endDate: '2026-10-05' },
+  wedding: { code: 'WEDDING10', discount: 10, startDate: '2026-11-01', endDate: '2027-02-28' },
+  holi: { code: 'HOLI15', discount: 15, startDate: '2027-03-01', endDate: '2027-03-15' },
+};
+
+const FESTIVE_PROMO_LABELS: Record<FestivePromoKey, string> = {
+  diwali: 'Diwali Special',
+  navratri: 'Navratri Special',
+  wedding: 'Wedding Season Special',
+  holi: 'Holi Special',
+};
+
+export const getActiveFestivePromo = (
+  now: Date = new Date(),
+): { key: FestivePromoKey; promo: FestivePromo; label: string } | null => {
+  const today = now.getTime();
+  for (const key of Object.keys(FESTIVE_PROMOS) as FestivePromoKey[]) {
+    const promo = FESTIVE_PROMOS[key];
+    const start = new Date(`${promo.startDate}T00:00:00`).getTime();
+    const end = new Date(`${promo.endDate}T23:59:59`).getTime();
+    if (today >= start && today <= end) {
+      return { key, promo, label: FESTIVE_PROMO_LABELS[key] };
+    }
+  }
+  return null;
+};

@@ -3,11 +3,12 @@ import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useGuestCheckout, useGuestAuth } from '../../hooks/useGuestAuth';
 import { useApplyCoupon } from '../../hooks/useMyOrders';
-import { useCartStore } from '../../store/cartStore';
+import { useCart } from '../../hooks/useCart';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import Select from '../../components/ui/Select';
 import Card from '../../components/ui/Card';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { ROUTES } from '../../utils/constants';
 import type { CouponResult } from '../../api/orders';
@@ -15,7 +16,7 @@ import { getOrCreateGuestSessionId } from '../../utils/guestSession';
 
 const GuestCheckout = () => {
   const navigate = useNavigate();
-  const { items, total } = useCartStore();
+  const { items, total, isLoading, error } = useCart();
   const guestAuthMutation = useGuestAuth();
   const guestCheckoutMutation = useGuestCheckout();
   const applyCouponMutation = useApplyCoupon();
@@ -134,6 +135,31 @@ const GuestCheckout = () => {
       toast.error('Checkout failed. Please verify your details and try again.');
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="container-page py-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">Guest Checkout</h1>
+        <Card>
+          <LoadingSpinner size="lg" label="Loading cart..." />
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container-page py-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">Guest Checkout</h1>
+        <Card>
+          <div className="text-center py-8">
+            <p className="text-red-500 mb-4">Failed to load cart. Please refresh.</p>
+            <Button onClick={() => window.location.reload()}>Refresh Page</Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   if (!items.length) {
     return (
@@ -275,7 +301,7 @@ const GuestCheckout = () => {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h3>
             <div className="space-y-3">
               {items.map((item) => (
-                <div key={item.productId} className="flex justify-between text-sm">
+                <div key={item.variantId ?? item.productId} className="flex justify-between text-sm">
                   <span className="text-gray-600 truncate flex-1">
                     {item.name} &times; {item.quantity}
                   </span>

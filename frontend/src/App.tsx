@@ -1,11 +1,12 @@
-import { Suspense, useEffect } from 'react';
+import { Suspense } from 'react';
 import { useLocation, Navigate } from 'react-router-dom';
 import { AppRoutes } from './routes';
 import Layout from './components/layout/Layout';
 import AdminLayout from './components/layout/AdminLayout';
 import LoadingSpinner from './components/common/LoadingSpinner';
+import PageTransition from './components/common/PageTransition';
 import { useAuthStore } from './store/authStore';
-import { ensureGuestSession } from './utils/guestSessionInit';
+import { useGuestSession } from './hooks/useGuestSession';
 
 const App = () => {
   const location = useLocation();
@@ -13,10 +14,8 @@ const App = () => {
   const isAdminLogin = location.pathname === '/admin/login';
   const { isAdminAuthenticated, isAdminAuthValidated } = useAuthStore();
 
-  // Initialize guest session on app load (only if not authenticated)
-  useEffect(() => {
-    ensureGuestSession();
-  }, []);
+  // Initialize guest session on app load (fire-and-forget, does not block rendering)
+  useGuestSession();
 
   // Admin login page has its own minimal layout
   if (isAdminLogin) {
@@ -41,11 +40,13 @@ const App = () => {
     );
   }
 
-  // Customer routes get the regular layout
+  // Customer routes get the regular layout with page transitions
   return (
     <Suspense fallback={<LoadingSpinner />}>
       <Layout>
-        <AppRoutes />
+        <PageTransition>
+          <AppRoutes />
+        </PageTransition>
       </Layout>
     </Suspense>
   );

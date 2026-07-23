@@ -5,7 +5,7 @@ function getAdminApiUrl() {
 }
 
 const adminClient = axios.create({
-  headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+  headers: { 'ngrok-skip-browser-warning': 'true' },
   timeout: 15000,
 });
 

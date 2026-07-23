@@ -12,9 +12,11 @@ import {
   ParseFilePipe,
   MaxFileSizeValidator,
   FileTypeValidator,
+  HttpCode,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { diskStorage } from 'multer';
+import { ApiTags, ApiConsumes, ApiBody, ApiAcceptedResponse } from '@nestjs/swagger';
 import { ApiCommonResponse } from '../../common/decorators/api-response.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -24,11 +26,20 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
+import { ImageUploadService } from '../upload/image-upload.service';
+import { mkdirSync } from 'fs';
+import { v4 as uuidv4 } from 'uuid';
+
+const PROFILE_PHOTO_TEMP_DIR = './uploads/temp';
+mkdirSync(PROFILE_PHOTO_TEMP_DIR, { recursive: true });
 
 @ApiTags('Users')
 @Controller()
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly uploadService: ImageUploadService,
+  ) {}
 
   @Post('users')
   @ApiCommonResponse({
@@ -93,7 +104,19 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Post('profile/photo')
-  @UseInterceptors(FileInterceptor('file'))
+  @HttpCode(202)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: PROFILE_PHOTO_TEMP_DIR,
+        filename: (_req, file, cb) => {
+          const ext = file.originalname.split('.').pop() ?? 'jpg';
+          cb(null, `${uuidv4()}.${ext}`);
+        },
+      }),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -103,7 +126,7 @@ export class UsersController {
       },
     },
   })
-  @ApiCommonResponse({ summary: 'Upload profile photo' })
+  @ApiAcceptedResponse({ description: 'Upload accepted, processing in background' })
   async uploadProfilePhoto(
     @CurrentUser('id') userId: string,
     @UploadedFile(
@@ -115,7 +138,7 @@ export class UsersController {
       }),
     )
     file: Express.Multer.File,
-  ) {
-    return this.usersService.uploadProfilePhoto(userId, file);
+  ): Promise<{ uploadId: string; status: string }> {
+    return this.uploadService.queueProfilePhotoUpload(userId, file);
   }
 }

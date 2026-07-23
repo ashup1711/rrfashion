@@ -8,21 +8,14 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
-import { StorageService } from '../../storage/storage.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
-import { v4 as uuidv4 } from 'uuid';
-
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly storage: StorageService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(_createUserDto?: unknown): Promise<never> {
     void _createUserDto;
@@ -169,52 +162,10 @@ export class UsersService {
   }
 
   async uploadProfilePhoto(userId: string, file: Express.Multer.File) {
-    if (!file) {
-      throw new BadRequestException('No file provided');
-    }
-
-    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      throw new BadRequestException(
-        `Invalid file type: ${file.mimetype}. Allowed types: ${ALLOWED_MIME_TYPES.join(', ')}`,
-      );
-    }
-
-    // Generate storage key
-    const extension = file.originalname.split('.').pop() || 'jpg';
-    const safeName = `${uuidv4()}.${extension}`;
-    const key = `profiles/${userId}/${safeName}`;
-
-    // Upload to storage
-    await this.storage.upload(key, file.buffer, file.mimetype);
-    const photoUrl = this.storage.getPublicUrl(key);
-
-    // Get old photo key for deletion
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { profilePhotoKey: true },
-    });
-
-    // Update user record
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        profilePhoto: photoUrl,
-        profilePhotoKey: key,
-      },
-    });
-
-    // Delete old photo if exists
-    if (currentUser?.profilePhotoKey) {
-      try {
-        await this.storage.delete(currentUser.profilePhotoKey);
-      } catch (error) {
-        this.logger.warn(
-          `Failed to delete old profile photo: ${currentUser.profilePhotoKey}`,
-          error,
-        );
-      }
-    }
-
-    return { photoUrl };
+    void userId;
+    void file;
+    throw new NotImplementedException(
+      'Profile photo upload now uses async queue. Use POST /profile/photo with multipart upload.',
+    );
   }
 }

@@ -4,6 +4,12 @@ import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GuestSession } from '@prisma/client';
+import { GuestAddressService } from './guest-address.service';
+import {
+  CreateGuestAddressDto,
+  UpdateGuestAddressDto,
+  GuestAddressResponseDto,
+} from './dto/guest-address.dto';
 
 export type GuestValidationResult =
   { ok: true; session: GuestSession } | { ok: false; reason: 'not_found' | 'expired' };
@@ -12,6 +18,7 @@ export interface CleanupResult {
   sessions: number;
   cartItems: number;
   wishlistItems: number;
+  addresses: number;
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -25,6 +32,7 @@ export class GuestSessionService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
+    private readonly guestAddressService: GuestAddressService,
   ) {
     const ttlDays = this.configService.get<number>('GUEST_SESSION_TTL_DAYS', 30);
     this.ttlMs = ttlDays * MS_PER_DAY;
@@ -128,25 +136,57 @@ export class GuestSessionService {
     this.logger.log({ guestSessionId: id, action: 'guest.session.deleted' });
   }
 
+  async createAddress(
+    guestSessionId: string,
+    dto: CreateGuestAddressDto,
+  ): Promise<GuestAddressResponseDto> {
+    return this.guestAddressService.create(guestSessionId, dto);
+  }
+
+  async getAddresses(guestSessionId: string): Promise<GuestAddressResponseDto[]> {
+    return this.guestAddressService.findBySession(guestSessionId);
+  }
+
+  async updateAddress(
+    guestSessionId: string,
+    addressId: string,
+    dto: UpdateGuestAddressDto,
+  ): Promise<GuestAddressResponseDto> {
+    return this.guestAddressService.update(guestSessionId, addressId, dto);
+  }
+
+  async deleteAddress(guestSessionId: string, addressId: string): Promise<{ success: boolean }> {
+    return this.guestAddressService.delete(guestSessionId, addressId);
+  }
+
+  async setDefaultAddress(
+    guestSessionId: string,
+    addressId: string,
+  ): Promise<GuestAddressResponseDto> {
+    return this.guestAddressService.setDefault(guestSessionId, addressId);
+  }
+
   async cleanupExpired(now: Date): Promise<CleanupResult> {
     const expired = await this.prisma.guestSession.findMany({
       where: { expiresAt: { lt: now } },
       include: {
         _count: {
-          select: { cartItems: true, wishlistItems: true },
+          select: { cartItems: true, wishlistItems: true, addresses: true },
         },
       },
     });
 
     if (expired.length === 0) {
-      return { sessions: 0, cartItems: 0, wishlistItems: 0 };
+      return { sessions: 0, cartItems: 0, wishlistItems: 0, addresses: 0 };
     }
 
     let cartItems = 0;
     let wishlistItems = 0;
+    let addresses = 0;
     for (const session of expired) {
       cartItems += session._count.cartItems;
       wishlistItems += session._count.wishlistItems;
+      addresses += session._count.addresses;
     }
 
     const result = await this.prisma.guestSession.deleteMany({
@@ -157,6 +197,7 @@ export class GuestSessionService {
       sessions: result.count,
       cartItems,
       wishlistItems,
+      addresses,
       action: 'guest.session.cleanup',
     });
 
@@ -164,6 +205,7 @@ export class GuestSessionService {
       sessions: result.count,
       cartItems,
       wishlistItems,
+      addresses,
     };
   }
 }

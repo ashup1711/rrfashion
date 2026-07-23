@@ -91,6 +91,12 @@ enum ImageSizeType {
   ORIGINAL
 }
 
+enum ImageVariantType {
+  ORIGINAL
+  MEDIUM
+  THUMBNAIL
+}
+
 enum InventoryUnitStatus {
   AVAILABLE
   RESERVED
@@ -414,17 +420,27 @@ model ProductVariant {
 }
 
 model ProductImage {
-  id        String  @id @default(uuid())
-  variantId String
-  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  url       String
-  altText   String?
-  sortOrder Int     @default(0)
-  sizeType  String  @default("original")
+  id            String            @id @default(uuid())
+  variantId     String
+  variant       ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  url           String
+  storageKey    String?           @map("storage_key")
+  altText       String?
+  sortOrder     Int               @default(0)
+  width         Int?
+  height        Int?
+  fileSize      Int?              @map("file_size")
+  mimeType      String?           @map("mime_type")
+  variantType   ImageVariantType  @default(ORIGINAL) @map("variant_type")
+  parentImageId String?           @map("parent_image_id")
+  parentImage   ProductImage?     @relation("ImageVariants", fields: [parentImageId], references: [id], onDelete: Cascade)
+  variants      ProductImage[]    @relation("ImageVariants")
 
   createdAt DateTime @default(now())
 
   @@index([variantId])
+  @@index([storageKey])
+  @@index([parentImageId])
   @@map("product_images")
 }
 
@@ -462,8 +478,11 @@ model Review {
   photos    String[]
   status    ReviewStatus @default(PENDING)
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  guestSessionId  String?       @map("guest_session_id")
+  guestSession    GuestSession? @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
 
   productId  String
   product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -481,10 +500,11 @@ model Review {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([guestSessionId])
   @@index([productId])
   @@index([variantId])
   @@index([orderItemId])
-  @@unique([orderItemId])
+  @@unique([userId, productId])
   @@index([status])
   @@map("reviews")
 }
@@ -526,6 +546,8 @@ model Order {
   orderNumber     String        @unique
   userId          String?
   user            User?         @relation(fields: [userId], references: [id])
+  guestSessionId  String?       @map("guest_session_id")
+  guestSession    GuestSession? @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
   userType        String?       @default("customer")
   adminUserId     String?
   adminUser       AdminUser?    @relation(fields: [adminUserId], references: [id])
@@ -559,11 +581,13 @@ model Order {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([guestSessionId])
   @@index([status])
   @@index([storeId])
   @@index([orderNumber])
   @@index([userId, status])
   @@index([userId, createdAt])
+  @@index([guestSessionId, createdAt])
   @@index([adminUserId])
   @@map("orders")
 }
@@ -1039,6 +1063,9 @@ model GuestSession {
 
   cartItems       GuestCartItem[]
   wishlistItems   GuestWishlistItem[]
+  addresses       GuestAddress[]
+  orders          Order[]
+  reviews         Review[]
 
   @@index([expiresAt])
   @@index([lastActivityAt])
@@ -1078,6 +1105,33 @@ model GuestWishlistItem {
   @@unique([guestSessionId, variantId])
   @@index([guestSessionId])
   @@map("guest_wishlist_items")
+}
+
+// ══════════════════════════════════════════════════════════
+//  GUEST ADDRESS
+// ══════════════════════════════════════════════════════════
+
+model GuestAddress {
+  id              String        @id @default(uuid())
+  guestSessionId  String        @map("guest_session_id")
+  guestSession    GuestSession  @relation(fields: [guestSessionId], references: [id], onDelete: Cascade)
+
+  label           String
+  fullName        String
+  phone           String
+  addressLine1    String
+  addressLine2    String?
+  city            String
+  state           String
+  postalCode      String
+  country         String        @default("India")
+  isDefault       Boolean       @default(false)
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([guestSessionId])
+  @@map("guest_addresses")
 }
 
 model Notification {

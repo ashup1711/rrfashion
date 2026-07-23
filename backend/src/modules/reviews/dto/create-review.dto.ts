@@ -2,9 +2,9 @@ import { IsString, IsOptional, IsInt, Min, Max, IsArray } from 'class-validator'
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateReviewDto {
-  @ApiProperty({ description: 'Order item ID', readOnly: false })
+  @ApiProperty({ description: 'Product ID', readOnly: false })
   @IsString()
-  orderItemId: string;
+  productId: string;
 
   @ApiProperty({ description: 'Rating 1-5', readOnly: false })
   @IsInt()

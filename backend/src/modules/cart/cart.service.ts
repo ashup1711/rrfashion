@@ -126,7 +126,13 @@ export class CartService {
 
     const variant = await this.prisma.productVariant.findUnique({
       where: { id: dto.variantId },
-      include: { product: { select: { id: true, name: true, isActive: true } } },
+      include: {
+        product: { select: { id: true, name: true, isActive: true } },
+        inventorySummaries: {
+          where: { quantityAvailable: { gt: 0 } },
+          select: { quantityAvailable: true, storeId: true },
+        },
+      },
     });
 
     if (!variant || !variant.isActive || variant.deletedAt) {
@@ -137,7 +143,27 @@ export class CartService {
       throw new BadRequestException('Product is not active');
     }
 
+    // Check stock availability
+    const totalAvailableStock = variant.inventorySummaries.reduce(
+      (sum, summary) => sum + summary.quantityAvailable,
+      0,
+    );
+
+    if (totalAvailableStock <= 0) {
+      throw new BadRequestException(`Variant "${variant.size}" - "${variant.color}" is out of stock`);
+    }
+
     const productId = variant.product.id;
+
+    // Check if adding this quantity would exceed available stock
+    const existingQuantity = await this.getExistingCartQuantity(ctx, dto.variantId, dto.type);
+    const newTotalQuantity = existingQuantity + dto.quantity;
+
+    if (newTotalQuantity > totalAvailableStock) {
+      throw new BadRequestException(
+        `Cannot add ${dto.quantity} items. Only ${totalAvailableStock - existingQuantity} more available for variant "${variant.size}" - "${variant.color}"`,
+      );
+    }
 
     if (ctx.type === 'user') {
       const cart = await this.prisma.cart.upsert({
@@ -201,6 +227,40 @@ export class CartService {
     }
 
     return this.findCart({ guestSessionId: ctx.guestSessionId });
+  }
+
+  /**
+   * Get the current quantity of a variant in the cart
+   */
+  private async getExistingCartQuantity(
+    ctx: CartContext,
+    variantId: string,
+    type: string,
+  ): Promise<number> {
+    if (ctx.type === 'user') {
+      const cart = await this.prisma.cart.findUnique({
+        where: { userId: ctx.userId },
+        include: {
+          items: {
+            where: { variantId, type },
+            select: { quantity: true },
+          },
+        },
+      });
+      return cart?.items[0]?.quantity || 0;
+    } else {
+      const item = await this.prisma.guestCartItem.findUnique({
+        where: {
+          guestSessionId_variantId_type: {
+            guestSessionId: ctx.guestSessionId,
+            variantId,
+            type,
+          },
+        },
+        select: { quantity: true },
+      });
+      return item?.quantity || 0;
+    }
   }
 
   async updateItem(itemId: string, identifier: CartIdentifier, quantity: number) {

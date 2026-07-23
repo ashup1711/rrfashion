@@ -3,7 +3,7 @@ services:
     image: postgis/postgis:16-3.4
     restart: unless-stopped
     ports:
-      - "${POSTGRES_HOST_PORT:-5433}:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     environment:
       POSTGRES_DB: rr_fashion
       POSTGRES_USER: postgres
@@ -54,7 +54,7 @@ services:
     ports:
       - "${BACKEND_HOST_PORT:-3000}:3000"
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: "3000"
       DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/rr_fashion?schema=public"
       REDIS_HOST: redis

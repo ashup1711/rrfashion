@@ -35,3 +35,16 @@ export const guestCheckout = async (checkoutData: GuestCheckoutData): Promise<an
   const { data } = await apiClient.post('/orders/guest', checkoutData);
   return data;
 };
+
+/**
+ * Start a new guest session via the backend.
+ * Returns guest session ID, JWT token, and expiry timestamp.
+ */
+export const startGuestSession = async (): Promise<{
+  guestSessionId: string;
+  guestToken: string;
+  expiresAt: string;
+}> => {
+  const { data } = await apiClient.post('/guest/start');
+  return data;
+};

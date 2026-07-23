@@ -29,28 +29,35 @@ The pipeline supports four modes controlled by `project_state.json` → `pipelin
 
 | Mode | Agents | Use Case |
 |------|--------|----------|
-| `full` | research → experts → QA → suggestion | Complete flow from scratch |
-| `research-first` | research → suggestion (pre-impl) | Pre-planning only — stops after reports written |
-| `implement` | expert agents → QA → suggestion | Resume from existing research + suggestion reports |
+| `full` | explore → research → experts → QA → suggestion | Complete flow from scratch |
+| `research-first` | explore → research → suggestion (pre-impl) | Pre-planning only — stops after reports written |
+| `implement` | expert agents → QA → suggestion | Resume from existing explore + research + suggestion reports |
 | `qa-only` | code-review-and-qa | Review existing code without changes |
 
 ## Pipeline Order
 
+### Phase 0 (All Modes)
+```
+explore (subagent_type: "explore") — one-time codebase scan
+   ↓ writes
+.opencode/state/explore_findings.md — shared context for research + suggestion agents
+```
+
 ### Full Mode
 ```
-research-agent → expert agents → code-review-and-qa → suggestion-agent
+explore → research-agent → expert agents → code-review-and-qa → suggestion-agent
 ```
 
 ### Research-First Mode (Pre-Planning)
 ```
-research-agent → suggestion-agent (pre-implementation mode)
+explore → research-agent → suggestion-agent (pre-implementation mode)
    ↓
 Stops after writing research_report.md + research_report_coverage.json + suggestion_report_pre.md
 ```
 
 ### Implement Mode (Warm-Start)
 ```
-reads existing research_report.md + suggestion_report_pre.md + research_report_coverage.json
+reads existing explore_findings.md + research_report.md + suggestion_report_pre.md + research_report_coverage.json
    ↓
 expert agents → code-review-and-qa → suggestion-agent
 ```
@@ -61,9 +68,15 @@ expert agents → code-review-and-qa → suggestion-agent
 
 Check if `.opencode/state/project_state.json` already exists with a `pipeline_mode`:
 
-- **If it exists AND `pipeline_mode` is `"implement"`**: This is a warm-start resume. Read the existing `research_report.md`, `research_report_coverage.json`, and `suggestion_report_pre.md`. Skip Steps 2-6 (research phase). Go directly to Step 7 (Dispatch Expert Agents).
-- **If it exists AND `pipeline_mode` is `"qa-only"`**: Go directly to Step 8 (Dispatch code-review-and-qa).
-- **If it exists AND `pipeline_mode` is `"research-first"`**: Run Steps 2-6 (research phase), then Step 9 (suggestion pre-implementation), then stop with status `"completed"`.
+- **If it exists AND `pipeline_mode` is `"implement"`**: This is a warm-start resume. Validate all cached artifacts against the current `request_id` (derived from `user_prompt`):
+  - Read `project_state.json` → `user_prompt`, compute `request_id` (e.g. first 12 chars of `sha256(user_prompt)`)
+  - `.opencode/state/explore_findings.md` — if missing or its first-line `<!-- request_id: ... -->` doesn't match, dispatch explore first (see Phase 0)
+  - `.opencode/state/research_report.md` — if missing or its first-line `<!-- request_id: ... -->` doesn't match, the cached research is stale. Set `pipeline_mode: "full"` and fall back to the full pipeline — do NOT skip research phase
+  - `.opencode/state/research_report_coverage.json` — if missing or its `"request_id"` field doesn't match, treat as stale (same fallback to full mode)
+  - `.opencode/state/suggestion_report_pre.md` — if it exists but its `<!-- request_id: ... -->` doesn't match, re-dispatch suggestion-agent in pre-implementation mode after research completes
+  - If all match, read the existing artifacts and skip Steps 2-6 and Step 8 Phase 1. Go directly to Step 8 Phase 2.
+- **If it exists AND `pipeline_mode` is `"qa-only"`**: Go directly to Step 8 Phase 2 (Dispatch code-review-and-qa).
+- **If it exists AND `pipeline_mode` is `"research-first"`**: Run Steps 2-6 (setup + design), then Step 8 Phase 0-1b (explore + research + suggestion), then stop with status `"completed"`.
 - **If it doesn't exist or `pipeline_mode` is `"full"`** (default): Run all steps from 2 onward.
 
 Determine the mode based on the user's prompt:
@@ -77,6 +90,7 @@ Determine the mode based on the user's prompt:
 If `.opencode/state/project_state.json` doesn't exist for this task, create it with:
 - `pipeline_mode`: the mode determined in Step 1
 - `required_agents`: the list you determine in Step 4
+- `request_id`: a stable identifier derived from `user_prompt` (e.g. first 12 characters of `sha256(user_prompt)`) — used for artifact request-matching across all cached files
 - `status`: `"in_progress"`
 - `requirement_coverage`: `{ total: 0, covered: 0, gap: 0, gap_items: [] }`
 
@@ -100,7 +114,7 @@ Determine which layers are affected by the user's request:
 - Frontend UI changes needed? → include `react-expert` (React)
 - Payment/checkout/refund/deposit changes needed? → include `payment-expert` (Razorpay)
 - Admin dashboard/reporting/top-seller/export changes needed? → include `insights-expert`
-- **In `full` or `research-first` mode**: Always include `research-agent` first (it feeds findings to all experts)
+- **In `full` or `research-first` mode**: Always include `research-agent` after the explore phase (it feeds findings to all experts)
 - **In `implement` mode**: Skip `research-agent` — use existing research report
 - Always include `code-review-and-qa` after experts complete (all modes except `research-first`)
 - Include `suggestion-agent`:
@@ -129,9 +143,10 @@ Create `.opencode/state/design_doc.md` containing:
 
 Update `.opencode/state/project_state.json`:
 - `user_prompt`: the original user request
+- `request_id`: a stable identifier derived from `user_prompt` (e.g. first 12 chars of `sha256(user_prompt)`) — used for artifact request-matching across all cached files. If already set in Step 2, reuse the same value.
 - `project_setup`: what you detected in step 3
 - `pipeline_mode`: the mode determined in step 1
-- `required_agents`: the list you determined in step 4
+- `required_agents`: the list you determine in step 4
 - `design_doc_path`: ".opencode/state/design_doc.md"
 - `requirement_coverage`: `{ total: <count of requirement IDs>, covered: 0, gap: 0, gap_items: [] }`
 - `status`: "in_progress"
@@ -153,20 +168,44 @@ Use the Task tool to dispatch subagents. The order depends on `pipeline_mode`. *
 
 Create the `.opencode/state/prompts/` directory on first dispatch if it doesn't exist.
 
+#### Phase 0: Codebase Exploration
+
+Before dispatching any downstream agent, ensure explore findings exist for the current request.
+
+1. **Check if explore findings exist for THIS request**:
+   - Read `.opencode/state/project_state.json` → get `request_id` (derived from `user_prompt`)
+   - Check if `.opencode/state/explore_findings.md` exists
+   - If it exists, read its first line — it should contain `<!-- request_id: <request_id> -->` for request-matching
+   - **Match found** → Reuse existing `explore_findings.md`, skip dispatch
+   - **No match or missing** → Dispatch explore agent fresh (below)
+
+2. **Dispatch the built-in explore subagent** (if needed) via Task with `subagent_type: "explore"`:
+   - Prompt: "Thoroughly explore the project at the current working directory. Produce a structured summary covering: project directory structure; backend conventions (NestJS modules, controllers, services, DTOs, guards, filters, interceptors, Prisma service patterns, Redis usage) with actual file paths and short code excerpts; frontend conventions (React components, API service layer, Zustand stores, React Query hooks, React Router setup, PWA config) with file paths and excerpts; database schema (Prisma models, enums, relations, indexes, migration patterns); existing API contracts; test patterns (file naming, test setup, fixtures, mocks); all package dependencies and versions from package.json files."
+   - Instruct the explore agent to include the current `request_id` as metadata so the orchestrator can match request to findings on subsequent checks.
+
+3. **Save the findings** to `.opencode/state/explore_findings.md` via bash — prepend `<!-- request_id: <request_id> -->` as the first line for request-matching.
+
+4. **Update project_state.json**:
+   - `explore_findings`: ".opencode/state/explore_findings.md"
+   - `updated_at`: current timestamp
+
+5. Pass the `explore_findings.md` path to all downstream agents that need codebase context (research-agent, suggestion-agent, suggestion-research-agent).
+
 #### Phase 1: Research (full / research-first mode only)
 
-1. **research-agent** first — it researches the codebase and produces:
-   - `.opencode/state/research_report.md` — final requirement prompt (all expert agents read this as primary source)
-   - `.opencode/state/research_report_coverage.json` — structured manifest mapping requirement IDs → report sections
+1. **research-agent** — it reads explore_findings.md and the design doc, then produces:
+   - `.opencode/state/research_report.md` — final requirement prompt (all expert agents read this as primary source). Must have `<!-- request_id: <request_id> -->` as its first line for request-matching.
+   - `.opencode/state/research_report_coverage.json` — structured manifest mapping requirement IDs → report sections. Must include a `"request_id"` field matching the current `project_state.json.request_id`.
 
-   In **implement mode**, skip this phase entirely. Read the existing `research_report.md` and `research_report_coverage.json` directly.
+   In **implement mode**, skip this phase entirely. Read the existing `explore_findings.md`, `research_report.md` and `research_report_coverage.json` directly (after validating their request_id match per Step 1).
 
 #### Phase 1b: Pre-Implementation Suggestion (research-first mode only)
 
-After research-agent completes in **research-first mode**, dispatch **suggestion-agent** in pre-implementation mode:
-- It reads the research report and produces `.opencode/state/suggestion_report_pre.md`
+After research-agent completes in **research-first mode**, dispatch **suggestion-agent** or **suggestion-research-agent** in pre-implementation mode:
+- It reads the research report, explore findings, and produces `.opencode/state/suggestion_report_pre.md` — must have `<!-- request_id: <request_id> -->` as its first line for request-matching
 - The pre-implementation suggestion report contains: priority ordering for implementation tasks, architecture risks identified early, dependency warnings, and implementation order recommendations
 - **Crucially**, the suggestion_pre report is preserved as `.opencode/state/suggestion_report_pre.md` — when `implement` mode runs later, expert agents read this to understand priority and risks before coding
+- Pass the `explore_findings.md` path so the agent can validate research report accuracy against actual codebase conventions
 
 After Phase 1b, set `status` to `"completed"` and stop the pipeline. The user can later run `implement` mode.
 
@@ -192,6 +231,7 @@ When dispatching experts, pass:
 - The previous agent's coverage manifest path (e.g. `coverage_db.json` for node-expert) — so they don't re-implement what's done
 - The project_state.json path
 - The agent prompt file path at `.opencode/state/prompts/<agent-name>-<run-id>.md`
+- `explore_findings.md` path — for codebase convention context (if needed)
 
 ### 9. Coverage Aggregation (full / implement mode)
 
@@ -213,8 +253,8 @@ Pass additionally:
 
 After code-review-and-qa completes, read `.opencode/state/project_state.json`:
 - If `qa_report.passed` is `true`:
-  - If `pipeline_mode` is `"full"` → set `status` to `"ready_for_suggestion"` and dispatch `suggestion-agent` post-implementation (ask which model to use per Step 7 first)
-  - If `pipeline_mode` is `"implement"` → set `status` to `"ready_for_suggestion"` and dispatch `suggestion-agent` post-implementation
+  - If `pipeline_mode` is `"full"` → set `status` to `"ready_for_suggestion"` and dispatch `suggestion-agent` post-implementation (ask which model to use per Step 7 first). Pass `request_id` from `project_state.json` so the agent can tag `suggestion_report.md` with `<!-- request_id: ... -->`.
+  - If `pipeline_mode` is `"implement"` → set `status` to `"ready_for_suggestion"` and dispatch `suggestion-agent` post-implementation. Pass `request_id` from `project_state.json` so the agent can tag `suggestion_report.md` with `<!-- request_id: ... -->`.
 - If `qa_report.passed` is `false` and `retry_count` < `max_retries`:
   - Re-dispatch only the agents listed in `loopback_targets` with the `qa_report.errors` (ask which model to use per Step 7 first for each re-dispatched agent — this is a good moment to suggest a stronger model if the same error repeated)
   - Increment `retry_count`
@@ -232,6 +272,7 @@ Tell the user:
 - What pipeline mode was used
 - What was shipped per layer (DB/backend/frontend)
 - Requirement coverage summary (total / covered / gaps)
+- Point them to the explore findings (`.opencode/state/explore_findings.md`)
 - Point them to the research report (`.opencode/state/research_report.md`)
 - Point them to the suggestion report (`.opencode/state/suggestion_report.md`)
 - If research-first mode: tell them the next step is to run with `pipeline_mode: "implement"`
@@ -243,6 +284,7 @@ Tell the user:
 - If the request is ambiguous about scope, make the narrower, more conservative call on `required_agents` and note the assumption in the design doc
 - Always read the skill documentation from `.opencode/skills/<agent-name>/SKILL.md` before dispatching each agent
 - Every feature request that touches database, backend, or frontend must go through this pipeline
+- **explore findings MUST exist before research-agent dispatches** — the explore agent provides the codebase context that research-agent consumes instead of scanning files directly. If explore findings already exist with a matching `<!-- request_id: ... -->` for the current `request_id`, they are reused; otherwise explore is dispatched first.
 - **research-agent MUST run before any expert agent in `full` mode** — never skip it. In `implement` mode, it's intentionally skipped (uses existing report). In `research-first` mode, it runs but no expert agents follow.
 - **suggestion-agent MUST run after code-review-and-qa passes in `full`/`implement` mode** — never skip it
 - **Coverage manifests are mandatory**: every expert agent must write its coverage_<agent>.json before the next agent dispatches. If an expert fails to write its coverage manifest, halt the pipeline.
@@ -261,3 +303,4 @@ You can invoke these agents via the Task tool:
 - `insights-expert`: Admin dashboard insights and exports
 - `code-review-and-qa`: Technical code review and QA verification (read-only on code)
 - `suggestion-agent`: Post-implementation improvement suggestions
+- `explore` (built-in): Fast codebase exploration — dispatch via Task(subagent_type="explore")

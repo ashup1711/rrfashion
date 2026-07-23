@@ -22,23 +22,39 @@ The pipeline supports multiple modes to give you flexible control over which age
 
 | Mode | When to Use | What It Does |
 |------|-------------|-------------|
-| `full` | Default — you want the complete flow | Research → Experts → QA → Suggestion |
-| `research-first` | You want to plan first, implement later | Runs research + suggestion only, writes reports, stops |
-| `implement` | You already have a research report (e.g. from a prior `research-first` run) | Skips research, starts from expert agents using existing reports |
+| `full` | Default — you want the complete flow | Explore → Research → Experts → QA → Suggestion |
+| `research-first` | You want to plan first, implement later | Runs explore + research + suggestion only, writes reports, stops |
+| `implement` | You already have a research report (e.g. from a prior `research-first` run) | Reuses existing explore_findings.md + research report, skips research phase, starts from expert agents |
 | `qa-only` | You want to review existing code without running agents | Runs only code-review-and-qa |
+
+### Phase 0: Codebase Exploration (Request-Matching)
+
+The orchestrator checks if `.opencode/state/explore_findings.md` exists and matches the current request (via a `<!-- request_id: <hash> -->` marker on the first line). If match found, findings are reused; otherwise the explore agent is dispatched. The same `request_id` check applies to ALL cached artifacts (`research_report.md`, `research_report_coverage.json`, `suggestion_report_pre.md`, `suggestion_report.md`) — any mismatch causes the pipeline to regenerate or fall back to `full` mode.
+
+```
+(check: findings exist for this request?)
+  ↓ No  → explore (subagent_type: "explore") — built-in fast codebase scan
+  ↓ Yes → (skip dispatch, reuse existing)
+  ↓
+.opencode/state/explore_findings.md — shared context consumed by research + suggestion agents
+```
 
 ### Full Pipeline
 
 ```
-research-agent → expert agents → code-review-and-qa → suggestion-agent
+(findings exist for this request?)
+  ├─ No  → explore → research-agent → expert agents → code-review-and-qa → suggestion-agent
+  └─ Yes → research-agent → expert agents → code-review-and-qa → suggestion-agent
 ```
 
 ### Research-First Pipeline (Pre-Planning)
 
 ```
-research-agent → suggestion-agent (pre-implementation mode)
+(findings exist for this request?)
+  ├─ No  → explore → research-agent → suggestion-agent (pre-implementation mode)
+  └─ Yes → research-agent → suggestion-agent (pre-implementation mode)
    ↓
-   Writes: research_report.md + research_report_coverage.json + suggestion_report_pre.md
+   Writes: explore_findings.md + research_report.md + research_report_coverage.json + suggestion_report_pre.md
    ↓
    Stops. User can later run `implement` mode.
 ```
@@ -46,7 +62,7 @@ research-agent → suggestion-agent (pre-implementation mode)
 ### Implement Pipeline (Warm-Start / Resume)
 
 ```
-(reads existing research_report.md + suggestion_report_pre.md)
+(reads existing explore_findings.md + research_report.md + suggestion_report_pre.md)
    ↓
 expert agents → code-review-and-qa → suggestion-agent (post-implementation)
 ```
@@ -83,7 +99,8 @@ Analyzes the user's prompt to determine:
 
 ### 3. Skill Selection
 Based on the analysis, selects the appropriate skills:
-- `research-agent` — always first when any expert is needed (researches codebase and produces final requirement prompt)
+- `explore` (built-in) — dispatched if no findings exist for the current request; one-time codebase scan writes `explore_findings.md` consumed by research + suggestion agents
+- `research-agent` — dispatched after explore; reads explore findings + design doc to produce final requirement prompt
 - `db-expert` for database changes
 - `backend-expert` for backend changes
 - `frontend-expert` for frontend changes
@@ -115,7 +132,8 @@ User: "Add an orders endpoint with status tracking and a screen to view order hi
 → orchestrator analyzes repo, detects DB, backend, and frontend layers
 → orchestrator selects pipeline_mode: "full"
 → orchestrator creates project_state.json with design doc
-→ research-agent analyzes codebase, writes research_report.md + research_report_coverage.json
+→ explore (built-in) scans codebase, writes explore_findings.md
+→ research-agent reads explore_findings.md + design doc, writes research_report.md + research_report_coverage.json
 → db-expert reads research report, creates orders table, writes coverage_db.json
 → backend-expert reads research report + coverage_db.json, creates /api/orders endpoints, writes coverage_backend.json
 → frontend-expert reads research report + coverage_backend.json, creates OrderHistoryScreen, writes coverage_frontend.json
@@ -128,15 +146,16 @@ User: "Add an orders endpoint with status tracking and a screen to view order hi
 Phase 1 (research-first mode):
 User: "I want to plan a multi-feature rollout — address book, deposits, offline PWA"
 → orchestrator sets pipeline_mode: "research-first"
-→ research-agent researches codebase, writes research_report.md + research_report_coverage.json
-→ suggestion-agent (pre-implementation mode) writes suggestion_report_pre.md
+→ explore (built-in) scans codebase, writes explore_findings.md
+→ research-agent reads explore_findings.md + design doc, writes research_report.md + research_report_coverage.json
+→ suggestion-agent (pre-implementation mode) reads explore_findings.md + research report, writes suggestion_report_pre.md
 → pipeline stops with status "completed"
 
 // Later...
 Phase 2 (implement mode):
 User: "Continue with the plan from the research phase"
 → orchestrator sets pipeline_mode: "implement"
-→ orchestrator reads existing research_report.md + suggestion_report_pre.md
+→ orchestrator reads existing explore_findings.md + research_report.md + suggestion_report_pre.md
 → Expert agents run in order using the pre-written reports
 → QA verifies against research_report_coverage.json
 ```
@@ -144,11 +163,12 @@ User: "Continue with the plan from the research phase"
 ### Example 2: Pure UI Change
 ```
 User: "Add a dark mode toggle to the settings screen"
-→ orchestrator analyzes repo, detects only Flutter layer
-→ orchestrator selects: ["research-agent", "frontend-expert", "code-review-and-qa", "suggestion-agent"]
+→ orchestrator analyzes repo, detects only React layer
+→ orchestrator selects: ["explore", "research-agent", "react-expert", "code-review-and-qa", "suggestion-agent"]
 → orchestrator creates project_state.json with UI-only design doc
-→ research-agent analyzes frontend patterns
-→ orchestrator dispatches frontend-expert
+→ explore (built-in) scans codebase, writes explore_findings.md
+→ research-agent reads explore_findings.md, analyzes frontend patterns
+→ orchestrator dispatches react-expert
 → code-review-and-qa reviews code and verifies implementation
 → suggestion-agent suggests improvements
 ```
@@ -157,13 +177,16 @@ User: "Add a dark mode toggle to the settings screen"
 ```
 User: "Add a status column to the users table"
 → orchestrator analyzes repo, detects DB layer
-→ orchestrator selects: ["research-agent", "db-expert", "code-review-and-qa", "suggestion-agent"]
+→ orchestrator selects: ["explore", "research-agent", "db-expert", "code-review-and-qa", "suggestion-agent"]
 → orchestrator creates project_state.json with schema change design doc
-→ research-agent analyzes existing schema patterns
+→ explore (built-in) scans codebase, writes explore_findings.md
+→ research-agent reads explore_findings.md, analyzes existing schema patterns
 → orchestrator dispatches db-expert
 → code-review-and-qa reviews schema and verifies changes
 → suggestion-agent suggests improvements
 ```
+
+`explore_findings.md` is a shared cache produced once per pipeline by the built-in explore subagent. It contains codebase structure, conventions, and code excerpts. Research and suggestion agents consume it to avoid redundant file reads.
 
 ## State Management
 
@@ -175,18 +198,19 @@ The orchestrator creates and manages a shared state file at `.opencode/state/pro
     "has_database": true,
     "has_backend": true,
     "has_frontend": true,
-    "database_type": "sqlalchemy",
-    "backend_framework": "fastapi",
-    "frontend_framework": "flutter",
-    "flutter_state_management": "riverpod"
+    "database_type": "postgres",
+    "backend_framework": "nestjs",
+    "frontend_framework": "react",
+    "react_state_management": "zustand"
   },
   "prompt_analysis": {
     "layers_affected": ["database", "backend", "frontend"],
     "change_type": "feature",
     "complexity": "high"
   },
-  "required_agents": ["research-agent", "db-expert", "backend-expert", "frontend-expert", "code-review-and-qa", "suggestion-agent"],
+  "required_agents": ["research-agent", "db-expert-postgres", "node-expert", "react-expert", "code-review-and-qa", "suggestion-agent"],
   "pipeline_mode": "full",
+  "explore_findings": ".opencode/state/explore_findings.md",
   "design_doc_path": ".opencode/state/design_doc.md",
   "research_report": ".opencode/state/research_report.md",
   "research_report_coverage": ".opencode/state/research_report_coverage.json",
@@ -229,7 +253,7 @@ The orchestrator creates and manages a shared state file at `.opencode/state/pro
 ```
                                                      ┌─ research-first → research_complete → suggestion_done → completed (pre-planning only)
                                                      │
-pending → in_progress ──┬─ full ──→ research_complete ──→ in_progress → (code-review-and-qa) → ready_for_suggestion → (suggestion-agent) → completed
+pending → in_progress ──┬─ full ──→ explore_complete → research_complete ──→ in_progress → (code-review-and-qa) → ready_for_suggestion → (suggestion-agent) → completed
                         │                                │                                        ↘ revision_needed → (retry loop)
                         │                                │                                        ↘ halt
                         ├─ implement ──→ in_progress (skips research) → (code-review-and-qa) → ...
@@ -245,9 +269,10 @@ Coverage-check substates within "in_progress":
 
 The orchestrator works with other skills by:
 
-### 1. Research First**: Dispatches research-agent to analyze the codebase and produce a final requirement prompt before any code is written
+### 0. Codebase Exploration**: Checks if `.opencode/state/explore_findings.md` exists for the current request. If not, dispatches the built-in explore subagent (subagent_type: "explore") to scan the codebase and write `.opencode/state/explore_findings.md` — a shared cache consumed by research and suggestion agents
+1. **Research First**: Dispatches research-agent (which reads explore_findings.md instead of scanning source files) to produce a final requirement prompt before any code is written
 2. **Providing Context**: Passes the research report (final requirement prompt) to expert agents as their primary instruction set, along with a dedicated prompt file at `.opencode/state/prompts/<agent-name>.md` containing their layer-specific instructions (written just-in-time before dispatch to keep the Task prompt short instead of inlining large content)
-3. **Managing Dependencies**: Ensures skills run in the correct order (research → DB → backend → frontend)
+3. **Managing Dependencies**: Ensures skills run in the correct order (explore → research → DB → backend → frontend)
 4. **Handling QA Loop**: Manages the QA review process and retry logic
 5. **Suggestions**: Coordinates suggestion-agent for post-implementation improvements
 
@@ -269,12 +294,13 @@ The orchestrator can be configured with:
 
 ## Best Practices
 
-1. **Always analyze the project first**: Never dispatch skills without understanding the project structure
-2. **Always run research first**: Never dispatch expert agents without a research report
-3. **Use dependency order**: Always run DB skills before backend, backend before frontend
-4. **Validate before proceeding**: Always run QA review before moving to suggestions
-5. **Track state**: Always update the state file to track progress
-6. **Handle errors gracefully**: Always provide clear error messages and recovery options
+1. **Always ensure artifacts match the current request**: Never reuse cached artifacts (`explore_findings.md`, `research_report.md`, `research_report_coverage.json`, `suggestion_report*.md`) without verifying their `<!-- request_id: ... -->` marker matches the current `project_state.json.request_id`. Dispatch fresh explore/research/suggestion agents if a mismatch is detected.
+2. **Always analyze the project first**: Never dispatch skills without understanding the project structure
+3. **Always run research first**: Never dispatch expert agents without a research report
+4. **Use dependency order**: Always run DB skills before backend, backend before frontend
+5. **Validate before proceeding**: Always run QA review before moving to suggestions
+6. **Track state**: Always update the state file to track progress
+7. **Handle errors gracefully**: Always provide clear error messages and recovery options
 
 ## Quick Reference
 
@@ -291,13 +317,13 @@ The pipeline enforces requirement coverage through a multi-layered system:
 
 | Scenario | Pipeline Mode | Selected Agents |
 |----------|--------------|----------------|
-| Full feature (DB + backend + frontend) | `full` | `["research-agent", "db-expert", "backend-expert", "frontend-expert", "code-review-and-qa", "suggestion-agent"]` |
-| UI-only change | `full` | `["research-agent", "frontend-expert", "code-review-and-qa", "suggestion-agent"]` |
-| Backend API only | `full` | `["research-agent", "backend-expert", "code-review-and-qa", "suggestion-agent"]` |
-| Database schema only | `full` | `["research-agent", "db-expert", "code-review-and-qa", "suggestion-agent"]` |
-| DB + Backend | `full` | `["research-agent", "db-expert", "backend-expert", "code-review-and-qa", "suggestion-agent"]` |
+| Full feature (DB + backend + frontend) | `full` | `["research-agent", "db-expert-postgres", "node-expert", "react-expert", "code-review-and-qa", "suggestion-agent"]` |
+| UI-only change | `full` | `["research-agent", "react-expert", "code-review-and-qa", "suggestion-agent"]` |
+| Backend API only | `full` | `["research-agent", "node-expert", "code-review-and-qa", "suggestion-agent"]` |
+| Database schema only | `full` | `["research-agent", "db-expert-postgres", "code-review-and-qa", "suggestion-agent"]` |
+| DB + Backend | `full` | `["research-agent", "db-expert-postgres", "node-expert", "code-review-and-qa", "suggestion-agent"]` |
 | Pure code review | `qa-only` | `["code-review-and-qa"]` |
 | Research + Suggestion (pre-plan) | `research-first` | `["research-agent", "suggestion-agent"]` |
-| Warm-start from existing plan | `implement` | `["db-expert", "backend-expert", "frontend-expert", "code-review-and-qa", "suggestion-agent"]` |
+| Warm-start from existing plan | `implement` | `["db-expert-postgres", "node-expert", "react-expert", "code-review-and-qa", "suggestion-agent"]` |
 
 This skill enables complex multi-stack development workflows by intelligently coordinating the right skills for each task.

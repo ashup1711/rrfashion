@@ -13,6 +13,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { ApiCommonResponse } from '../../common/decorators/api-response.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AllowGuest } from '../../common/decorators/allow-guest.decorator';
+import { GuestSessionId } from '../../common/decorators/guest-session-id.decorator';
 import { StoreAuthGuard } from '../../common/guards/store-auth.guard';
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto } from './dto/create-review.dto';
@@ -22,14 +23,18 @@ import { ReviewFilterDto } from './dto/review-filter.dto';
 @ApiTags('Reviews')
 @Controller('reviews')
 @UseGuards(StoreAuthGuard)
-@AllowGuest(false)
+@AllowGuest(true)
 export class ReviewsController {
   constructor(private readonly reviewsService: ReviewsService) {}
 
   @Post()
   @ApiCommonResponse({ summary: 'Create a new review', status: 201, type: CreateReviewDto })
-  async create(@CurrentUser('id') userId: string, @Body() createReviewDto: CreateReviewDto) {
-    return this.reviewsService.create(userId, createReviewDto);
+  async create(
+    @CurrentUser('id') userId: string,
+    @Body() createReviewDto: CreateReviewDto,
+    @GuestSessionId() guestSessionId?: string,
+  ) {
+    return this.reviewsService.create(userId, createReviewDto, guestSessionId);
   }
 
   @Get()

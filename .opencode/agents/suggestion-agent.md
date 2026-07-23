@@ -32,20 +32,21 @@ Refuse to proceed if `project_state.json.pipeline_mode` is not `"research-first"
 
 ### Inputs
 
-- `.opencode/state/project_state.json` — `pipeline_mode`, `project_setup`, `prompt_analysis`
+- `.opencode/state/project_state.json` — `pipeline_mode`, `project_setup`, `prompt_analysis`, `request_id`
 - `.opencode/state/design_doc.md` — the full feature specification
 - `.opencode/state/research_report.md` — codebase analysis and final requirement prompt
 - `.opencode/state/research_report_coverage.json` — the requirement IDs and their mappings
+- `.opencode/state/explore_findings.md` — codebase conventions gathered by the explore agent, for validating research report accuracy
 
 ### Output
 
-Write `.opencode/state/suggestion_report_pre.md` with pre-implementation suggestions.
+Write `.opencode/state/suggestion_report_pre.md` with pre-implementation suggestions. The first line must be `<!-- request_id: <request_id> -->` (read `request_id` from `project_state.json`) for request-matching.
 
 ### Steps
 
 #### 1. Read Inputs
 
-Read the research report, design doc, coverage manifest, and project state.
+Read the research report, design doc, coverage manifest, project state, and explore findings. Use explore findings to validate that the research report's conventions and file paths match the actual codebase.
 
 #### 2. Analyze the Implementation Plan
 
@@ -57,9 +58,10 @@ Analyze the research report's "What to Build" sections for each layer. For each 
 
 #### 3. Generate Pre-Implementation Guidance
 
-Write `.opencode/state/suggestion_report_pre.md` via `bash` (heredoc) with this structure:
+Write `.opencode/state/suggestion_report_pre.md` via `bash` (heredoc) with this structure (prepend `<!-- request_id: <request_id> -->` as the first line using the `request_id` from `project_state.json`):
 
 ```markdown
+<!-- request_id: <request_id> -->
 # Pre-Implementation Suggestion Report
 
 ## Implementation Order (Recommended)
@@ -88,6 +90,22 @@ Rank each requirement by priority (1 = highest):
 ## Estimation Notes
 - Rough complexity per layer (small/medium/large)
 - Which requirements could be split into smaller tasks
+
+## Proposed Implementation Code (Optional — Use When the Research Report's Skeleton Is Weak)
+If the research report's "Reference Implementation / Code Skeletons" section is missing, minimal, or incorrect for a specific requirement, provide working code here. Otherwise, skip this section — avoid duplicating the research report.
+
+For each requirement needing correction:
+```markdown
+### [REQ-ID]: Corrected Implementation
+
+**File**: `path/to/file`
+
+```python
+# Complete corrected implementation
+```
+
+**What the research report got wrong**: [1 sentence]
+```
 ```
 
 #### 4. Update Project State
@@ -105,17 +123,18 @@ Refuse to proceed if `project_state.json.status` is not `"ready_for_suggestion"`
 
 ### Inputs
 
-- `.opencode/state/project_state.json` — full state including design doc, research report, code written, and review results
+- `.opencode/state/project_state.json` — full state including design doc, research report, code written, review results, and `request_id`
 - `.opencode/state/design_doc.md` — OPTIONAL, only if the research report seems incomplete for a suggestion
 - `.opencode/state/research_report.md` — codebase analysis from research agent
 - `.opencode/state/research_report_coverage.json` — requirement coverage manifest (to verify completeness)
+- **`.opencode/state/explore_findings.md`** — codebase conventions; primary context for understanding patterns without re-reading source files
 - All `coverage_<agent>.json` manifests — to understand what was implemented vs what was planned
-- The generated code on disk (read files to understand what was actually written)
+- The generated code on disk — read specific files flagged by coverage gaps (use explore findings for convention context)
 - In implement mode: `.opencode/state/suggestion_report_pre.md` — read the pre-implementation suggestions to see if they were followed
 
 ### Output
 
-Write `.opencode/state/suggestion_report.md` with actionable suggestions.
+Write `.opencode/state/suggestion_report.md` with actionable suggestions. The first line must be `<!-- request_id: <request_id> -->` (read `request_id` from `project_state.json`) for request-matching.
 
 ### Steps
 
@@ -129,13 +148,14 @@ If not, refuse and report back that review hasn't passed yet.
 
 ### 2. Read Required Inputs
 
-Read the state file and research report to understand:
+Read the state file, research report, and **explore findings** to understand:
 - What was implemented and at which layers
-- What codebase conventions exist
+- What codebase conventions exist (from explore findings — do not re-read code files for pattern discovery)
 - What the review validated
 
 Also read:
 - `.opencode/state/research_report_coverage.json` — to see the full set of requirement IDs
+- `.opencode/state/explore_findings.md` — for codebase conventions and to verify implementation consistency
 - All `coverage_<agent>.json` manifests — to see what each agent claimed they implemented
 - In `implement` mode: `.opencode/state/suggestion_report_pre.md` — to check if the pre-implementation suggestions were followed
 
@@ -150,16 +170,20 @@ Compare the coverage manifests against the actual generated code to find suggest
 
 ### 4. Analyze Generated Code
 
-Read the actual code files written by expert agents:
-- Database models/migrations
-- Backend routes, schemas, middleware
-- Frontend widgets, services, state management
+Analyze the implementation by cross-referencing coverage manifests against explore findings:
+
+1. Use `explore_findings.md` as your baseline for "correct" conventions.
+2. Read specific files only when:
+   - A coverage claim looks incomplete or suspicious
+   - You need a specific implementation detail for a suggestion
+   - The implementation deviates from the conventions documented in explore findings
+3. Do not re-read source files to rediscover patterns that are already in explore findings.
 
 Focus on understanding the code as written — not what was planned.
 
 ### 5. Generate Suggestions
 
-Produce actionable suggestions in these categories:
+Produce actionable suggestions in these categories. **Every suggestion must include a code snippet** (5–20 lines) showing the exact change needed — never describe a fix without showing the code. The snippet should be copy-paste-ready, following the codebase's exact conventions and imports.
 
 #### A. Performance Improvements
 - N+1 query patterns in backend routes
@@ -207,11 +231,23 @@ Tag each suggestion with:
 - **Layer**: `database`, `backend`, `frontend`, `cross-stack`
 - **Requirement ID**: Reference the REQ-* ID if this suggestion relates to a specific requirement
 
+Format each suggestion with this structure:
+```markdown
+#### [ID]: [Title]
+- **Severity**: [severity] | **Effort**: [effort] | **Layer**: [layer]
+- **Issue**: [1–2 sentence description of the problem]
+- **Fix**:
+  ```python
+  # Copy-paste-ready code showing the exact change
+  ```
+```
+
 ### 7. Write Suggestion Report
 
-`edit` is denied for this agent — write the file via `bash` (e.g. a heredoc: `cat > .opencode/state/suggestion_report.md << 'EOF' ... EOF`), never via the edit/write tool. Use this structure:
+`edit` is denied for this agent — write the file via `bash` (e.g. a heredoc: `cat > .opencode/state/suggestion_report.md << 'EOF' ... EOF`), never via the edit/write tool. Prepend `<!-- request_id: <request_id> -->` as the first line using the `request_id` from `project_state.json`. Use this structure:
 
 ```markdown
+<!-- request_id: <request_id> -->
 # Suggestion Report
 
 ## Summary
@@ -224,19 +260,19 @@ Tag each suggestion with:
 <How well the implementation followed the pre-implementation suggestion report>
 
 ## Performance Improvements
-<Suggestions tagged by severity/effort/layer>
+<Suggestions tagged by severity/effort/layer/requirement_id. Each suggestion includes a code snippet.>
 
 ## Security Hardening
-<Suggestions tagged by severity/effort/layer>
+<Suggestions tagged by severity/effort/layer/requirement_id. Each suggestion includes a code snippet.>
 
 ## Code Quality & Refactoring
-<Suggestions tagged by severity/effort/layer>
+<Suggestions tagged by severity/effort/layer/requirement_id. Each suggestion includes a code snippet.>
 
 ## Follow-Up Features
-<Suggestions tagged by effort/layer>
+<Suggestions tagged by effort/layer. Each suggestion includes a code snippet.>
 
 ## Quick Wins
-<Top 3-5 suggestions that are high value and low effort>
+<Top 3-5 suggestions that are high value and low effort. Each includes a code snippet.>
 ```
 
 ### 8. Update Project State
@@ -252,6 +288,7 @@ Update `.opencode/state/project_state.json` via `bash` (e.g. `python3 -c` with `
 - Never edit application code or documentation files
 - Never edit `db_schema`, `backend_code`, or `frontend_code` keys
 - Every suggestion must be **actionable** — include the specific file, function, or pattern to change
+- **Every suggestion must include a copy-paste-ready code snippet** (5–20 lines) showing the exact change. A suggestion without a code snippet forces the expert agent to think and write from scratch, defeating the purpose. If you can't write a code snippet for a suggestion, it's not specific enough — refine it.
 - If you find nothing to suggest, state that explicitly and set status to `"completed"`
 - Do **not** generate README, CHANGELOG, or any documentation files — suggestions only
 - Be constructive — frame suggestions as opportunities, not criticisms

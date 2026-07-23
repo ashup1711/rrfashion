@@ -1,10 +1,37 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Nunito+Sans:wght@300;400;600;700;800&family=Playfair+Display:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Nunito+Sans:wght@300;400;600;700;800&family=Playfair+Display:wght@400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* Color tokens for theme consistency */
+    --color-primary-500: #9A8573;
+    --color-primary-600: #7A6A5C;
+    --color-primary-700: #5D5047;
+    --color-accent-500: #2D8C7E;
+    --color-accent-600: #1F6E64;
+    --color-neutral-nearBlack: #1A1A1A;
+    --color-neutral-dark: #666666;
+    --color-neutral-white: #FFFFFF;
+    --color-success: #10B981;
+    --color-error: #EF4444;
+    --color-warning: #F59E0B;
+
+    /* Dark mode tokens (prepared for future) */
+    --color-bg-primary: #FFFFFF;
+    --color-bg-secondary: #F9F7F2;
+    --color-text-primary: #1A1A1A;
+    --color-text-secondary: #666666;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      /* Future dark mode overrides */
+    }
+  }
+
   html {
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
@@ -92,4 +119,123 @@
   .category-image-mask {
     clip-path: ellipse(50% 50% at 50% 50%);
   }
+}
+
+@layer utilities {
+  /* Text gradient utility for hero headlines */
+  .text-gradient {
+    background: linear-gradient(135deg, #FFFFFF 0%, #D4CCC0 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-primary {
+    background: linear-gradient(135deg, #9A8573 0%, #5D5047 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Smooth scroll shadow transition for sticky headers */
+  .header-shadow-transition {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: box-shadow 0.3s ease, height 0.3s ease;
+  }
+
+  .header-shadow-scrolled {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Hero section responsive text adjustments */
+  @media (max-width: 768px) {
+    /* Mobile: Reduce headline size to 32px */
+    .text-hero-headline {
+      font-size: 32px !important;
+      line-height: 1.1 !important;
+    }
+    
+    /* Mobile: Reduce eyebrow size proportionally */
+    .text-hero-eyebrow {
+      font-size: 24px !important;
+      line-height: 1.1 !important;
+    }
+  }
+  
+  /* Tablet adjustments */
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .text-hero-headline {
+      font-size: 48px !important;
+      line-height: 1.1 !important;
+    }
+    
+    .text-hero-eyebrow {
+      font-size: 32px !important;
+      line-height: 1.1 !important;
+    }
+  }
+}
+
+/* Custom animations for hero slider */
+@keyframes fadeInDelayed {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-delayed {
+  animation: fadeInDelayed 1s ease-out 0.5s both;
+}
+
+/* Enhanced fade-in animation with scale */
+@keyframes fadeInScale {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in-scale {
+  animation: fadeInScale 0.5s ease-out both;
+}
+
+/* Slide up animation for staggered children */
+@keyframes slideUpStaggered {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUpStaggered 0.6s ease-out both;
+}
+
+/* Parallax effect for hero images */
+.hero-parallax {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Marquee ticker animation */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
 }

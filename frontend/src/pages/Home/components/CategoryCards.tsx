@@ -31,9 +31,9 @@ const CategoryCards = () => {
 
   if (isLoading) {
     return (
-      <section className="page-section">
+      <section className="page-section" role="region" aria-label="Shop by category">
         <div className="container-page py-12">
-          <h2 className="font-display text-section-heading text-black text-center mb-10">
+          <h2 className="font-display text-section-subtitle text-black text-center mb-10">
             Category
           </h2>
           <div className="flex justify-center items-center h-[173px]">
@@ -45,9 +45,9 @@ const CategoryCards = () => {
   }
 
   return (
-    <section className="page-section">
+    <section className="page-section" role="region" aria-label="Shop by category">
       <div className="container-page py-12">
-        <h2 className="font-display text-section-heading text-black text-center mb-10">
+        <h2 className="font-display text-section-subtitle text-black text-center mb-10">
           Category
         </h2>
         <div className="flex justify-center items-start gap-[45px] max-w-[1360px] mx-auto">
@@ -57,7 +57,7 @@ const CategoryCards = () => {
               to={ROUTES.SHOP_CATEGORY(cat.slug)}
               className="group relative w-[236px] h-[173px] flex items-center justify-center"
             >
-              <div className="w-[151px] h-[151px] rounded-full overflow-hidden shadow-md">
+              <div className="w-[151px] h-[151px] rounded-full overflow-hidden shadow-md group-hover:scale-105 group-hover:shadow-xl transition-transform duration-300">
                 {cat.image ? (
                   <img
                     src={cat.image}
@@ -72,7 +72,7 @@ const CategoryCards = () => {
                   />
                 )}
               </div>
-              <span className="absolute inset-0 flex items-center justify-center text-black font-display text-body group-hover:text-pink-rose transition-colors">
+              <span className="absolute inset-0 flex items-center justify-center text-black font-display text-body group-hover:text-primary-500 transition-colors">
                 {cat.name}
               </span>
             </Link>

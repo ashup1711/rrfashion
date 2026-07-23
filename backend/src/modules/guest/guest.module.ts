@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GuestController } from './guest.controller';
 import { GuestSessionService } from './guest-session.service';
+import { GuestAddressService } from './guest-address.service';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { GuestSessionService } from './guest-session.service';
     }),
   ],
   controllers: [GuestController],
-  providers: [GuestSessionService],
-  exports: [GuestSessionService],
+  providers: [GuestSessionService, GuestAddressService],
+  exports: [GuestSessionService, GuestAddressService],
 })
 export class GuestModule {}

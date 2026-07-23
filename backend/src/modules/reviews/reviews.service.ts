@@ -10,7 +10,7 @@ import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { ModerateReviewDto } from './dto/moderate-review.dto';
 import { ReviewFilterDto } from './dto/review-filter.dto';
-import { Prisma, ReviewStatus, OrderStatus } from '@prisma/client';
+import { Prisma, ReviewStatus } from '@prisma/client';
 
 export interface PaginatedReviewsResponse {
   items: unknown[];
@@ -33,77 +33,48 @@ const EDIT_WINDOW_DAYS = 30;
 export class ReviewsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(userId: string, dto: CreateReviewDto) {
-    const orderItem = await this.prisma.orderItem.findUnique({
-      where: { id: dto.orderItemId },
-      include: {
-        order: true,
-        product: { select: { id: true } },
-        variant: { select: { id: true } },
-      },
+  async create(userId: string, dto: CreateReviewDto, guestSessionId?: string) {
+    // Validate that the product exists
+    const product = await this.prisma.product.findUnique({
+      where: { id: dto.productId },
+      select: { id: true },
     });
 
-    if (!orderItem) {
-      throw new NotFoundException('Order item not found');
+    if (!product) {
+      throw new NotFoundException('Product not found');
     }
 
-    if (orderItem.order.userId !== userId) {
-      throw new ForbiddenException('You can only review items from your own orders');
+    // Check for duplicate review by the same authenticated user
+    // (guest sessions skip this check — userId is null for guests)
+    if (userId) {
+      const existingReview = await this.prisma.review.findFirst({
+        where: {
+          userId,
+          productId: dto.productId,
+        },
+      });
+
+      if (existingReview) {
+        throw new ConflictException('You have already reviewed this product');
+      }
     }
 
-    if (!orderItem.order.userId) {
-      throw new ForbiddenException('Cannot review items from guest orders');
-    }
-
-    const isEligibleForReview = await this.isOrderItemEligibleForReview(orderItem);
-    if (!isEligibleForReview) {
-      throw new ForbiddenException(
-        'You can only review delivered sale items or returned/closed rental items',
-      );
-    }
-
-    const existingReview = await this.prisma.review.findUnique({
-      where: { orderItemId: dto.orderItemId },
-    });
-
-    if (existingReview) {
-      throw new ConflictException('This order item has already been reviewed');
-    }
-
+    // Create the review directly without order linkage
     return this.prisma.review.create({
       data: {
-        userId,
-        productId: orderItem.productId,
-        variantId: orderItem.variantId,
-        orderItemId: dto.orderItemId,
+        ...(guestSessionId ? { guestSessionId, userId: undefined } : { userId }),
+        productId: dto.productId,
         rating: dto.rating,
         comment: dto.comment,
         photos: dto.photos ?? [],
         status: ReviewStatus.PENDING,
       },
-    });
-  }
-
-  private async isOrderItemEligibleForReview(orderItem: {
-    order: { status: OrderStatus; userId: string | null };
-    id: string;
-    type: string;
-  }): Promise<boolean> {
-    if (orderItem.order.status === 'RETURNED') {
-      return true;
-    }
-
-    if (orderItem.type === 'rent') {
-      const closedRental = await this.prisma.rentalBooking.findFirst({
-        where: {
-          orderItemId: orderItem.id,
-          status: { in: ['RETURNED', 'CLOSED'] },
+      include: {
+        user: {
+          select: { id: true, firstName: true, lastName: true },
         },
-      });
-      return !!closedRental;
-    }
-
-    return orderItem.order.status === 'DELIVERED';
+      },
+    });
   }
 
   async findAll(userId: string, query: ReviewFilterDto): Promise<PaginatedReviewsResponse> {
@@ -112,7 +83,10 @@ export class ReviewsService {
     const skip = (page - 1) * limit;
 
     const where: Prisma.ReviewWhereInput = {
-      OR: [{ status: ReviewStatus.APPROVED }, { userId }],
+      OR: [
+        { status: ReviewStatus.APPROVED },
+        ...(userId ? [{ userId } as Prisma.ReviewWhereInput] : []),
+      ],
     };
 
     if (query.status) {
@@ -135,7 +109,7 @@ export class ReviewsService {
         orderBy: { createdAt: 'desc' },
         include: {
           user: {
-            select: { id: true, firstName: true, lastName: true },
+            select: { id: true, firstName: true, lastName: true, profilePhoto: true },
           },
           product: {
             select: { id: true, name: true, slug: true },
@@ -164,7 +138,7 @@ export class ReviewsService {
       where: { id },
       include: {
         user: {
-          select: { id: true, firstName: true, lastName: true },
+          select: { id: true, firstName: true, lastName: true, profilePhoto: true },
         },
         product: {
           select: { id: true, name: true, slug: true },
@@ -179,7 +153,11 @@ export class ReviewsService {
       throw new NotFoundException('Review not found');
     }
 
-    if (review.status !== ReviewStatus.APPROVED && review.userId !== userId) {
+    if (
+      review.status !== ReviewStatus.APPROVED &&
+      review.userId !== userId &&
+      review.guestSessionId !== userId
+    ) {
       throw new ForbiddenException('You do not have access to this review');
     }
 
@@ -195,7 +173,7 @@ export class ReviewsService {
       throw new NotFoundException('Review not found');
     }
 
-    if (review.userId !== userId) {
+    if (review.userId !== userId && review.guestSessionId !== userId) {
       throw new ForbiddenException('You can only edit your own reviews');
     }
 
@@ -235,7 +213,7 @@ export class ReviewsService {
       throw new NotFoundException('Review not found');
     }
 
-    if (review.userId !== userId) {
+    if (review.userId !== userId && review.guestSessionId !== userId) {
       throw new ForbiddenException('You can only delete your own reviews');
     }
 
@@ -273,7 +251,7 @@ export class ReviewsService {
         orderBy: { createdAt: 'desc' },
         include: {
           user: {
-            select: { id: true, firstName: true, lastName: true, email: true },
+            select: { id: true, firstName: true, lastName: true, email: true, profilePhoto: true },
           },
           product: {
             select: { id: true, name: true, slug: true },

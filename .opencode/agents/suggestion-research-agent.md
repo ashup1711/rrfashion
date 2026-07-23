@@ -34,25 +34,26 @@ Determine which mode you're in first, then follow the appropriate section below.
 
 ### Inputs
 
-- `.opencode/state/project_state.json` — `pipeline_mode`, `project_setup`, `prompt_analysis`
+- `.opencode/state/project_state.json` — `pipeline_mode`, `project_setup`, `prompt_analysis`, `request_id`
 - `.opencode/state/design_doc.md` — the full feature specification
 - `.opencode/state/research_report.md` — codebase analysis and final requirement prompt
 - `.opencode/state/research_report_coverage.json` — the requirement IDs and their mappings
+- `.opencode/state/explore_findings.md` — codebase patterns and conventions gathered by the explore agent
 
 ### Output
 
-Write `.opencode/state/suggestion_report_pre.md` with pre-implementation guidance. `edit` is denied — write via `bash` (heredoc).
+Write `.opencode/state/suggestion_report_pre.md` with pre-implementation guidance. The first line must be `<!-- request_id: <request_id> -->` (read `request_id` from `project_state.json`) for request-matching. `edit` is denied — write via `bash` (heredoc).
 
 ### Steps
 
 #### 1. Read Inputs
 
-Read the research report, design doc, coverage manifest, and project state to understand the full scope of the planned implementation.
+Read the research report, design doc, coverage manifest, project state, and explore findings. Use explore findings to ground your web research in the actual technology stack and conventions of this project.
 
 #### 2. Research Dependencies & Risks (Web Research)
 
 Perform web research to identify:
-- **Best practices**: Search for best practices for the technology stack identified in the research report (e.g., NestJS module patterns, React Query caching strategies, Prisma migration best practices)
+- **Best practices**: Search for best practices for the technology stack identified in the explore findings (e.g., NestJS module patterns, React Query caching strategies, Prisma migration best practices). Use the exact stack versions from explore findings, not generic guesses.
 - **Common pitfalls**: Search for known issues with the specific technologies and features being implemented
 - **Package recommendations**: Search for well-maintained libraries that could simplify the implementation
 
@@ -66,9 +67,10 @@ For each requirement ID in `research_report_coverage.json`, analyze:
 
 #### 4. Generate Pre-Implementation Guidance
 
-Write `.opencode/state/suggestion_report_pre.md` via `bash` (heredoc) with this structure:
+Write `.opencode/state/suggestion_report_pre.md` via `bash` (heredoc) with this structure (prepend `<!-- request_id: <request_id> -->` as the first line using the `request_id` from `project_state.json`):
 
 ```markdown
+<!-- request_id: <request_id> -->
 # Pre-Implementation Suggestion Report
 
 ## Implementation Order (Recommended)
@@ -99,6 +101,22 @@ Rank each requirement by priority (1 = highest):
 - Total estimated effort: small/medium/large
 - Per-layer breakdown
 - Split recommendations (if a requirement should be split into smaller tasks)
+
+## Proposed Implementation Code (Optional — Use When the Research Report's Skeleton Is Weak)
+If the research report's "Reference Implementation / Code Skeletons" section is missing, minimal, or incorrect for a specific requirement, provide working code here. Otherwise, skip this section.
+
+For each requirement needing correction:
+```markdown
+### [REQ-ID]: Corrected Implementation
+
+**File**: `path/to/file`
+
+```python
+# Complete corrected implementation
+```
+
+**What the research report got wrong**: [1 sentence]
+```
 ```
 
 #### 5. Update Project State
@@ -114,7 +132,8 @@ Update `.opencode/state/project_state.json` via `bash` (python3/jq):
 
 - User's analysis prompt (what to focus on: performance, security, code quality, etc.)
 - `@`-referenced file paths from the command arguments
-- The broader codebase on disk for context
+- **`.opencode/state/explore_findings.md`** — codebase patterns and conventions (primary context source)
+- The broader codebase on disk — only for specific files not covered by explore findings
 
 ### Precondition
 
@@ -122,7 +141,7 @@ Update `.opencode/state/project_state.json` via `bash` (python3/jq):
 
 ### Output
 
-Write `.opencode/state/suggestion_report.md` with actionable suggestions. `edit` is denied — write via `bash` (heredoc).
+Write `.opencode/state/suggestion_report.md` with actionable suggestions. The first line must be `<!-- request_id: <request_id> -->` (compute a `request_id` from the analysis focus, e.g. first 12 chars of `sha256(analysis_focus)`) for request-matching. `edit` is denied — write via `bash` (heredoc).
 
 ### Steps
 
@@ -131,24 +150,26 @@ Write `.opencode/state/suggestion_report.md` with actionable suggestions. `edit`
 Extract from the task prompt:
 - **Analysis focus**: The freeform text describing what to analyze (e.g. "improve performance and security", "review for best practices", "suggest follow-up features")
 - **Referenced files**: Any paths prefixed with `@` (e.g. `@backend/app/routes.py`). Strip the `@` prefix to get the actual file path.
-
-If no files are referenced, scan the project structure to identify relevant files based on the analysis focus.
+- **Request match**: Compute a `request_id` from the analysis focus (e.g. first 12 chars of `sha256(analysis_focus)`). Before using `explore_findings.md`, read its first line and verify it matches `<!-- request_id: <computed_request_id> -->`. If no match, note in the report that explore findings are from a different request and flag that they may not be relevant to this analysis.
 
 #### 2. Read Referenced Files
 
-Read every referenced file in full. For each file, note:
+Before reading any `@`-referenced file, check whether `explore_findings.md` already documents its patterns and structure. If fully covered, reference the explore findings instead of re-reading the file. Note the explore findings section in your report.
+
+For each file you do read directly, note:
 - What the code does
 - Technologies/patterns used
 - Potential issues related to the analysis focus
 
-#### 3. Read Project Context
+#### 3. Read Project Context (from Explore Findings)
 
-Scan and read key project files to understand the broader codebase:
-- `pubspec.yaml` — Flutter dependencies and versions
-- `requirements.txt` or `pyproject.toml` — Python dependencies
-- `backend/app/main.py` — app entry point
-- `mobile_flutter/lib/main.dart` — Flutter entry point
-- Any config files relevant to the analysis focus
+Read `.opencode/state/explore_findings.md` to understand the broader codebase:
+- Project structure and key file locations
+- Technology stack and dependencies
+- Backend and frontend conventions
+- Database schema patterns
+
+Only read specific files directly if `explore_findings.md` does not cover the area relevant to your analysis focus.
 
 #### 4. Web Research
 
@@ -172,7 +193,7 @@ If a search returns no useful results, skip it and note "No relevant results fou
 
 #### 5. Generate Suggestions
 
-Produce actionable suggestions in these categories based on both code analysis and web research:
+Produce actionable suggestions in these categories based on both code analysis and web research. **Every suggestion must include a code snippet** (5–20 lines) showing the exact change needed — never describe a fix without showing the code.
 
 ##### A. Performance Improvements
 - N+1 query patterns in backend routes
@@ -216,30 +237,42 @@ Tag each suggestion with:
 - **Effort**: `small`, `medium`, `large`
 - **Layer**: `database`, `backend`, `frontend`, `cross-stack`
 
+Format each suggestion with this structure:
+```markdown
+#### [ID]: [Title]
+- **Severity**: [severity] | **Effort**: [effort] | **Layer**: [layer]
+- **Issue**: [1–2 sentence description of the problem]
+- **Fix**:
+  ```python
+  # Copy-paste-ready code showing the exact change
+  ```
+```
+
 #### 7. Write Suggestion Report
 
-Write `.opencode/state/suggestion_report.md` via `bash` (heredoc), using this structure:
+Write `.opencode/state/suggestion_report.md` via `bash` (heredoc), using this structure (prepend `<!-- request_id: <request_id> -->` as the first line using the `request_id` computed from the analysis focus):
 
 ```markdown
+<!-- request_id: <request_id> -->
 # Suggestion Report
 
 ## Summary
 <Overview of key findings — top 3 most valuable suggestions>
 
 ## Performance Improvements
-<Suggestions tagged by severity/effort/layer, with web research findings>
+<Suggestions tagged by severity/effort/layer, with web research findings and code snippets>
 
 ## Security Hardening
-<Suggestions tagged by severity/effort/layer, with web research findings>
+<Suggestions tagged by severity/effort/layer, with web research findings and code snippets>
 
 ## Code Quality & Refactoring
-<Suggestions tagged by severity/effort/layer, with web research findings>
+<Suggestions tagged by severity/effort/layer, with web research findings and code snippets>
 
 ## Follow-Up Features
-<Suggestions tagged by effort/layer, with web research findings>
+<Suggestions tagged by effort/layer, with web research findings and code snippets>
 
 ## Quick Wins
-<Top 3-5 suggestions that are high value and low effort>
+<Top 3-5 suggestions that are high value and low effort, each with code snippet>
 
 ---
 
@@ -270,13 +303,16 @@ Read `.opencode/state/project_state.json` and verify one of:
 - `suggestion_report` exists at `.opencode/state/suggestion_report.md`
 - `pipeline_mode` is `"research-first"` and `suggestion_report_pre.md` exists — in this case, enhance the pre-implementation report with web research
 
+**Request-matching check**: If `suggestion_report.md` exists, read its first line and verify it contains `<!-- request_id: <request_id> -->` matching the `request_id` from `project_state.json`. If no match, refuse and explain that the suggestion report is from a different request — the pipeline should be re-run fresh. If `suggestion_report_pre.md` exists and `pipeline_mode` is `"research-first"`, do the same check against its first-line marker.
+
 If none of these hold, refuse and explain that a completed pipeline, existing suggestion report, or pre-implementation report is required.
 
 ### Inputs
 
 - `.opencode/state/suggestion_report.md` — existing suggestions to research
 - `.opencode/state/project_state.json` — project setup info for context
-- The existing codebase on disk (for deeper understanding)
+- **`.opencode/state/explore_findings.md`** — codebase context for understanding suggestion references
+- The existing codebase on disk — only for specific files not covered by explore findings
 
 ### Output
 
@@ -286,10 +322,10 @@ Write the enhanced report to `.opencode/state/suggestion_report.md`, preserving 
 
 #### 1. Read Inputs
 
-Read the suggestion report, project state, and relevant parts of the codebase to understand:
+Read the suggestion report, project state, explore findings, and relevant parts of the codebase to understand:
 - What suggestions exist (IDs, titles, severity, effort, layer)
-- What project technologies are used (Flutter, FastAPI, SQLAlchemy)
-- What code exists on disk that suggestions reference
+- What project technologies are used (from explore findings — do not re-read source files for pattern discovery)
+- What code exists on disk that suggestions reference (use explore findings as starting point; read specific files only if explore findings are insufficient)
 
 #### 2. Parse Suggestions
 
@@ -343,13 +379,18 @@ For each suggestion, structure findings as:
 - **Code Examples**:
   - [source]: [brief summary of example approach]
 - **Recommendation**: [1-2 sentence recommended approach based on research]
+- **Proposed Fix**:
+  ```python
+  # Copy-paste-ready code implementing the recommendation
+  ```
 ```
 
 #### 5. Write Enhanced Report
 
-Write the enhanced suggestion report at `.opencode/state/suggestion_report.md` using this structure:
+Write the enhanced suggestion report at `.opencode/state/suggestion_report.md` using this structure (prepend `<!-- request_id: <request_id> -->` as the first line using the `request_id` from `project_state.json`):
 
 ```markdown
+<!-- request_id: <request_id> -->
 # Suggestion Report
 
 ## Summary
@@ -358,19 +399,19 @@ Write the enhanced suggestion report at `.opencode/state/suggestion_report.md` u
 ---
 
 ## Performance Improvements
-<Original suggestions with web research appended to each>
+<Original suggestions with web research and code snippets appended to each>
 
 ## Security Hardening
-<Original suggestions with web research appended to each>
+<Original suggestions with web research and code snippets appended to each>
 
 ## Code Quality & Refactoring
-<Original suggestions with web research appended to each>
+<Original suggestions with web research and code snippets appended to each>
 
 ## Follow-Up Features
-<Original suggestions with web research appended to each>
+<Original suggestions with web research and code snippets appended to each>
 
 ## Quick Wins
-<Original quick wins table preserved>
+<Original quick wins table preserved, with code snippets added>
 
 ---
 
@@ -405,6 +446,7 @@ Update `.opencode/state/project_state.json` via `bash` (python3/jq):
 - Never edit application code or documentation files
 - Never edit `db_schema`, `backend_code`, or `frontend_code` keys
 - Every suggestion must be **actionable** — include the specific file, function, or pattern to change
+- **Every suggestion must include a copy-paste-ready code snippet** (5–20 lines) showing the exact change. A suggestion without a code snippet forces the expert agent to think and write from scratch, defeating the purpose. If you can't write a code snippet for a suggestion, it's not specific enough — refine it.
 - If you find nothing to suggest, state that explicitly
 - Do **not** generate README, CHANGELOG, or any documentation files — suggestions only
 - Be constructive — frame suggestions as opportunities, not criticisms

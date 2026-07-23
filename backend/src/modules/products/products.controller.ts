@@ -21,6 +21,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { OnSaleQueryDto } from './dto/on-sale-query.dto';
 import { SetSaleDto } from './dto/set-sale.dto';
 import { SaleProductResponseDto } from './dto/sale-product-response.dto';
+import { ProductVariantsSpecsResponseDto } from '../cart/dto/variant-spec.dto';
 
 @ApiTags('Products')
 @Controller('products')
@@ -45,6 +46,9 @@ export class ProductsController {
     @Query('minPrice') minPrice?: string,
     @Query('maxPrice') maxPrice?: string,
     @Query('isFeatured') isFeatured?: string,
+    @Query('onSale') onSale?: string,
+    @Query('inStock') inStock?: string,
+    @Query('outOfStock') outOfStock?: string,
   ) {
     const filters: ProductFilters = {
       page: page ? parseInt(page, 10) : undefined,
@@ -57,9 +61,19 @@ export class ProductsController {
       minPrice: minPrice ? parseFloat(minPrice) : undefined,
       maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
       isFeatured: isFeatured !== undefined ? isFeatured === 'true' : undefined,
+      onSale: onSale !== undefined ? onSale === 'true' : undefined,
+      inStock: inStock !== undefined ? inStock === 'true' : undefined,
+      outOfStock: outOfStock !== undefined ? outOfStock === 'true' : undefined,
     };
 
     return this.productsService.findAll(filters);
+  }
+
+  @Public()
+  @Get('counts/by-category')
+  @ApiCommonResponse({ summary: 'Get product counts by category and brand', auth: false })
+  async getProductCounts() {
+    return this.productsService.getProductCounts();
   }
 
   @Public()
@@ -112,5 +126,16 @@ export class ProductsController {
   async remove(@Param('id') id: string) {
     await this.productsService.remove(id);
     return { message: 'Product deleted successfully' };
+  }
+
+  @Public()
+  @Get(':id/variants/specs')
+  @ApiCommonResponse({
+    summary: 'Get product variant specs for cart selection',
+    type: ProductVariantsSpecsResponseDto,
+    auth: false,
+  })
+  async getVariantSpecs(@Param('id') id: string) {
+    return this.productsService.getVariantSpecsForCart(id);
   }
 }

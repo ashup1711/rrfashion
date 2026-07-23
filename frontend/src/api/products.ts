@@ -7,6 +7,7 @@ import type {
   CreateProductData,
   ProductVariant,
   CreateVariantData,
+  ProductCountsResponse,
 } from '../types/product';
 
 export const getProducts = async (
@@ -20,6 +21,13 @@ export const getProducts = async (
 
 export const getProduct = async (id: string): Promise<Product> => {
   const { data } = await apiClient.get<Product>(`/products/${id}`);
+  return data;
+};
+
+export const getProductCounts = async (): Promise<ProductCountsResponse> => {
+  const { data } = await apiClient.get<ProductCountsResponse>(
+    '/products/counts/by-category',
+  );
   return data;
 };
 
