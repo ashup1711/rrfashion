@@ -75,9 +75,9 @@ export class PromoteImagesService {
         variant: { productId, deletedAt: null },
         variantType: 'ORIGINAL',
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { sortOrder: 'asc' },
       take: 5,
-      select: { url: true },
+      select: { url: true, sortOrder: true },
     });
 
     await this.prisma.product.update({
