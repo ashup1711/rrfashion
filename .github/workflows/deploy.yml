@@ -1,6 +1,7 @@
 name: Deploy Frontend to GitHub Pages (with Live Backend + ngrok)
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
 
