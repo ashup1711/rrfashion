@@ -9,7 +9,7 @@ import {
   UseGuards,
   HttpCode,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AdminJwtAuthGuard } from '../../common/guards/admin-jwt-auth.guard';
@@ -24,6 +24,27 @@ import { Request } from 'express';
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
+
+  @Public()
+  @Get('health')
+  @ApiOperation({ summary: 'Check Razorpay payment gateway health' })
+  @ApiResponse({
+    status: 200,
+    description: 'Payment gateway health status',
+    schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['healthy', 'degraded', 'unhealthy'] },
+        provider: { type: 'string', example: 'razorpay' },
+        mode: { type: 'string', enum: ['test', 'live'] },
+        latency: { type: 'number', description: 'API latency in ms' },
+        lastChecked: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
+  async checkHealth() {
+    return this.paymentsService.checkHealth();
+  }
 
   @Public()
   @Post('create-order')

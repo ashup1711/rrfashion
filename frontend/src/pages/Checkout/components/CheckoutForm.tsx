@@ -11,6 +11,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS, ROUTES } from '../../../utils/constants';
 import { formatCurrency } from '../../../utils/formatCurrency';
 import { loadRazorpayScript } from '../../../utils/loadRazorpay';
+import { logger } from '../../../utils/logger';
+import type { Order } from '../../../types/order';
 
 interface AddressFormState {
   firstName: string;
@@ -60,6 +62,8 @@ const CheckoutForm = ({ onStepChange, currentStep }: CheckoutFormProps) => {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'cod'>('razorpay');
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
 
   // Initialize address selection when addresses data resolves
   useEffect(() => {
@@ -210,29 +214,72 @@ const CheckoutForm = ({ onStepChange, currentStep }: CheckoutFormProps) => {
         return;
       }
 
-      // Step 2: Handle case where Razorpay order creation failed server-side
+      // Step 2: Log order creation for debugging
+      logger.debug('Order created:', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        razorpayOrderId: order.razorpayOrderId,
+        razorpayKeyId: order.razorpayKeyId ? `${order.razorpayKeyId.substring(0, 8)}...` : 'MISSING',
+        amount: order.amount,
+        razorpayError: order.razorpayError,
+      });
+
+      // Step 3: Check if Razorpay order creation failed server-side
       if (!order.razorpayOrderId) {
-        toast.success(
-          'Order placed successfully! Payment link will be sent to your registered contact.',
-        );
-        navigate(ROUTES.ORDER_DETAIL(order.id));
+        // Check if there's a specific error from backend
+        if (order.razorpayError) {
+          logger.error('Razorpay initialization failed:', order.razorpayError);
+        } else {
+          logger.error('Razorpay order ID is missing from response');
+        }
+        setPaymentError(order.razorpayError || 'Failed to initialize payment gateway. Please try Cash on Delivery or contact support.');
+        setCreatedOrder(order);
+        setIsProcessing(false);
         return;
       }
 
-      // Step 3: Load Razorpay checkout script
+      // Step 4: Validate Razorpay key before proceeding
+      if (!order.razorpayKeyId) {
+        console.error('[Payment] Razorpay key ID is missing from backend response');
+        setPaymentError('Payment gateway is not configured properly. Please contact support or choose Cash on Delivery.');
+        setCreatedOrder(order);
+        setIsProcessing(false);
+        return;
+      }
+
+      // Step 5: Load Razorpay checkout script
       try {
+        logger.debug('Loading Razorpay checkout script...');
         await loadRazorpayScript();
-      } catch {
-        toast.error(
-          'Payment gateway failed to load. Your order is saved — you can complete payment from your orders page.',
-        );
-        navigate(ROUTES.ORDER_DETAIL(order.id));
+        logger.debug('Razorpay script loaded successfully');
+      } catch (scriptError) {
+        console.error('[Payment] Failed to load Razorpay script:', scriptError);
+        setPaymentError('Payment gateway failed to load. Your order is saved — you can try again.');
+        setCreatedOrder(order);
+        setIsProcessing(false);
         return;
       }
 
-      // Step 4: Open Razorpay checkout modal
+      // Step 6: Verify Razorpay is available
       const Razorpay = (window as any).Razorpay;
+      if (!Razorpay) {
+        console.error('[Payment] Razorpay global object not found after script load');
+        setPaymentError('Payment gateway failed to initialize. Please try again or contact support.');
+        setCreatedOrder(order);
+        setIsProcessing(false);
+        return;
+      }
 
+      // Step 7: Log for debugging
+      logger.debug('Opening Razorpay checkout:', {
+        key: order.razorpayKeyId ? `${order.razorpayKeyId.substring(0, 8)}...` : 'MISSING',
+        amount: order.amount,
+        orderId: order.razorpayOrderId,
+        orderNumber: order.orderNumber,
+        currency: order.currency || 'INR',
+      });
+
+      // Step 8: Open Razorpay checkout modal with error handling
       const razorpayOptions = {
         key: order.razorpayKeyId,
         amount: order.amount,
@@ -245,24 +292,35 @@ const CheckoutForm = ({ onStepChange, currentStep }: CheckoutFormProps) => {
           razorpay_payment_id: string;
           razorpay_signature: string;
         }) => {
+          logger.debug('Payment response received:', {
+            razorpay_order_id: paymentResponse.razorpay_order_id,
+            razorpay_payment_id: paymentResponse.razorpay_payment_id,
+          });
+
           try {
-            // Step 5: Verify payment on the backend
+            // Step 9: Verify payment on the backend
+            logger.debug('Verifying payment with backend...');
             const verifyResult = await verifyPayment({
               razorpayOrderId: paymentResponse.razorpay_order_id,
               razorpayPaymentId: paymentResponse.razorpay_payment_id,
               razorpaySignature: paymentResponse.razorpay_signature,
             });
 
+            logger.debug('Verification result:', verifyResult);
+
             if (verifyResult.verified) {
+              logger.debug('Payment verified successfully');
               toast.success('Payment successful! Your order is confirmed.');
               navigate(ROUTES.ORDER_DETAIL(order.id));
             } else {
+              console.error('[Payment] Payment verification failed - not verified');
               toast.error(
                 'Payment verification failed. Please contact support with your order number.',
               );
               navigate(ROUTES.ORDER_DETAIL(order.id));
             }
-          } catch {
+          } catch (verifyError) {
+            console.error('[Payment] Payment verification failed:', verifyError);
             toast.error(
               'Payment verification failed. Your order is saved — please contact support.',
             );
@@ -276,14 +334,26 @@ const CheckoutForm = ({ onStepChange, currentStep }: CheckoutFormProps) => {
         theme: { color: '#2A2522' }, // Use primary-900 color
         modal: {
           ondismiss: () => {
+            logger.debug('Payment modal dismissed by user');
             toast.error('Payment cancelled. Your order is saved and pending payment.');
             navigate(ROUTES.ORDER_DETAIL(order.id));
           },
         },
       };
 
-      const razorpay = new Razorpay(razorpayOptions);
-      razorpay.open();
+      try {
+        logger.debug('Initializing Razorpay instance...');
+        const razorpay = new Razorpay(razorpayOptions);
+        logger.debug('Opening Razorpay modal...');
+        razorpay.open();
+        logger.debug('Razorpay modal opened successfully');
+      } catch (initError) {
+        console.error('[Payment] Razorpay initialization failed:', initError);
+        setPaymentError('Failed to open payment gateway. Please try Cash on Delivery or contact support.');
+        setCreatedOrder(order);
+        setIsProcessing(false);
+        return;
+      }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Failed to place order. Please try again.';
@@ -294,6 +364,41 @@ const CheckoutForm = ({ onStepChange, currentStep }: CheckoutFormProps) => {
 
   return (
     <div className="space-y-12">
+      {/* Payment Error Recovery UI */}
+      {paymentError && createdOrder && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 mb-6">
+          <div className="flex items-start gap-4">
+            <div className="flex-1">
+              <h3 className="text-sm font-bold text-red-800 uppercase tracking-widest mb-2">Payment Failed</h3>
+              <p className="text-sm text-red-700 leading-relaxed mb-4">{paymentError}</p>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => {
+                    setPaymentError(null);
+                    setCreatedOrder(null);
+                    handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+                  }}
+                  className="px-6 py-2.5 bg-red-600 text-white text-xs font-bold uppercase tracking-widest rounded-xl hover:bg-red-700 transition-all"
+                >
+                  Try Again
+                </button>
+                <button
+                  onClick={() => navigate(ROUTES.ORDER_DETAIL(createdOrder.id))}
+                  className="px-6 py-2.5 bg-white text-red-800 text-xs font-bold uppercase tracking-widest rounded-xl border border-red-200 hover:bg-red-50 transition-all"
+                >
+                  View Order
+                </button>
+                <Link
+                  to={ROUTES.ORDERS}
+                  className="px-6 py-2.5 text-xs font-bold uppercase tracking-widest text-red-600 hover:text-red-800 transition-colors self-center"
+                >
+                  Choose Cash on Delivery →
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Step 1: Shipping */}
       {currentStep === 0 && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">

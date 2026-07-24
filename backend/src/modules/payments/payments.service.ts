@@ -2,9 +2,13 @@ import {
   Injectable,
   BadRequestException,
   InternalServerErrorException,
+  ServiceUnavailableException,
   Logger,
+  OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import CircuitBreaker from 'opossum';
+import { Counter, Histogram } from 'prom-client';
 import Razorpay from 'razorpay';
 import { createHmac } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -14,15 +18,99 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 
 @Injectable()
-export class PaymentsService {
+export class PaymentsService implements OnModuleInit {
   private readonly logger = new Logger(PaymentsService.name);
   private razorpayInstance: Razorpay | null = null;
+
+  // Metrics
+  private readonly paymentOrderCreationTotal = new Counter({
+    name: 'payment_order_creation_total',
+    help: 'Total number of payment order creation attempts',
+    labelNames: ['status', 'payment_method'],
+  });
+
+  private readonly paymentOrderCreationDuration = new Histogram({
+    name: 'payment_order_creation_duration_seconds',
+    help: 'Duration of payment order creation in seconds',
+    labelNames: ['status'],
+    buckets: [0.1, 0.3, 0.5, 1, 2, 5],
+  });
+
+  // Circuit breaker
+  private createOrderBreaker: CircuitBreaker<[CreateOrderDto], unknown>;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly redis: RedisService,
-  ) {}
+  ) {
+    // Initialize circuit breaker immediately so it's available
+    this.createOrderBreaker = new CircuitBreaker(this.createOrderInternal.bind(this), {
+      timeout: 5000,
+      errorThresholdPercentage: 50,
+      resetTimeout: 30000,
+    });
+
+    this.createOrderBreaker.on('open', () => {
+      this.logger.error('⚡ Razorpay circuit breaker OPENED - API is unhealthy');
+    });
+
+    this.createOrderBreaker.on('halfOpen', () => {
+      this.logger.warn('⚡ Razorpay circuit breaker HALF-OPEN - testing recovery');
+    });
+
+    this.createOrderBreaker.on('close', () => {
+      this.logger.log('✓ Razorpay circuit breaker CLOSED - API is healthy');
+    });
+  }
+
+  onModuleInit() {
+    const keyId = this.config.get<string>('RAZORPAY_KEY_ID');
+    const keySecret = this.config.get<string>('RAZORPAY_KEY_SECRET');
+    const webhookSecret = this.config.get<string>('RAZORPAY_WEBHOOK_SECRET');
+
+    if (!keyId || !keySecret) {
+      this.logger.error('========================================');
+      this.logger.error('RAZORPAY CONFIGURATION MISSING!');
+      this.logger.error(
+        'RAZORPAY_KEY_ID and/or RAZORPAY_KEY_SECRET not found in environment variables.',
+      );
+      this.logger.error('Payment integration will NOT work.');
+      this.logger.error(
+        'Please check your .env file and ensure ConfigModule is properly configured.',
+      );
+      this.logger.error('========================================');
+    } else {
+      const maskedKeyId = keyId.length > 8 ? `${keyId.substring(0, 8)}***` : '***';
+      this.logger.log(`✓ Razorpay credentials loaded: KEY_ID=${maskedKeyId}`);
+
+      // Validate key format — warn if it doesn't match expected prefix
+      if (!keyId.startsWith('rzp_test_') && !keyId.startsWith('rzp_live_')) {
+        this.logger.warn('⚠ Razorpay KEY_ID has unexpected format.');
+        this.logger.warn('  Expected: rzp_test_... or rzp_live_...');
+        this.logger.warn('  Actual: ' + maskedKeyId);
+        this.logger.warn('  This may indicate a typo or incorrect value.');
+      } else if (keyId.startsWith('rzp_test_')) {
+        this.logger.warn('⚠ Using Razorpay TEST MODE. Payments will not be real.');
+      } else if (keyId.startsWith('rzp_live_')) {
+        this.logger.log('✓ Using Razorpay LIVE MODE. Payments are REAL.');
+      }
+
+      // Validate secret format — warn if too short
+      if (keySecret.length < 10) {
+        this.logger.warn('⚠ RAZORPAY_KEY_SECRET appears too short. Expected ~20 characters.');
+        this.logger.warn('  This may indicate a typo or incorrect value.');
+      }
+    }
+
+    if (!webhookSecret) {
+      this.logger.warn(
+        '⚠ RAZORPAY_WEBHOOK_SECRET not set. Webhook signature verification will fail.',
+      );
+    } else {
+      this.logger.log('✓ Razorpay webhook secret configured.');
+    }
+  }
 
   private getRazorpay(): Razorpay {
     if (!this.razorpayInstance) {
@@ -41,7 +129,15 @@ export class PaymentsService {
     return this.razorpayInstance;
   }
 
-  async createOrder(dto: CreateOrderDto) {
+  // ──────────────────────────────────────────────
+  //  Core Internal Implementation
+  // ──────────────────────────────────────────────
+
+  /**
+   * Core Razorpay order creation logic.
+   * This is the private implementation wrapped by the circuit breaker.
+   */
+  private async createOrderInternal(dto: CreateOrderDto): Promise<unknown> {
     const order = await this.prisma.order.findUnique({
       where: { id: dto.orderId },
     });
@@ -77,9 +173,113 @@ export class PaymentsService {
 
       return razorpayData;
     } catch (error) {
-      this.logger.error('Failed to create Razorpay order', error);
-      throw new InternalServerErrorException('Payment order creation failed');
+      const err = error as Error & { statusCode?: number; error?: unknown };
+      this.logger.error({
+        message: 'Failed to create Razorpay order',
+        orderId: dto.orderId,
+        amount: dto.amount,
+        currency: dto.currency || 'INR',
+        error: err.message,
+        statusCode: err.statusCode,
+        razorpayError: err.error,
+        stack: err.stack,
+      });
+      throw new InternalServerErrorException(
+        'Payment order creation failed. Please check Razorpay credentials and connectivity.',
+      );
     }
+  }
+
+  // ──────────────────────────────────────────────
+  //  Public createOrder — circuit breaker + metrics
+  // ──────────────────────────────────────────────
+
+  /**
+   * Creates a Razorpay order through the circuit breaker and records metrics.
+   * The circuit breaker protects against cascading failures when the Razorpay API is down.
+   */
+  async createOrder(dto: CreateOrderDto): Promise<unknown> {
+    const startTime = Date.now();
+
+    try {
+      const result = await this.createOrderBreaker.fire(dto);
+
+      this.paymentOrderCreationTotal.inc({ status: 'success', payment_method: 'razorpay' });
+      this.paymentOrderCreationDuration.observe(
+        { status: 'success' },
+        (Date.now() - startTime) / 1000,
+      );
+
+      return result;
+    } catch (error) {
+      this.paymentOrderCreationTotal.inc({ status: 'failure', payment_method: 'razorpay' });
+      this.paymentOrderCreationDuration.observe(
+        { status: 'failure' },
+        (Date.now() - startTime) / 1000,
+      );
+
+      if (this.createOrderBreaker.opened) {
+        this.logger.error(
+          { orderId: dto.orderId },
+          'Circuit breaker is open — Razorpay API is unavailable',
+        );
+        throw new ServiceUnavailableException(
+          'Payment gateway is temporarily unavailable. Please try again in a few minutes or choose Cash on Delivery.',
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  //  createOrderWithRetry — exponential backoff
+  // ──────────────────────────────────────────────
+
+  /**
+   * Creates a Razorpay order with automatic retry on transient errors.
+   * Retries with exponential backoff: 1s, 2s, 4s.
+   * Does NOT retry 4xx client errors — only retries 5xx, network timeouts, and connection refused.
+   */
+  async createOrderWithRetry(dto: CreateOrderDto, maxRetries = 3): Promise<unknown> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await this.createOrder(dto);
+      } catch (error) {
+        lastError = error as Error;
+        const err = error as Error & { statusCode?: number };
+
+        // Only retry on transient errors (no status code, 5xx, network timeout/refused)
+        const isTransient =
+          !err.statusCode ||
+          err.statusCode >= 500 ||
+          err.message.includes('ETIMEDOUT') ||
+          err.message.includes('ECONNREFUSED');
+
+        if (!isTransient || attempt === maxRetries) {
+          throw error;
+        }
+
+        // Exponential backoff: 1s, 2s, 4s
+        const delayMs = Math.pow(2, attempt - 1) * 1000;
+        this.logger.warn(
+          {
+            orderId: dto.orderId,
+            attempt,
+            maxRetries,
+            delayMs,
+            error: err.message,
+          },
+          'Razorpay API call failed, retrying...',
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+
+    throw lastError ?? new InternalServerErrorException('Retry attempt failed unexpectedly');
   }
 
   async verifyPayment(dto: VerifyPaymentDto) {
@@ -281,6 +481,103 @@ export class PaymentsService {
       where: { orderId },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  // ──────────────────────────────────────────────
+  //  Health Check
+  // ──────────────────────────────────────────────
+
+  async checkHealth(): Promise<{
+    status: 'healthy' | 'degraded' | 'unhealthy';
+    provider: string;
+    mode: 'test' | 'live';
+    latency?: number;
+    lastChecked: Date;
+    error?: string;
+  }> {
+    const startTime = Date.now();
+    const keyId = this.config.get<string>('RAZORPAY_KEY_ID');
+
+    try {
+      // Lightweight API call to verify Razorpay connectivity
+      const razorpay = this.getRazorpay();
+      await razorpay.customers.all({ count: 1 });
+
+      const latency = Date.now() - startTime;
+
+      return {
+        status: latency < 1000 ? 'healthy' : 'degraded',
+        provider: 'razorpay',
+        mode: keyId?.startsWith('rzp_test_') ? 'test' : 'live',
+        latency,
+        lastChecked: new Date(),
+      };
+    } catch (error) {
+      const latency = Date.now() - startTime;
+      return {
+        status: 'unhealthy',
+        provider: 'razorpay',
+        mode: keyId?.startsWith('rzp_test_') ? 'test' : 'live',
+        latency,
+        lastChecked: new Date(),
+        error: (error as Error).message,
+      };
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  //  Payment Link Fallback
+  // ──────────────────────────────────────────────
+
+  async createPaymentLink(
+    orderId: string,
+    amount: number,
+  ): Promise<{ paymentLinkId: string; shortUrl: string }> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw new BadRequestException('Order not found');
+    }
+
+    try {
+      const paymentLink = await this.getRazorpay().paymentLink.create({
+        amount,
+        currency: 'INR',
+        accept_partial: false,
+        description: `Payment for order ${order.orderNumber}`,
+        reference_id: order.orderNumber,
+        notes: { order_id: orderId },
+        notify: {
+          sms: true,
+          email: true,
+        },
+      } as never);
+
+      this.logger.log(
+        {
+          orderId,
+          paymentLinkId: paymentLink.id,
+          shortUrl: paymentLink.short_url,
+        },
+        'Payment link created',
+      );
+
+      return {
+        paymentLinkId: paymentLink.id,
+        shortUrl: paymentLink.short_url,
+      };
+    } catch (error) {
+      this.logger.error(
+        {
+          orderId,
+          error: (error as Error).message,
+        },
+        'Failed to create payment link',
+      );
+      throw new InternalServerErrorException('Failed to create payment link');
+    }
   }
 
   // ──────────────────────────────────────────────

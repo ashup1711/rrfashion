@@ -58,6 +58,8 @@ export interface Order {
   amount?: number;
   /** Currency code (e.g. INR) */
   currency?: string;
+  /** Payment gateway error message if Razorpay initialization failed */
+  razorpayError?: string | null;
   /** Shipping address snapshot at time of order */
   shippingAddress?: ShippingAddress;
   /** Payment method used */

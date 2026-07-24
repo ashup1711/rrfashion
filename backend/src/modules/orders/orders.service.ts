@@ -303,21 +303,70 @@ export class OrdersService {
     // Create Razorpay order for payment processing
     const amountInPaise = Math.round(Number(totalAmount) * 100);
     let razorpayOrder: Record<string, unknown> | null = null;
+    let razorpayError: string | null = null;
+
     try {
-      razorpayOrder = (await this.paymentsService.createOrder({
+      razorpayOrder = (await this.paymentsService.createOrderWithRetry({
         orderId: order.id,
         amount: amountInPaise,
         currency: 'INR',
         notes: { order_type: 'sale' },
       })) as Record<string, unknown>;
     } catch (error) {
+      const err = error as Error;
       this.logger.error(
-        { orderId: order.id, error: (error as Error).message },
+        {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          error: err.message,
+          stack: err.stack,
+          amount: amountInPaise,
+          paymentMethod: dto.paymentMethod,
+        },
         'Failed to create Razorpay order',
       );
+
+      // Try to create a payment link as fallback so the user can pay later
+      if (dto.paymentMethod === 'razorpay') {
+        try {
+          const paymentLink = await this.paymentsService.createPaymentLink(order.id, amountInPaise);
+          razorpayError = `Failed to initialize payment gateway. A payment link has been sent to your email. You can also pay here: ${paymentLink.shortUrl}`;
+          this.logger.log(
+            {
+              orderId: order.id,
+              paymentLinkId: paymentLink.paymentLinkId,
+              shortUrl: paymentLink.shortUrl,
+            },
+            'Payment link created as fallback for failed Razorpay order creation',
+          );
+        } catch (linkError) {
+          this.logger.error(
+            { orderId: order.id, linkError: (linkError as Error).message },
+            'Failed to create payment link fallback',
+          );
+          razorpayError =
+            'Failed to initialize payment gateway. Please try Cash on Delivery or contact support.';
+        }
+      } else {
+        razorpayError =
+          'Failed to initialize payment gateway. Please try Cash on Delivery or contact support.';
+      }
     }
 
     const razorpayKeyId = this.config.get<string>('RAZORPAY_KEY_ID') || '';
+
+    // Log warning if Razorpay order creation failed but user selected razorpay payment method
+    if (!razorpayOrder && dto.paymentMethod === 'razorpay') {
+      this.logger.warn(
+        {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          paymentMethod: dto.paymentMethod,
+          razorpayError,
+        },
+        'Order created but Razorpay payment initialization failed. User may need to pay via payment link or switch to COD.',
+      );
+    }
 
     return {
       id: order.id,
@@ -339,6 +388,7 @@ export class OrdersService {
       razorpayKeyId,
       amount: amountInPaise,
       currency: 'INR',
+      razorpayError,
     };
   }
 
