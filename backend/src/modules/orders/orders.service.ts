@@ -24,6 +24,7 @@ import { AdminOrderQueryDto } from './dto/admin-order-query.dto';
 import { OrderStatus } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { Prisma } from '@prisma/client';
+import { calculateTax, isInterStateShipping } from '../../common/utils/tax.util';
 
 interface CartLikeItem {
   productId: string;
@@ -154,8 +155,9 @@ export class OrdersService {
     // Generate order number
     const orderNumber = `ORD-${uuidv4().slice(0, 8).toUpperCase()}`;
 
-    // Build order items data with real prices from DB
+    // Build order items data with real prices from DB and tax calculation
     let subtotal = 0;
+    let totalTaxAmount = 0;
     const orderItemsData: Array<{
       productId: string;
       variantId: string | null;
@@ -164,6 +166,11 @@ export class OrdersService {
       totalPrice: Prisma.Decimal;
       subtotal: Prisma.Decimal;
       type: string;
+      taxRate: Prisma.Decimal;
+      cgstAmount: Prisma.Decimal;
+      sgstAmount: Prisma.Decimal;
+      igstAmount: Prisma.Decimal;
+      hsnCode: string | null;
     }> = [];
 
     const inventoryDecrementMap = new Map<string, number>();
@@ -196,6 +203,12 @@ export class OrdersService {
       const totalPrice = unitPrice.mul(item.quantity);
       subtotal += Number(totalPrice);
 
+      // Calculate tax for this item
+      const interState = isInterStateShipping();
+      const tax = calculateTax(Number(unitPrice), item.quantity, interState);
+
+      totalTaxAmount += tax.totalTax;
+
       orderItemsData.push({
         productId: item.productId,
         variantId: item.variantId,
@@ -204,10 +217,16 @@ export class OrdersService {
         totalPrice,
         subtotal: totalPrice,
         type: item.type || 'sale',
+        taxRate: new Prisma.Decimal(tax.taxRate),
+        cgstAmount: new Prisma.Decimal(tax.cgstAmount),
+        sgstAmount: new Prisma.Decimal(tax.sgstAmount),
+        igstAmount: new Prisma.Decimal(tax.igstAmount),
+        hsnCode: null,
       });
     }
 
-    const totalAmount = subtotal;
+    const taxAmount = Math.round(totalTaxAmount * 100) / 100;
+    const totalAmount = subtotal + taxAmount;
 
     // Create order + decrement inventory in a Prisma $transaction with FOR UPDATE locks
     const order = await this.prisma.$transaction(async (tx) => {
@@ -217,6 +236,7 @@ export class OrdersService {
           ...(guestSessionId ? { guestSessionId } : { userId }),
           totalAmount,
           subtotal,
+          taxAmount,
           shippingAddress: dto.shippingAddress as unknown as Prisma.InputJsonValue,
           paymentMethod: dto.paymentMethod,
           notes: dto.notes || null,
@@ -440,6 +460,7 @@ export class OrdersService {
           user: {
             select: { id: true, email: true, firstName: true, lastName: true, phone: true },
           },
+          payments: true,
         },
       }),
       this.prisma.order.count({ where }),
@@ -930,6 +951,7 @@ export class OrdersService {
 
     const orderNumber = `ORD-${uuidv4().slice(0, 8).toUpperCase()}`;
     let subtotal = 0;
+    let totalTaxAmount = 0;
 
     const orderItemsData: Array<{
       productId: string;
@@ -939,6 +961,11 @@ export class OrdersService {
       totalPrice: Prisma.Decimal;
       subtotal: Prisma.Decimal;
       type: string;
+      taxRate: Prisma.Decimal;
+      cgstAmount: Prisma.Decimal;
+      sgstAmount: Prisma.Decimal;
+      igstAmount: Prisma.Decimal;
+      hsnCode: string | null;
     }> = [];
 
     const variantIds = dto.items.map((item) => item.variantId);
@@ -969,6 +996,12 @@ export class OrdersService {
       const totalPrice = unitPrice.mul(item.quantity);
       subtotal += Number(totalPrice);
 
+      // Calculate tax for this item
+      const interState = isInterStateShipping();
+      const tax = calculateTax(Number(unitPrice), item.quantity, interState);
+
+      totalTaxAmount += tax.totalTax;
+
       orderItemsData.push({
         productId: variant.product.id,
         variantId: variant.id,
@@ -977,6 +1010,11 @@ export class OrdersService {
         totalPrice,
         subtotal: totalPrice,
         type: item.type || 'sale',
+        taxRate: new Prisma.Decimal(tax.taxRate),
+        cgstAmount: new Prisma.Decimal(tax.cgstAmount),
+        sgstAmount: new Prisma.Decimal(tax.sgstAmount),
+        igstAmount: new Prisma.Decimal(tax.igstAmount),
+        hsnCode: null,
       });
 
       const currentQty = inventoryDecrementMap.get(item.variantId) ?? 0;
@@ -1000,7 +1038,8 @@ export class OrdersService {
       }
     }
 
-    const totalAmount = subtotal - discountAmount;
+    const taxAmount = Math.round(totalTaxAmount * 100) / 100;
+    const totalAmount = subtotal + taxAmount - discountAmount;
 
     const order = await this.prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
@@ -1009,6 +1048,7 @@ export class OrdersService {
           userId: dto.guestId,
           totalAmount,
           subtotal,
+          taxAmount,
           discountAmount,
           ...(appliedCouponId ? { couponId: appliedCouponId } : {}),
           shippingAddress: dto.shippingAddress as unknown as Prisma.InputJsonValue,

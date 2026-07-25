@@ -7,40 +7,34 @@ import { downloadPdf } from '../../../api/invoices';
 import type { Column } from '../../../components/ui/DataTable';
 import type { Invoice } from '../../../types/invoice';
 
-const statusOptions = [
-  { value: '', label: 'All Status' },
-  { value: 'PENDING', label: 'Pending' },
-  { value: 'PAID', label: 'Paid' },
-  { value: 'OVERDUE', label: 'Overdue' },
-  { value: 'CANCELLED', label: 'Cancelled' },
-  { value: 'REFUNDED', label: 'Refunded' },
+const typeOptions = [
+  { value: '', label: 'All Types' },
+  { value: 'INVOICE', label: 'Invoice' },
+  { value: 'CREDIT_NOTE', label: 'Credit Note' },
+  { value: 'DEBIT_NOTE', label: 'Debit Note' },
 ];
 
-const getStatusBadge = (status: string) => {
-  switch (status) {
-    case 'PAID':
-      return <Badge variant="success">Paid</Badge>;
-    case 'PENDING':
-      return <Badge variant="warning">Pending</Badge>;
-    case 'OVERDUE':
-      return <Badge variant="danger">Overdue</Badge>;
-    case 'CANCELLED':
-      return <Badge>Canceled</Badge>;
-    case 'REFUNDED':
-      return <Badge variant="info">Refunded</Badge>;
+const getTypeBadge = (type: string) => {
+  switch (type) {
+    case 'INVOICE':
+      return <Badge variant="info">Invoice</Badge>;
+    case 'CREDIT_NOTE':
+      return <Badge variant="warning">Credit Note</Badge>;
+    case 'DEBIT_NOTE':
+      return <Badge variant="danger">Debit Note</Badge>;
     default:
-      return <Badge>{status}</Badge>;
+      return <Badge>{type}</Badge>;
   }
 };
 
 const InvoiceList = () => {
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
 
   const { data, isLoading, error } = useInvoices({
     page,
     limit: 10,
-    status: statusFilter || undefined,
+    type: typeFilter || undefined,
   });
 
   const handleDownloadPdf = async (id: string) => {
@@ -91,20 +85,9 @@ const InvoiceList = () => {
       ),
     },
     {
-      key: 'status',
-      header: 'Status',
-      render: (invoice) => getStatusBadge(invoice.status),
-    },
-    {
-      key: 'dueDate',
-      header: 'Due Date',
-      render: (invoice) => (
-        <span className="text-gray-500 text-sm">
-          {invoice.dueDate
-            ? new Date(invoice.dueDate).toLocaleDateString()
-            : '—'}
-        </span>
-      ),
+      key: 'type',
+      header: 'Type',
+      render: (invoice) => getTypeBadge(invoice.type),
     },
     {
       key: 'createdAt',
@@ -151,15 +134,15 @@ const InvoiceList = () => {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4 mb-6">
         <select
-          value={statusFilter}
+          value={typeFilter}
           onChange={(e) => {
-            setStatusFilter(e.target.value);
+            setTypeFilter(e.target.value);
             setPage(1);
           }}
           className="block w-44 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-          aria-label="Filter by status"
+          aria-label="Filter by type"
         >
-          {statusOptions.map((opt) => (
+          {typeOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
@@ -175,7 +158,7 @@ const InvoiceList = () => {
         error={error as Error | null}
         emptyTitle="No invoices found"
         emptyDescription={
-          statusFilter
+          typeFilter
             ? 'Try adjusting your filters'
             : 'No invoices have been generated yet'
         }

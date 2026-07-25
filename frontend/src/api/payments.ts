@@ -11,6 +11,12 @@ export interface VerifyPaymentResponse {
   paymentId: string;
 }
 
+export interface PaymentStatusResponse {
+  paymentStatus: string;
+  paidAmount: number;
+  paymentMethod: string;
+}
+
 /**
  * Verify Razorpay payment after successful checkout.
  * POST /api/payments/verify
@@ -23,4 +29,17 @@ export const verifyPayment = async (
     data,
   );
   return response;
+};
+
+/**
+ * Get payment status for an order (used after Razorpay redirect).
+ * GET /api/payments/status/:orderId
+ */
+export const getPaymentStatus = async (
+  orderId: string,
+): Promise<PaymentStatusResponse> => {
+  const { data } = await apiClient.get<PaymentStatusResponse>(
+    `/payments/status/${orderId}`,
+  );
+  return data;
 };

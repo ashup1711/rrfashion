@@ -5,6 +5,7 @@ import StatusBadge from './components/StatusBadge';
 import StatusUpdateModal from './components/StatusUpdateModal';
 import DataTable from '../../../components/ui/DataTable';
 import Button from '../../../components/ui/Button';
+import Badge from '../../../components/ui/Badge';
 import type { Column } from '../../../components/ui/DataTable';
 import type { AdminOrder } from '../../../api/adminOrders';
 
@@ -115,6 +116,20 @@ const AdminOrdersList = () => {
           ₹{order.totalAmount?.toLocaleString() ?? '0'}
         </span>
       ),
+    },
+    {
+      key: 'paymentStatus',
+      header: 'Payment',
+      render: (order) => {
+        const paymentStatus = order.paymentStatus || order.payments?.[0]?.status || '—';
+        const variantMap: Record<string, 'success' | 'warning' | 'danger' | 'info'> = {
+          PAID: 'success',
+          PENDING: 'warning',
+          FAILED: 'danger',
+          REFUNDED: 'info',
+        };
+        return <Badge variant={variantMap[paymentStatus] || 'default'}>{paymentStatus}</Badge>;
+      },
     },
     {
       key: 'status',

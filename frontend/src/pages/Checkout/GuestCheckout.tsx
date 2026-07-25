@@ -252,11 +252,17 @@ const GuestCheckout = () => {
           contact: shippingAddress.phone,
         },
         theme: { color: '#2A2522' },
+        // Redirect URL for Razorpay return (e.g. mobile apps, 3D Secure).
+        // Hash routing requires /#/ prefix.
+        redirect: {
+          return_url: `${window.location.origin}/#/orders/${order.id}?payment=verifying`,
+        },
         modal: {
           ondismiss: () => {
+            // Don't assume payment failed — navigate to order detail which
+            // will check the actual payment status via the backend endpoint.
             logger.debug('Payment modal dismissed by user');
-            toast.error('Payment cancelled. Your order is saved and pending payment.');
-            navigate(ROUTES.ORDER_DETAIL(order.id));
+            navigate(ROUTES.ORDER_DETAIL(order.id) + '?payment=checking');
           },
         },
       };

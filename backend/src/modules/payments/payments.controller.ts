@@ -73,6 +73,14 @@ export class PaymentsController {
     return this.paymentsService.processWebhook(signature, rawBody, eventId);
   }
 
+  @Public()
+  @Get('status/:orderId')
+  @ApiOperation({ summary: 'Get payment status for an order' })
+  @ApiResponse({ status: 200, description: 'Payment status for the order' })
+  async getPaymentStatus(@Param('orderId') orderId: string) {
+    return this.paymentsService.getPaymentStatus(orderId);
+  }
+
   @UseGuards(AdminJwtAuthGuard, RolesGuard)
   @Roles('SUPER_ADMIN', 'ADMIN')
   @Post(':id/refund')

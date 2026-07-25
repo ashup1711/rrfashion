@@ -142,13 +142,13 @@ const OrderDetailContent = () => {
               <div className="flex justify-between">
                 <span className="text-gray-600">Method</span>
                 <span className="font-medium text-gray-900">
-                  {order.payment?.method || '—'}
+                  {order.payments?.[0]?.method || order.payment?.method || '—'}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Status</span>
                 <span className="font-medium text-gray-900">
-                  {order.paymentStatus || order.payment?.status || '—'}
+                  {order.paymentStatus || order.payments?.[0]?.status || order.payment?.status || '—'}
                 </span>
               </div>
               <hr className="my-2" />

@@ -57,6 +57,12 @@ export interface AdminOrder {
     status: string;
     amount: number;
   };
+  payments?: Array<{
+    id: string;
+    method: string;
+    status: string;
+    amount: number;
+  }>;
   createdAt: string;
   updatedAt: string;
   deliveredAt?: string;

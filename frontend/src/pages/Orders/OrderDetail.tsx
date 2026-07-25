@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useMyOrder, useRepurchase, useDownloadInvoice, useInitiateReturn, useOrderTracking } from '../../hooks/useMyOrders';
+import { getPaymentStatus } from '../../api/payments';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
 import Badge from '../../components/ui/Badge';
@@ -46,6 +47,34 @@ const OrderDetail = () => {
   const downloadMutation = useDownloadInvoice();
   const initiateReturnMutation = useInitiateReturn();
   const { data: tracking, isLoading: isTrackingLoading } = useOrderTracking(id || '');
+
+  // Handle payment=verifying query param from Razorpay redirect
+  const [searchParams, setSearchParams] = useSearchParams();
+  const paymentCheckedRef = useRef(false);
+
+  useEffect(() => {
+    const paymentParam = searchParams.get('payment');
+    if ((paymentParam === 'verifying' || paymentParam === 'checking') && id && !paymentCheckedRef.current) {
+      paymentCheckedRef.current = true;
+      getPaymentStatus(id)
+        .then((res) => {
+          if (res.paymentStatus === 'PAID') {
+            toast.success('Payment confirmed!');
+          } else if (res.paymentStatus === 'PENDING') {
+            toast.info('Payment processing...');
+          } else if (res.paymentStatus === 'FAILED') {
+            toast.error('Payment failed. Please try again.');
+          }
+        })
+        .catch(() => {
+          toast.info('Payment status check in progress...');
+        })
+        .finally(() => {
+          searchParams.delete('payment');
+          setSearchParams(searchParams, { replace: true });
+        });
+    }
+  }, [id, searchParams, setSearchParams]);
 
   // Return form state
   const [showReturnForm, setShowReturnForm] = useState(false);

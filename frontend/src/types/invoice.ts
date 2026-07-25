@@ -1,16 +1,30 @@
+export type InvoiceType = 'INVOICE' | 'CREDIT_NOTE' | 'DEBIT_NOTE';
+
 export interface Invoice {
   id: string;
   orderId: string;
   invoiceNumber: string;
+  storeId: string;
+  financialYear: string;
+  type: InvoiceType;
+  parentInvoiceId?: string;
+  pdfUrl: string;
+  pdfStorageKey?: string;
+  taxableValue: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
   totalAmount: number;
-  taxAmount: number;
-  discountAmount: number;
-  status: 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED' | 'REFUNDED';
-  dueDate?: string;
-  paidAt?: string;
-  notes?: string;
+  amountInWords?: string;
+  billingName: string;
+  billingAddress: string;
+  billingGstin?: string;
+  billingState: string;
+  shippingState?: string;
+  eInvoiceIrn?: string;
+  eInvoiceAckDate?: string;
+  eInvoiceStatus?: string;
   createdAt: string;
-  updatedAt: string;
   order?: {
     id: string;
     orderNumber: string;
@@ -37,7 +51,7 @@ export interface InvoiceItem {
 export interface InvoiceFilters {
   page?: number;
   limit?: number;
-  status?: string;
+  type?: string;
   storeId?: string;
   search?: string;
 }

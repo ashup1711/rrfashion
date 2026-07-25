@@ -10,6 +10,7 @@ import {
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
+import { InvoicesService } from '../invoices/invoices.service';
 import { register as promRegister } from 'prom-client';
 import { createHmac } from 'crypto';
 
@@ -44,6 +45,12 @@ function createMockRedis() {
   };
 }
 
+function createMockInvoicesService() {
+  return {
+    generate: jest.fn().mockResolvedValue({ id: 'inv-1' }),
+  };
+}
+
 function createMockConfigService(defaults?: Record<string, string>) {
   const config: Record<string, string> = defaults ?? {
     RAZORPAY_KEY_ID: 'rzp_test_12345678',
@@ -75,11 +82,13 @@ describe('PaymentsService', () => {
     mockPrisma = createMockPrisma();
     const mockRedis = createMockRedis();
     const mockConfig = createMockConfigService();
+    const mockInvoices = createMockInvoicesService();
 
     service = new PaymentsService(
       mockPrisma as unknown as PrismaService,
       mockConfig as unknown as ConfigService,
       mockRedis as unknown as RedisService,
+      mockInvoices as unknown as InvoicesService,
     );
     configService = mockConfig as unknown as ConfigService;
     await service.onModuleInit();

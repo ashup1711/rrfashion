@@ -14,6 +14,7 @@ import { createHmac } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { RedisService } from '../../redis/redis.service';
+import { InvoicesService } from '../invoices/invoices.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 
@@ -43,6 +44,7 @@ export class PaymentsService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly redis: RedisService,
+    private readonly invoicesService: InvoicesService,
   ) {
     // Initialize circuit breaker immediately so it's available
     this.createOrderBreaker = new CircuitBreaker(this.createOrderInternal.bind(this), {
@@ -314,6 +316,24 @@ export class PaymentsService implements OnModuleInit {
       data: { paymentStatus: 'PAID' },
     });
 
+    // Auto-generate invoice after successful payment verification
+    try {
+      const order = await this.prisma.order.findUnique({
+        where: { id: payment.orderId },
+        select: { storeId: true },
+      });
+      if (order?.storeId) {
+        await this.invoicesService.generate({
+          orderId: payment.orderId,
+          storeId: order.storeId,
+        });
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to auto-generate invoice for order ${payment.orderId}: ${(error as Error).message}`,
+      );
+    }
+
     return { verified: true, paymentId: payment.id };
   }
 
@@ -352,7 +372,9 @@ export class PaymentsService implements OnModuleInit {
     );
     this.logger.debug({ eventId: resolvedEventId, payload }, 'Raw Razorpay webhook payload');
 
-    return this.prisma.$transaction(async (tx) => {
+    const ordersNeedingInvoice: string[] = [];
+
+    const result = await this.prisma.$transaction(async (tx) => {
       try {
         await tx.processedWebhookEvent.create({
           data: {
@@ -392,6 +414,15 @@ export class PaymentsService implements OnModuleInit {
               where: { id: existing.orderId },
               data: { paymentStatus: 'PAID' },
             });
+
+            // Track for invoice generation after transaction
+            const order = await tx.order.findUnique({
+              where: { id: existing.orderId },
+              select: { storeId: true },
+            });
+            if (order?.storeId) {
+              ordersNeedingInvoice.push(existing.orderId);
+            }
           }
           break;
         }
@@ -404,6 +435,11 @@ export class PaymentsService implements OnModuleInit {
             await tx.payment.update({
               where: { id: existing.id },
               data: { status: 'FAILED', razorpayEventId: resolvedEventId },
+            });
+            // Also update order payment status to FAILED
+            await tx.order.update({
+              where: { id: existing.orderId },
+              data: { paymentStatus: 'FAILED' },
             });
           }
           break;
@@ -431,6 +467,25 @@ export class PaymentsService implements OnModuleInit {
 
       return { received: true };
     });
+
+    // Generate invoices outside the DB transaction (involves file upload)
+    for (const orderId of ordersNeedingInvoice) {
+      try {
+        const order = await this.prisma.order.findUnique({
+          where: { id: orderId },
+          select: { storeId: true },
+        });
+        if (order?.storeId) {
+          await this.invoicesService.generate({ orderId, storeId: order.storeId });
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Failed to auto-generate invoice for order ${orderId}: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    return result;
   }
 
   private isPrismaUniqueViolation(error: unknown): boolean {
@@ -481,6 +536,38 @@ export class PaymentsService implements OnModuleInit {
       where: { orderId },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async getPaymentStatus(orderId: string): Promise<{
+    paymentStatus: string;
+    paidAmount: number;
+    paymentMethod: string | null;
+  }> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        paymentStatus: true,
+        paymentMethod: true,
+      },
+    });
+
+    if (!order) {
+      throw new BadRequestException('Order not found');
+    }
+
+    const payments = await this.prisma.payment.findMany({
+      where: { orderId },
+      orderBy: { createdAt: 'desc' },
+      take: 1,
+    });
+
+    const latestPayment = payments[0];
+
+    return {
+      paymentStatus: order.paymentStatus,
+      paidAmount: latestPayment?.status === 'PAID' ? Number(latestPayment.amount) : 0,
+      paymentMethod: order.paymentMethod,
+    };
   }
 
   // ──────────────────────────────────────────────
