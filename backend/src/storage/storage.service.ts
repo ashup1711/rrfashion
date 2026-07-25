@@ -36,6 +36,13 @@ export class StorageService implements StorageInterface {
     return this.delegate.getPublicUrl(key);
   }
 
+  async getSignedUrl(key: string, expiresIn?: number): Promise<string> {
+    if (this.delegate.getSignedUrl) {
+      return this.delegate.getSignedUrl(key, expiresIn);
+    }
+    return this.delegate.getPublicUrl(key);
+  }
+
   async delete(key: string): Promise<void> {
     if (this.delegate.delete) {
       await this.delegate.delete(key);

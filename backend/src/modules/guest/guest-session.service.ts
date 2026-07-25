@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
@@ -60,28 +60,62 @@ export class GuestSessionService {
    * Create a guest session and sign a JWT token for it.
    * The token uses the customer JWT secret with type='guest' so that
    * StoreAuthGuard can authenticate it alongside regular customer tokens.
+   *
+   * REQ-BE-013: Always returns a valid JWT. Never fails — wrapped in try/catch.
    */
   async createWithToken(): Promise<{
     guestToken: string;
     guestSessionId: string;
     expiresAt: Date;
   }> {
-    const { guestSessionId, expiresAt } = await this.create();
+    try {
+      const { guestSessionId, expiresAt } = await this.create();
 
-    const payload = {
-      sub: guestSessionId,
-      type: 'guest',
-      guestSessionId,
-    };
+      const payload = {
+        sub: guestSessionId,
+        type: 'guest',
+        guestSessionId,
+      };
 
-    const ttlSeconds = Math.floor(this.ttlMs / 1000);
-    const guestToken = this.jwtService.sign(payload, {
-      expiresIn: ttlSeconds,
-    });
+      const ttlSeconds = Math.floor(this.ttlMs / 1000);
+      const guestToken = this.jwtService.sign(payload, {
+        expiresIn: ttlSeconds,
+      });
 
-    this.logger.log({ guestSessionId, action: 'guest.token.created' });
+      this.logger.log({ guestSessionId, action: 'guest.token.created' });
 
-    return { guestToken, guestSessionId, expiresAt };
+      return { guestToken, guestSessionId, expiresAt };
+    } catch (error) {
+      this.logger.error({ action: 'guest.token.creation.failed', error: (error as Error).message });
+      // REQ-BE-013: Never fail — return a new session with fresh JWT
+      const fallbackSessionId = uuidv4();
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + this.ttlMs);
+
+      // Try to store the session, but if even that fails, still return a JWT
+      try {
+        await this.prisma.guestSession.create({
+          data: {
+            id: fallbackSessionId,
+            expiresAt,
+            lastActivityAt: now,
+          },
+        });
+      } catch {
+        this.logger.warn('Could not persist guest session to DB, returning in-memory token');
+      }
+
+      const fallbackToken = this.jwtService.sign(
+        { sub: fallbackSessionId, type: 'guest', guestSessionId: fallbackSessionId },
+        { expiresIn: Math.floor(this.ttlMs / 1000) },
+      );
+
+      return {
+        guestToken: fallbackToken,
+        guestSessionId: fallbackSessionId,
+        expiresAt,
+      };
+    }
   }
 
   async validate(id: string): Promise<GuestValidationResult> {
@@ -111,6 +145,48 @@ export class GuestSessionService {
         expiresAt: newExpiresAt,
       },
     });
+  }
+
+  /**
+   * REQ-BE-016: Refresh an existing guest session — extends TTL and returns new JWT.
+   */
+  async refreshSession(id: string): Promise<{
+    guestToken: string;
+    guestSessionId: string;
+    expiresAt: Date;
+  }> {
+    const validation = await this.validate(id);
+    if (!validation.ok) {
+      throw new NotFoundException('Guest session not found or expired');
+    }
+
+    // Extend the session TTL
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + this.ttlMs);
+
+    await this.prisma.guestSession.update({
+      where: { id },
+      data: {
+        lastActivityAt: now,
+        expiresAt,
+      },
+    });
+
+    // Sign a new token with updated expiry
+    const payload = {
+      sub: id,
+      type: 'guest',
+      guestSessionId: id,
+    };
+
+    const ttlSeconds = Math.floor(this.ttlMs / 1000);
+    const guestToken = this.jwtService.sign(payload, {
+      expiresIn: ttlSeconds,
+    });
+
+    this.logger.log({ guestSessionId: id, action: 'guest.session.refreshed' });
+
+    return { guestToken, guestSessionId: id, expiresAt };
   }
 
   async getOrCreate(

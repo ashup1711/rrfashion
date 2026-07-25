@@ -30,15 +30,33 @@ export const colors = {
 export const spacing = {
   page: 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8',
   section: 'py-12 sm:py-16 lg:py-20',
+  sectionSm: 'py-8 sm:py-12',
+  gutter: 'px-4 sm:px-6 lg:px-8',
 } as const;
 
 export const typography = {
-  h1: 'text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl',
-  h2: 'text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl',
-  h3: 'text-2xl font-semibold text-gray-900 sm:text-3xl',
-  h4: 'text-xl font-semibold text-gray-900',
-  body: 'text-base text-gray-600 leading-relaxed',
-  bodyLarge: 'text-lg text-gray-600 leading-relaxed',
-  small: 'text-sm text-gray-500',
+  /** Hero / Display — use sparingly, only for page hero sections */
+  hero: 'text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900 font-display leading-tight',
+  /** Primary page heading */
+  h1: 'text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-gray-900 font-display leading-tight',
+  /** Section heading */
+  h2: 'text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-gray-900 font-display leading-snug',
+  /** Sub-section heading */
+  h3: 'text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 font-display leading-snug',
+  /** Card title / modal heading */
+  h4: 'text-lg sm:text-xl font-semibold text-gray-900 leading-snug',
+  /** Small section heading / label */
+  h5: 'text-base sm:text-lg font-medium text-gray-900',
+  /** Body text */
+  body: 'text-sm sm:text-base text-gray-600 leading-relaxed',
+  /** Larger body text for featured content */
+  bodyLarge: 'text-base sm:text-lg text-gray-600 leading-relaxed',
+  /** Secondary / helper text */
+  small: 'text-xs sm:text-sm text-gray-500',
+  /** Caption / metadata */
   caption: 'text-xs text-gray-400',
+  /** Price display */
+  price: 'text-lg sm:text-xl font-semibold text-gray-900',
+  /** Sale price (accent color) */
+  priceSale: 'text-lg sm:text-xl font-semibold text-red-600',
 } as const;

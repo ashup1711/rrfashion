@@ -5,7 +5,8 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { StorageService } from '../../../storage/storage.service';
 import { ImageProcessingService } from '../../products/image-processing.service';
 import { RedisService } from '../../../redis/redis.service';
-import { unlink } from 'fs/promises';
+import { MagicBytesValidatorPipe } from '../../../common/pipes/magic-bytes-validator.pipe';
+import { unlink, readFile } from 'fs/promises';
 import * as path from 'path';
 
 export interface ImageUploadJobData {
@@ -38,6 +39,37 @@ const PROGRESS_KEYS = {
   completed: 100,
 };
 
+// REQ-BE-008: Max retry attempts for storage operations
+const STORAGE_RETRY_MAX_ATTEMPTS = 3;
+const STORAGE_RETRY_BASE_DELAY_MS = 1000;
+
+/**
+ * Retry a storage operation with exponential backoff.
+ */
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  label: string,
+  logger: Logger,
+  maxAttempts: number = STORAGE_RETRY_MAX_ATTEMPTS,
+): Promise<T> {
+  let lastError: Error | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error as Error;
+      logger.warn(
+        `Storage operation "${label}" failed (attempt ${attempt}/${maxAttempts}): ${lastError.message}`,
+      );
+      if (attempt < maxAttempts) {
+        const delay = STORAGE_RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError!;
+}
+
 @Processor('image-upload-queue', {
   concurrency: 3, // Process 3 uploads concurrently
 })
@@ -54,12 +86,30 @@ export class ImageUploadProcessor extends WorkerHost {
   }
 
   async process(job: Job<ImageUploadJobData>): Promise<void> {
-    const { uploadId, tempFilePath, originalFilename, productId, variantId, userId, uploadType } =
-      job.data;
+    const {
+      uploadId,
+      tempFilePath,
+      originalFilename,
+      productId,
+      variantId,
+      userId,
+      uploadType,
+      mimeType,
+    } = job.data;
 
     this.logger.log(`Processing upload: ${uploadId} (${uploadType})`);
 
     try {
+      // REQ-BE-007: Validate magic bytes before processing
+      const fileBuffer = await readFile(tempFilePath);
+      const magicBytesValidator = new MagicBytesValidatorPipe();
+      if (!magicBytesValidator.validateMagicBytes(fileBuffer, mimeType)) {
+        await unlink(tempFilePath).catch(() => {});
+        throw new Error(
+          `File type validation failed for ${originalFilename}: magic bytes do not match declared MIME type ${mimeType}`,
+        );
+      }
+
       // Emit progress: 10% - Starting
       await this.emitProgress(
         uploadId,
@@ -79,9 +129,11 @@ export class ImageUploadProcessor extends WorkerHost {
     } catch (error) {
       this.logger.error(`Upload failed: ${uploadId}`, error);
       await this.emitProgress(uploadId, 'failed', 0, (error as Error).message);
-      throw error; // Let BullMQ handle retry
+      // REQ-BE-008: Re-throw for BullMQ retry with exponential backoff
+      // BullMQ is configured with attempts: 3, backoff: { type: 'exponential', delay: 2000 }
+      throw error;
     } finally {
-      // Always clean up temp file
+      // REQ-BE-008: Always clean up temp file — guaranteed in finally
       await unlink(tempFilePath).catch(() => {
         this.logger.warn(`Failed to cleanup temp file: ${tempFilePath}`);
       });
@@ -128,7 +180,12 @@ export class ImageUploadProcessor extends WorkerHost {
         `Uploading ${v.type.toLowerCase()} variant`,
       );
 
-      const key = await this.storage.upload(v.key, v.data.buffer, 'image/webp');
+      // REQ-BE-008: Retry storage upload with exponential backoff
+      const key = await withRetry(
+        () => this.storage.upload(v.key, v.data.buffer, 'image/webp'),
+        `upload-${v.type}`,
+        this.logger,
+      );
       const url = this.storage.getPublicUrl(key);
 
       const createdImage: Record<string, unknown> = await this.prisma.productImage.create({
@@ -222,7 +279,12 @@ export class ImageUploadProcessor extends WorkerHost {
       'Uploading to storage',
     );
 
-    const uploadKey = await this.storage.upload(key, processed.original.buffer, 'image/webp');
+    // REQ-BE-008: Retry storage upload with exponential backoff
+    const uploadKey = await withRetry(
+      () => this.storage.upload(key, processed.original.buffer, 'image/webp'),
+      'upload-profile-photo',
+      this.logger,
+    );
     const url = this.storage.getPublicUrl(uploadKey);
 
     // Get old photo for deletion

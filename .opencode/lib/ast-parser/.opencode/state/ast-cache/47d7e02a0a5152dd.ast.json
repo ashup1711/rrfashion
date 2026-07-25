@@ -1,0 +1,1854 @@
+{
+  "filePath": "/Users/ashutoshraval/www/rrFashion/backend/src/modules/addresses/addresses.service.ts",
+  "fileHash": "47d7e02a0a5152dd",
+  "language": "typescript",
+  "rootNode": {
+    "type": "program",
+    "text": "",
+    "startPosition": {
+      "row": 0,
+      "column": 0
+    },
+    "endPosition": {
+      "row": 118,
+      "column": 0
+    },
+    "children": [
+      {
+        "type": "import_statement",
+        "text": "",
+        "startPosition": {
+          "row": 0,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 0,
+          "column": 83
+        },
+        "children": [
+          {
+            "type": "import",
+            "text": "",
+            "startPosition": {
+              "row": 0,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 0,
+              "column": 6
+            }
+          },
+          {
+            "type": "import_clause",
+            "text": "",
+            "startPosition": {
+              "row": 0,
+              "column": 7
+            },
+            "endPosition": {
+              "row": 0,
+              "column": 60
+            },
+            "children": [
+              {
+                "type": "named_imports",
+                "text": "",
+                "startPosition": {
+                  "row": 0,
+                  "column": 7
+                },
+                "endPosition": {
+                  "row": 0,
+                  "column": 60
+                },
+                "children": [
+                  {
+                    "type": "{",
+                    "text": "",
+                    "startPosition": {
+                      "row": 0,
+                      "column": 7
+                    },
+                    "endPosition": {
+                      "row": 0,
+                      "column": 8
+                    }
+                  },
+                  {
+                    "type": "import_specifier",
+                    "text": "",
+                    "startPosition": {
+                      "row": 0,
+                      "column": 9
+                    },
+                    "endPosition": {
+                      "row": 0,
+                      "column": 19
+                    },
+                    "children": [
+                      {
+                        "type": "identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 0,
+                          "column": 9
+                        },
+                        "endPosition": {
+                          "row": 0,
+                          "column": 19
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": ",",
+                    "text": "",
+                    "startPosition": {
+                      "row": 0,
+                      "column": 19
+                    },
+                    "endPosition": {
+                      "row": 0,
+                      "column": 20
+                    }
+                  },
+                  {
+                    "type": "import_specifier",
+                    "text": "",
+                    "startPosition": {
+                      "row": 0,
+                      "column": 21
+                    },
+                    "endPosition": {
+                      "row": 0,
+                      "column": 38
+                    },
+                    "children": [
+                      {
+                        "type": "identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 0,
+                          "column": 21
+                        },
+                        "endPosition": {
+                          "row": 0,
+                          "column": 38
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": ",",
+                    "text": "",
+                    "startPosition": {
+                      "row": 0,
+                      "column": 38
+                    },
+                    "endPosition": {
+                      "row": 0,
+                      "column": 39
+                    }
+                  },
+                  {
+                    "type": "import_specifier",
+                    "text": "",
+                    "startPosition": {
+                      "row": 0,
+                      "column": 40
+                    },
+                    "endPosition": {
+                      "row": 0,
+                      "column": 58
+                    },
+                    "children": [
+                      {
+                        "type": "identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 0,
+                          "column": 40
+                        },
+                        "endPosition": {
+                          "row": 0,
+                          "column": 58
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "}",
+                    "text": "",
+                    "startPosition": {
+                      "row": 0,
+                      "column": 59
+                    },
+                    "endPosition": {
+                      "row": 0,
+                      "column": 60
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "from",
+            "text": "",
+            "startPosition": {
+              "row": 0,
+              "column": 61
+            },
+            "endPosition": {
+              "row": 0,
+              "column": 65
+            }
+          },
+          {
+            "type": "string",
+            "text": "",
+            "startPosition": {
+              "row": 0,
+              "column": 66
+            },
+            "endPosition": {
+              "row": 0,
+              "column": 82
+            },
+            "children": [
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 0,
+                  "column": 66
+                },
+                "endPosition": {
+                  "row": 0,
+                  "column": 67
+                }
+              },
+              {
+                "type": "string_fragment",
+                "text": "",
+                "startPosition": {
+                  "row": 0,
+                  "column": 67
+                },
+                "endPosition": {
+                  "row": 0,
+                  "column": 81
+                }
+              },
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 0,
+                  "column": 81
+                },
+                "endPosition": {
+                  "row": 0,
+                  "column": 82
+                }
+              }
+            ]
+          },
+          {
+            "type": ";",
+            "text": "",
+            "startPosition": {
+              "row": 0,
+              "column": 82
+            },
+            "endPosition": {
+              "row": 0,
+              "column": 83
+            }
+          }
+        ]
+      },
+      {
+        "type": "import_statement",
+        "text": "",
+        "startPosition": {
+          "row": 1,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 1,
+          "column": 60
+        },
+        "children": [
+          {
+            "type": "import",
+            "text": "",
+            "startPosition": {
+              "row": 1,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 1,
+              "column": 6
+            }
+          },
+          {
+            "type": "import_clause",
+            "text": "",
+            "startPosition": {
+              "row": 1,
+              "column": 7
+            },
+            "endPosition": {
+              "row": 1,
+              "column": 24
+            },
+            "children": [
+              {
+                "type": "named_imports",
+                "text": "",
+                "startPosition": {
+                  "row": 1,
+                  "column": 7
+                },
+                "endPosition": {
+                  "row": 1,
+                  "column": 24
+                },
+                "children": [
+                  {
+                    "type": "{",
+                    "text": "",
+                    "startPosition": {
+                      "row": 1,
+                      "column": 7
+                    },
+                    "endPosition": {
+                      "row": 1,
+                      "column": 8
+                    }
+                  },
+                  {
+                    "type": "import_specifier",
+                    "text": "",
+                    "startPosition": {
+                      "row": 1,
+                      "column": 9
+                    },
+                    "endPosition": {
+                      "row": 1,
+                      "column": 22
+                    },
+                    "children": [
+                      {
+                        "type": "identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 1,
+                          "column": 9
+                        },
+                        "endPosition": {
+                          "row": 1,
+                          "column": 22
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "}",
+                    "text": "",
+                    "startPosition": {
+                      "row": 1,
+                      "column": 23
+                    },
+                    "endPosition": {
+                      "row": 1,
+                      "column": 24
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "from",
+            "text": "",
+            "startPosition": {
+              "row": 1,
+              "column": 25
+            },
+            "endPosition": {
+              "row": 1,
+              "column": 29
+            }
+          },
+          {
+            "type": "string",
+            "text": "",
+            "startPosition": {
+              "row": 1,
+              "column": 30
+            },
+            "endPosition": {
+              "row": 1,
+              "column": 59
+            },
+            "children": [
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 1,
+                  "column": 30
+                },
+                "endPosition": {
+                  "row": 1,
+                  "column": 31
+                }
+              },
+              {
+                "type": "string_fragment",
+                "text": "",
+                "startPosition": {
+                  "row": 1,
+                  "column": 31
+                },
+                "endPosition": {
+                  "row": 1,
+                  "column": 58
+                }
+              },
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 1,
+                  "column": 58
+                },
+                "endPosition": {
+                  "row": 1,
+                  "column": 59
+                }
+              }
+            ]
+          },
+          {
+            "type": ";",
+            "text": "",
+            "startPosition": {
+              "row": 1,
+              "column": 59
+            },
+            "endPosition": {
+              "row": 1,
+              "column": 60
+            }
+          }
+        ]
+      },
+      {
+        "type": "import_statement",
+        "text": "",
+        "startPosition": {
+          "row": 2,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 2,
+          "column": 60
+        },
+        "children": [
+          {
+            "type": "import",
+            "text": "",
+            "startPosition": {
+              "row": 2,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 2,
+              "column": 6
+            }
+          },
+          {
+            "type": "import_clause",
+            "text": "",
+            "startPosition": {
+              "row": 2,
+              "column": 7
+            },
+            "endPosition": {
+              "row": 2,
+              "column": 27
+            },
+            "children": [
+              {
+                "type": "named_imports",
+                "text": "",
+                "startPosition": {
+                  "row": 2,
+                  "column": 7
+                },
+                "endPosition": {
+                  "row": 2,
+                  "column": 27
+                },
+                "children": [
+                  {
+                    "type": "{",
+                    "text": "",
+                    "startPosition": {
+                      "row": 2,
+                      "column": 7
+                    },
+                    "endPosition": {
+                      "row": 2,
+                      "column": 8
+                    }
+                  },
+                  {
+                    "type": "import_specifier",
+                    "text": "",
+                    "startPosition": {
+                      "row": 2,
+                      "column": 9
+                    },
+                    "endPosition": {
+                      "row": 2,
+                      "column": 25
+                    },
+                    "children": [
+                      {
+                        "type": "identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 2,
+                          "column": 9
+                        },
+                        "endPosition": {
+                          "row": 2,
+                          "column": 25
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "}",
+                    "text": "",
+                    "startPosition": {
+                      "row": 2,
+                      "column": 26
+                    },
+                    "endPosition": {
+                      "row": 2,
+                      "column": 27
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "from",
+            "text": "",
+            "startPosition": {
+              "row": 2,
+              "column": 28
+            },
+            "endPosition": {
+              "row": 2,
+              "column": 32
+            }
+          },
+          {
+            "type": "string",
+            "text": "",
+            "startPosition": {
+              "row": 2,
+              "column": 33
+            },
+            "endPosition": {
+              "row": 2,
+              "column": 59
+            },
+            "children": [
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 2,
+                  "column": 33
+                },
+                "endPosition": {
+                  "row": 2,
+                  "column": 34
+                }
+              },
+              {
+                "type": "string_fragment",
+                "text": "",
+                "startPosition": {
+                  "row": 2,
+                  "column": 34
+                },
+                "endPosition": {
+                  "row": 2,
+                  "column": 58
+                }
+              },
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 2,
+                  "column": 58
+                },
+                "endPosition": {
+                  "row": 2,
+                  "column": 59
+                }
+              }
+            ]
+          },
+          {
+            "type": ";",
+            "text": "",
+            "startPosition": {
+              "row": 2,
+              "column": 59
+            },
+            "endPosition": {
+              "row": 2,
+              "column": 60
+            }
+          }
+        ]
+      },
+      {
+        "type": "import_statement",
+        "text": "",
+        "startPosition": {
+          "row": 3,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 3,
+          "column": 60
+        },
+        "children": [
+          {
+            "type": "import",
+            "text": "",
+            "startPosition": {
+              "row": 3,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 3,
+              "column": 6
+            }
+          },
+          {
+            "type": "import_clause",
+            "text": "",
+            "startPosition": {
+              "row": 3,
+              "column": 7
+            },
+            "endPosition": {
+              "row": 3,
+              "column": 27
+            },
+            "children": [
+              {
+                "type": "named_imports",
+                "text": "",
+                "startPosition": {
+                  "row": 3,
+                  "column": 7
+                },
+                "endPosition": {
+                  "row": 3,
+                  "column": 27
+                },
+                "children": [
+                  {
+                    "type": "{",
+                    "text": "",
+                    "startPosition": {
+                      "row": 3,
+                      "column": 7
+                    },
+                    "endPosition": {
+                      "row": 3,
+                      "column": 8
+                    }
+                  },
+                  {
+                    "type": "import_specifier",
+                    "text": "",
+                    "startPosition": {
+                      "row": 3,
+                      "column": 9
+                    },
+                    "endPosition": {
+                      "row": 3,
+                      "column": 25
+                    },
+                    "children": [
+                      {
+                        "type": "identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 3,
+                          "column": 9
+                        },
+                        "endPosition": {
+                          "row": 3,
+                          "column": 25
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "}",
+                    "text": "",
+                    "startPosition": {
+                      "row": 3,
+                      "column": 26
+                    },
+                    "endPosition": {
+                      "row": 3,
+                      "column": 27
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "from",
+            "text": "",
+            "startPosition": {
+              "row": 3,
+              "column": 28
+            },
+            "endPosition": {
+              "row": 3,
+              "column": 32
+            }
+          },
+          {
+            "type": "string",
+            "text": "",
+            "startPosition": {
+              "row": 3,
+              "column": 33
+            },
+            "endPosition": {
+              "row": 3,
+              "column": 59
+            },
+            "children": [
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 3,
+                  "column": 33
+                },
+                "endPosition": {
+                  "row": 3,
+                  "column": 34
+                }
+              },
+              {
+                "type": "string_fragment",
+                "text": "",
+                "startPosition": {
+                  "row": 3,
+                  "column": 34
+                },
+                "endPosition": {
+                  "row": 3,
+                  "column": 58
+                }
+              },
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 3,
+                  "column": 58
+                },
+                "endPosition": {
+                  "row": 3,
+                  "column": 59
+                }
+              }
+            ]
+          },
+          {
+            "type": ";",
+            "text": "",
+            "startPosition": {
+              "row": 3,
+              "column": 59
+            },
+            "endPosition": {
+              "row": 3,
+              "column": 60
+            }
+          }
+        ]
+      },
+      {
+        "type": "export_statement",
+        "text": "",
+        "startPosition": {
+          "row": 5,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 117,
+          "column": 1
+        },
+        "children": [
+          {
+            "type": "decorator",
+            "text": "",
+            "startPosition": {
+              "row": 5,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 5,
+              "column": 13
+            },
+            "children": [
+              {
+                "type": "@",
+                "text": "",
+                "startPosition": {
+                  "row": 5,
+                  "column": 0
+                },
+                "endPosition": {
+                  "row": 5,
+                  "column": 1
+                }
+              },
+              {
+                "type": "call_expression",
+                "text": "",
+                "startPosition": {
+                  "row": 5,
+                  "column": 1
+                },
+                "endPosition": {
+                  "row": 5,
+                  "column": 13
+                },
+                "children": [
+                  {
+                    "type": "identifier",
+                    "text": "",
+                    "startPosition": {
+                      "row": 5,
+                      "column": 1
+                    },
+                    "endPosition": {
+                      "row": 5,
+                      "column": 11
+                    }
+                  },
+                  {
+                    "type": "arguments",
+                    "text": "",
+                    "startPosition": {
+                      "row": 5,
+                      "column": 11
+                    },
+                    "endPosition": {
+                      "row": 5,
+                      "column": 13
+                    },
+                    "children": [
+                      {
+                        "type": "(",
+                        "text": "",
+                        "startPosition": {
+                          "row": 5,
+                          "column": 11
+                        },
+                        "endPosition": {
+                          "row": 5,
+                          "column": 12
+                        }
+                      },
+                      {
+                        "type": ")",
+                        "text": "",
+                        "startPosition": {
+                          "row": 5,
+                          "column": 12
+                        },
+                        "endPosition": {
+                          "row": 5,
+                          "column": 13
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "export",
+            "text": "",
+            "startPosition": {
+              "row": 6,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 6,
+              "column": 6
+            }
+          },
+          {
+            "type": "class_declaration",
+            "text": "",
+            "startPosition": {
+              "row": 6,
+              "column": 7
+            },
+            "endPosition": {
+              "row": 117,
+              "column": 1
+            },
+            "children": [
+              {
+                "type": "class",
+                "text": "",
+                "startPosition": {
+                  "row": 6,
+                  "column": 7
+                },
+                "endPosition": {
+                  "row": 6,
+                  "column": 12
+                }
+              },
+              {
+                "type": "type_identifier",
+                "text": "",
+                "startPosition": {
+                  "row": 6,
+                  "column": 13
+                },
+                "endPosition": {
+                  "row": 6,
+                  "column": 29
+                }
+              },
+              {
+                "type": "class_body",
+                "text": "",
+                "startPosition": {
+                  "row": 6,
+                  "column": 30
+                },
+                "endPosition": {
+                  "row": 117,
+                  "column": 1
+                },
+                "children": [
+                  {
+                    "type": "{",
+                    "text": "",
+                    "startPosition": {
+                      "row": 6,
+                      "column": 30
+                    },
+                    "endPosition": {
+                      "row": 6,
+                      "column": 31
+                    }
+                  },
+                  {
+                    "type": "method_definition",
+                    "text": "",
+                    "startPosition": {
+                      "row": 7,
+                      "column": 2
+                    },
+                    "endPosition": {
+                      "row": 7,
+                      "column": 56
+                    },
+                    "children": [
+                      {
+                        "type": "property_identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 7,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 7,
+                          "column": 13
+                        }
+                      },
+                      {
+                        "type": "formal_parameters",
+                        "text": "",
+                        "startPosition": {
+                          "row": 7,
+                          "column": 13
+                        },
+                        "endPosition": {
+                          "row": 7,
+                          "column": 53
+                        }
+                      },
+                      {
+                        "type": "statement_block",
+                        "text": "",
+                        "startPosition": {
+                          "row": 7,
+                          "column": 54
+                        },
+                        "endPosition": {
+                          "row": 7,
+                          "column": 56
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "method_definition",
+                    "text": "",
+                    "startPosition": {
+                      "row": 9,
+                      "column": 2
+                    },
+                    "endPosition": {
+                      "row": 14,
+                      "column": 3
+                    },
+                    "children": [
+                      {
+                        "type": "async",
+                        "text": "",
+                        "startPosition": {
+                          "row": 9,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 9,
+                          "column": 7
+                        }
+                      },
+                      {
+                        "type": "property_identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 9,
+                          "column": 8
+                        },
+                        "endPosition": {
+                          "row": 9,
+                          "column": 18
+                        }
+                      },
+                      {
+                        "type": "formal_parameters",
+                        "text": "",
+                        "startPosition": {
+                          "row": 9,
+                          "column": 18
+                        },
+                        "endPosition": {
+                          "row": 9,
+                          "column": 34
+                        }
+                      },
+                      {
+                        "type": "statement_block",
+                        "text": "",
+                        "startPosition": {
+                          "row": 9,
+                          "column": 35
+                        },
+                        "endPosition": {
+                          "row": 14,
+                          "column": 3
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "method_definition",
+                    "text": "",
+                    "startPosition": {
+                      "row": 16,
+                      "column": 2
+                    },
+                    "endPosition": {
+                      "row": 37,
+                      "column": 3
+                    },
+                    "children": [
+                      {
+                        "type": "async",
+                        "text": "",
+                        "startPosition": {
+                          "row": 16,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 16,
+                          "column": 7
+                        }
+                      },
+                      {
+                        "type": "property_identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 16,
+                          "column": 8
+                        },
+                        "endPosition": {
+                          "row": 16,
+                          "column": 14
+                        }
+                      },
+                      {
+                        "type": "formal_parameters",
+                        "text": "",
+                        "startPosition": {
+                          "row": 16,
+                          "column": 14
+                        },
+                        "endPosition": {
+                          "row": 16,
+                          "column": 53
+                        }
+                      },
+                      {
+                        "type": "statement_block",
+                        "text": "",
+                        "startPosition": {
+                          "row": 16,
+                          "column": 54
+                        },
+                        "endPosition": {
+                          "row": 37,
+                          "column": 3
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "method_definition",
+                    "text": "",
+                    "startPosition": {
+                      "row": 39,
+                      "column": 2
+                    },
+                    "endPosition": {
+                      "row": 72,
+                      "column": 3
+                    },
+                    "children": [
+                      {
+                        "type": "async",
+                        "text": "",
+                        "startPosition": {
+                          "row": 39,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 39,
+                          "column": 7
+                        }
+                      },
+                      {
+                        "type": "property_identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 39,
+                          "column": 8
+                        },
+                        "endPosition": {
+                          "row": 39,
+                          "column": 14
+                        }
+                      },
+                      {
+                        "type": "formal_parameters",
+                        "text": "",
+                        "startPosition": {
+                          "row": 39,
+                          "column": 14
+                        },
+                        "endPosition": {
+                          "row": 39,
+                          "column": 65
+                        }
+                      },
+                      {
+                        "type": "statement_block",
+                        "text": "",
+                        "startPosition": {
+                          "row": 39,
+                          "column": 66
+                        },
+                        "endPosition": {
+                          "row": 72,
+                          "column": 3
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "method_definition",
+                    "text": "",
+                    "startPosition": {
+                      "row": 74,
+                      "column": 2
+                    },
+                    "endPosition": {
+                      "row": 92,
+                      "column": 3
+                    },
+                    "children": [
+                      {
+                        "type": "async",
+                        "text": "",
+                        "startPosition": {
+                          "row": 74,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 74,
+                          "column": 7
+                        }
+                      },
+                      {
+                        "type": "property_identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 74,
+                          "column": 8
+                        },
+                        "endPosition": {
+                          "row": 74,
+                          "column": 14
+                        }
+                      },
+                      {
+                        "type": "formal_parameters",
+                        "text": "",
+                        "startPosition": {
+                          "row": 74,
+                          "column": 14
+                        },
+                        "endPosition": {
+                          "row": 74,
+                          "column": 42
+                        }
+                      },
+                      {
+                        "type": "statement_block",
+                        "text": "",
+                        "startPosition": {
+                          "row": 74,
+                          "column": 43
+                        },
+                        "endPosition": {
+                          "row": 92,
+                          "column": 3
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "method_definition",
+                    "text": "",
+                    "startPosition": {
+                      "row": 94,
+                      "column": 2
+                    },
+                    "endPosition": {
+                      "row": 116,
+                      "column": 3
+                    },
+                    "children": [
+                      {
+                        "type": "async",
+                        "text": "",
+                        "startPosition": {
+                          "row": 94,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 94,
+                          "column": 7
+                        }
+                      },
+                      {
+                        "type": "property_identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 94,
+                          "column": 8
+                        },
+                        "endPosition": {
+                          "row": 94,
+                          "column": 18
+                        }
+                      },
+                      {
+                        "type": "formal_parameters",
+                        "text": "",
+                        "startPosition": {
+                          "row": 94,
+                          "column": 18
+                        },
+                        "endPosition": {
+                          "row": 94,
+                          "column": 46
+                        }
+                      },
+                      {
+                        "type": "statement_block",
+                        "text": "",
+                        "startPosition": {
+                          "row": 94,
+                          "column": 47
+                        },
+                        "endPosition": {
+                          "row": 116,
+                          "column": 3
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "}",
+                    "text": "",
+                    "startPosition": {
+                      "row": 117,
+                      "column": 0
+                    },
+                    "endPosition": {
+                      "row": 117,
+                      "column": 1
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "type": "class",
+      "name": "AddressesService",
+      "span": {
+        "start": 289,
+        "end": 3329
+      },
+      "startPosition": {
+        "row": 6,
+        "column": 7
+      },
+      "endPosition": {
+        "row": 117,
+        "column": 1
+      }
+    }
+  ],
+  "imports": [
+    {
+      "source": "@nestjs/common",
+      "specifiers": [],
+      "span": {
+        "start": 0,
+        "end": 83
+      }
+    },
+    {
+      "source": "../../prisma/prisma.service",
+      "specifiers": [],
+      "span": {
+        "start": 84,
+        "end": 144
+      }
+    },
+    {
+      "source": "./dto/create-address.dto",
+      "specifiers": [],
+      "span": {
+        "start": 145,
+        "end": 205
+      }
+    },
+    {
+      "source": "./dto/update-address.dto",
+      "specifiers": [],
+      "span": {
+        "start": 206,
+        "end": 266
+      }
+    }
+  ],
+  "exports": [
+    {
+      "name": "AddressesService",
+      "isDefault": false,
+      "span": {
+        "start": 268,
+        "end": 3329
+      }
+    }
+  ],
+  "classes": [
+    {
+      "name": "AddressesService",
+      "decorators": [
+        {
+          "name": "Injectable",
+          "span": {
+            "start": 268,
+            "end": 281
+          }
+        }
+      ],
+      "methods": [
+        {
+          "name": "findByUser",
+          "parameters": [
+            {
+              "name": "userId",
+              "type": ": string",
+              "optional": false
+            }
+          ],
+          "decorators": [],
+          "modifiers": [],
+          "isAsync": true,
+          "isStatic": false,
+          "span": {
+            "start": 374,
+            "end": 554
+          },
+          "startPosition": {
+            "row": 9,
+            "column": 2
+          },
+          "endPosition": {
+            "row": 14,
+            "column": 3
+          }
+        },
+        {
+          "name": "create",
+          "parameters": [
+            {
+              "name": "userId",
+              "type": ": string",
+              "optional": false
+            },
+            {
+              "name": "dto",
+              "type": ": CreateAddressDto",
+              "optional": false
+            }
+          ],
+          "decorators": [],
+          "modifiers": [],
+          "isAsync": true,
+          "isStatic": false,
+          "span": {
+            "start": 558,
+            "end": 1120
+          },
+          "startPosition": {
+            "row": 16,
+            "column": 2
+          },
+          "endPosition": {
+            "row": 37,
+            "column": 3
+          }
+        },
+        {
+          "name": "update",
+          "parameters": [
+            {
+              "name": "userId",
+              "type": ": string",
+              "optional": false
+            },
+            {
+              "name": "id",
+              "type": ": string",
+              "optional": false
+            },
+            {
+              "name": "dto",
+              "type": ": UpdateAddressDto",
+              "optional": false
+            }
+          ],
+          "decorators": [],
+          "modifiers": [],
+          "isAsync": true,
+          "isStatic": false,
+          "span": {
+            "start": 1124,
+            "end": 2286
+          },
+          "startPosition": {
+            "row": 39,
+            "column": 2
+          },
+          "endPosition": {
+            "row": 72,
+            "column": 3
+          }
+        },
+        {
+          "name": "delete",
+          "parameters": [
+            {
+              "name": "userId",
+              "type": ": string",
+              "optional": false
+            },
+            {
+              "name": "id",
+              "type": ": string",
+              "optional": false
+            }
+          ],
+          "decorators": [],
+          "modifiers": [],
+          "isAsync": true,
+          "isStatic": false,
+          "span": {
+            "start": 2290,
+            "end": 2737
+          },
+          "startPosition": {
+            "row": 74,
+            "column": 2
+          },
+          "endPosition": {
+            "row": 92,
+            "column": 3
+          }
+        },
+        {
+          "name": "setDefault",
+          "parameters": [
+            {
+              "name": "userId",
+              "type": ": string",
+              "optional": false
+            },
+            {
+              "name": "id",
+              "type": ": string",
+              "optional": false
+            }
+          ],
+          "decorators": [],
+          "modifiers": [],
+          "isAsync": true,
+          "isStatic": false,
+          "span": {
+            "start": 2741,
+            "end": 3327
+          },
+          "startPosition": {
+            "row": 94,
+            "column": 2
+          },
+          "endPosition": {
+            "row": 116,
+            "column": 3
+          }
+        }
+      ],
+      "properties": [],
+      "constructor": {
+        "name": "constructor",
+        "parameters": [
+          {
+            "name": "prisma",
+            "type": ": PrismaService",
+            "optional": false
+          }
+        ],
+        "decorators": [],
+        "modifiers": [],
+        "isAsync": false,
+        "isStatic": false,
+        "span": {
+          "start": 316,
+          "end": 370
+        },
+        "startPosition": {
+          "row": 7,
+          "column": 2
+        },
+        "endPosition": {
+          "row": 7,
+          "column": 56
+        }
+      },
+      "span": {
+        "start": 289,
+        "end": 3329
+      },
+      "startPosition": {
+        "row": 6,
+        "column": 7
+      },
+      "endPosition": {
+        "row": 117,
+        "column": 1
+      }
+    }
+  ],
+  "functions": [],
+  "nestjs": {
+    "controllers": [],
+    "services": [
+      {
+        "name": "AddressesService",
+        "decorators": [
+          {
+            "name": "Injectable",
+            "span": {
+              "start": 268,
+              "end": 281
+            }
+          }
+        ],
+        "methods": [
+          {
+            "name": "findByUser",
+            "parameters": [
+              {
+                "name": "userId",
+                "type": ": string",
+                "optional": false
+              }
+            ],
+            "decorators": [],
+            "modifiers": [],
+            "isAsync": true,
+            "isStatic": false,
+            "span": {
+              "start": 374,
+              "end": 554
+            },
+            "startPosition": {
+              "row": 9,
+              "column": 2
+            },
+            "endPosition": {
+              "row": 14,
+              "column": 3
+            }
+          },
+          {
+            "name": "create",
+            "parameters": [
+              {
+                "name": "userId",
+                "type": ": string",
+                "optional": false
+              },
+              {
+                "name": "dto",
+                "type": ": CreateAddressDto",
+                "optional": false
+              }
+            ],
+            "decorators": [],
+            "modifiers": [],
+            "isAsync": true,
+            "isStatic": false,
+            "span": {
+              "start": 558,
+              "end": 1120
+            },
+            "startPosition": {
+              "row": 16,
+              "column": 2
+            },
+            "endPosition": {
+              "row": 37,
+              "column": 3
+            }
+          },
+          {
+            "name": "update",
+            "parameters": [
+              {
+                "name": "userId",
+                "type": ": string",
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": ": string",
+                "optional": false
+              },
+              {
+                "name": "dto",
+                "type": ": UpdateAddressDto",
+                "optional": false
+              }
+            ],
+            "decorators": [],
+            "modifiers": [],
+            "isAsync": true,
+            "isStatic": false,
+            "span": {
+              "start": 1124,
+              "end": 2286
+            },
+            "startPosition": {
+              "row": 39,
+              "column": 2
+            },
+            "endPosition": {
+              "row": 72,
+              "column": 3
+            }
+          },
+          {
+            "name": "delete",
+            "parameters": [
+              {
+                "name": "userId",
+                "type": ": string",
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": ": string",
+                "optional": false
+              }
+            ],
+            "decorators": [],
+            "modifiers": [],
+            "isAsync": true,
+            "isStatic": false,
+            "span": {
+              "start": 2290,
+              "end": 2737
+            },
+            "startPosition": {
+              "row": 74,
+              "column": 2
+            },
+            "endPosition": {
+              "row": 92,
+              "column": 3
+            }
+          },
+          {
+            "name": "setDefault",
+            "parameters": [
+              {
+                "name": "userId",
+                "type": ": string",
+                "optional": false
+              },
+              {
+                "name": "id",
+                "type": ": string",
+                "optional": false
+              }
+            ],
+            "decorators": [],
+            "modifiers": [],
+            "isAsync": true,
+            "isStatic": false,
+            "span": {
+              "start": 2741,
+              "end": 3327
+            },
+            "startPosition": {
+              "row": 94,
+              "column": 2
+            },
+            "endPosition": {
+              "row": 116,
+              "column": 3
+            }
+          }
+        ],
+        "properties": [],
+        "constructor": {
+          "name": "constructor",
+          "parameters": [
+            {
+              "name": "prisma",
+              "type": ": PrismaService",
+              "optional": false
+            }
+          ],
+          "decorators": [],
+          "modifiers": [],
+          "isAsync": false,
+          "isStatic": false,
+          "span": {
+            "start": 316,
+            "end": 370
+          },
+          "startPosition": {
+            "row": 7,
+            "column": 2
+          },
+          "endPosition": {
+            "row": 7,
+            "column": 56
+          }
+        },
+        "span": {
+          "start": 289,
+          "end": 3329
+        },
+        "startPosition": {
+          "row": 6,
+          "column": 7
+        },
+        "endPosition": {
+          "row": 117,
+          "column": 1
+        }
+      }
+    ],
+    "modules": [],
+    "guards": [],
+    "interceptors": [],
+    "pipes": [],
+    "filters": [],
+    "dtos": [],
+    "entities": []
+  },
+  "routes": [],
+  "parsedAt": "2026-07-25T08:33:44.714Z"
+}

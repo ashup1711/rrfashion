@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { useGuestCheckout, useGuestAuth } from '../../hooks/useGuestAuth';
-import { useApplyCoupon } from '../../hooks/useMyOrders';
 import { useCart } from '../../hooks/useCart';
+import { useCreateOrder } from '../../hooks/useOrders';
+import { useApplyCoupon } from '../../hooks/useMyOrders';
+import { verifyPayment } from '../../api/payments';
+import { loadRazorpayScript } from '../../utils/loadRazorpay';
+import { initializeGuestSession } from '../../utils/guestSession';
+import { logger } from '../../utils/logger';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import Select from '../../components/ui/Select';
@@ -11,14 +15,16 @@ import Card from '../../components/ui/Card';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { ROUTES } from '../../utils/constants';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '../../utils/constants';
 import type { CouponResult } from '../../api/orders';
-import { getOrCreateGuestSessionId } from '../../utils/guestSession';
+import type { Order } from '../../types/order';
 
 const GuestCheckout = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { items, total, isLoading, error } = useCart();
-  const guestAuthMutation = useGuestAuth();
-  const guestCheckoutMutation = useGuestCheckout();
+  const createOrder = useCreateOrder();
   const applyCouponMutation = useApplyCoupon();
 
   const [formData, setFormData] = useState({
@@ -34,6 +40,9 @@ const GuestCheckout = () => {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
 
   // Coupon state
   const [couponCode, setCouponCode] = useState('');
@@ -96,45 +105,220 @@ const GuestCheckout = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+    if (isProcessing) return;
+
+    setIsProcessing(true);
+    setPaymentError(null);
+
+    const shippingAddress = {
+      name: formData.name.trim(),
+      phone: formData.phone.trim(),
+      line1: formData.line1.trim(),
+      line2: formData.line2.trim() || undefined,
+      city: formData.city.trim(),
+      state: formData.state.trim(),
+      pincode: formData.pincode.trim(),
+    };
 
     try {
-      // Ensure we have a guest user (legacy: also create the old-style session
-      // so the POST /orders/guest endpoint can authenticate).
+      // Step 1: Ensure guest session exists (JWT token in localStorage)
       let guestToken = localStorage.getItem('guest_token');
-
       if (!guestToken) {
-        const result = await guestAuthMutation.mutateAsync();
-        guestToken = result.guestToken;
+        await initializeGuestSession();
+        guestToken = localStorage.getItem('guest_token');
       }
 
-      const guestSessionId = getOrCreateGuestSessionId();
+      if (!guestToken) {
+        throw new Error('Failed to initialize guest session. Please refresh and try again.');
+      }
 
-      const checkoutData = {
-        guestId: guestSessionId,
-        email: formData.email,
-        items: items.map((item) => ({
-          variantId: item.variantId || item.productId,
-          quantity: item.quantity,
-        })),
-        shippingAddress: {
-          name: formData.name,
-          phone: formData.phone,
-          line1: formData.line1,
-          line2: formData.line2 || undefined,
-          city: formData.city,
-          state: formData.state,
-          pincode: formData.pincode,
-        },
+      // Step 2: Create the order via POST /orders (StoreAuthGuard + AllowGuest)
+      // This works with guest JWT tokens stored in guest_token localStorage.
+      // The backend creates the Razorpay order inside OrdersService.create().
+      const order = await createOrder.mutateAsync({
+        shippingAddress,
         paymentMethod: formData.paymentMethod,
-        ...(appliedCoupon?.coupon?.code ? { couponCode: appliedCoupon.coupon.code } : {}),
+        notes: '',
+      });
+
+      // Invalidate cart query
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.cart] });
+
+      // If COD, we are done
+      if (formData.paymentMethod === 'cod') {
+        toast.success('Order placed successfully!');
+        navigate(ROUTES.ORDER_DETAIL(order.id));
+        return;
+      }
+
+      // Step 3: Log order creation for debugging
+      logger.debug('Guest order created:', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        razorpayOrderId: order.razorpayOrderId,
+        razorpayKeyId: order.razorpayKeyId ? `${order.razorpayKeyId.substring(0, 8)}...` : 'MISSING',
+        amount: order.amount,
+        razorpayError: order.razorpayError,
+      });
+
+      // Step 4: Check if Razorpay order creation failed server-side
+      if (!order.razorpayOrderId) {
+        const errorMsg = order.razorpayError || 'Failed to initialize payment gateway. Please try Cash on Delivery or contact support.';
+        logger.error('Razorpay initialization failed:', order.razorpayError || 'Missing razorpayOrderId');
+        setPaymentError(errorMsg);
+        setCreatedOrder(order);
+        setIsProcessing(false);
+        return;
+      }
+
+      // Step 5: Validate Razorpay key
+      if (!order.razorpayKeyId) {
+        console.error('[GuestCheckout] Razorpay key ID is missing from backend response');
+        setPaymentError('Payment gateway is not configured properly. Please contact support or choose Cash on Delivery.');
+        setCreatedOrder(order);
+        setIsProcessing(false);
+        return;
+      }
+
+      // Step 6: Load Razorpay checkout script
+      try {
+        logger.debug('Loading Razorpay checkout script...');
+        await loadRazorpayScript();
+        logger.debug('Razorpay script loaded successfully');
+      } catch (scriptError) {
+        console.error('[GuestCheckout] Failed to load Razorpay script:', scriptError);
+        setPaymentError('Payment gateway failed to load. Your order is saved — you can try again.');
+        setCreatedOrder(order);
+        setIsProcessing(false);
+        return;
+      }
+
+      // Step 7: Verify Razorpay is available
+      const Razorpay = (window as any).Razorpay;
+      if (!Razorpay) {
+        console.error('[GuestCheckout] Razorpay global object not found after script load');
+        setPaymentError('Payment gateway failed to initialize. Please try again or contact support.');
+        setCreatedOrder(order);
+        setIsProcessing(false);
+        return;
+      }
+
+      // Step 8: Open Razorpay checkout modal
+      const razorpayOptions = {
+        key: order.razorpayKeyId,
+        amount: order.amount,
+        currency: order.currency || 'INR',
+        name: 'RR FASHION',
+        description: `Order ${order.orderNumber}`,
+        order_id: order.razorpayOrderId,
+        handler: async (paymentResponse: {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        }) => {
+          logger.debug('Payment response received:', {
+            razorpay_order_id: paymentResponse.razorpay_order_id,
+            razorpay_payment_id: paymentResponse.razorpay_payment_id,
+          });
+
+          try {
+            logger.debug('Verifying payment with backend...');
+            const verifyResult = await verifyPayment({
+              razorpayOrderId: paymentResponse.razorpay_order_id,
+              razorpayPaymentId: paymentResponse.razorpay_payment_id,
+              razorpaySignature: paymentResponse.razorpay_signature,
+            });
+
+            logger.debug('Verification result:', verifyResult);
+
+            if (verifyResult.verified) {
+              logger.debug('Payment verified successfully');
+              toast.success('Payment successful! Your order is confirmed.');
+              navigate(ROUTES.ORDER_DETAIL(order.id));
+            } else {
+              console.error('[GuestCheckout] Payment verification failed');
+              toast.error('Payment verification failed. Please contact support with your order number.');
+              navigate(ROUTES.ORDER_DETAIL(order.id));
+            }
+          } catch (verifyError) {
+            console.error('[GuestCheckout] Payment verification failed:', verifyError);
+            toast.error('Payment verification failed. Your order is saved — please contact support.');
+            navigate(ROUTES.ORDER_DETAIL(order.id));
+          }
+        },
+        prefill: {
+          name: shippingAddress.name,
+          email: formData.email,
+          contact: shippingAddress.phone,
+        },
+        theme: { color: '#2A2522' },
+        modal: {
+          ondismiss: () => {
+            logger.debug('Payment modal dismissed by user');
+            toast.error('Payment cancelled. Your order is saved and pending payment.');
+            navigate(ROUTES.ORDER_DETAIL(order.id));
+          },
+        },
       };
 
-      await guestCheckoutMutation.mutateAsync(checkoutData);
-      navigate(ROUTES.ORDERS, { state: { guestOrderPlaced: true } });
+      try {
+        logger.debug('Opening Razorpay modal...');
+        const razorpay = new Razorpay(razorpayOptions);
+        razorpay.open();
+        logger.debug('Razorpay modal opened successfully');
+      } catch (initError) {
+        console.error('[GuestCheckout] Razorpay initialization failed:', initError);
+        setPaymentError('Failed to open payment gateway. Please try Cash on Delivery or contact support.');
+        setCreatedOrder(order);
+        setIsProcessing(false);
+      }
     } catch (err) {
-      toast.error('Checkout failed. Please verify your details and try again.');
+      const message = err instanceof Error ? err.message : 'Failed to place order. Please try again.';
+      toast.error(message);
+      setIsProcessing(false);
     }
   };
+
+  // Payment Error Recovery UI
+  const renderPaymentError = () => {
+    if (!paymentError || !createdOrder) return null;
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-2xl p-6 mb-6">
+        <div className="flex items-start gap-4">
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-red-800 uppercase tracking-widest mb-2">Payment Failed</h3>
+            <p className="text-sm text-red-700 leading-relaxed mb-4">{paymentError}</p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => {
+                  setPaymentError(null);
+                  setCreatedOrder(null);
+                  handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+                }}
+                className="px-6 py-2.5 bg-red-600 text-white text-xs font-bold uppercase tracking-widest rounded-xl hover:bg-red-700 transition-all"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => navigate(ROUTES.ORDER_DETAIL(createdOrder.id))}
+                className="px-6 py-2.5 bg-white text-red-800 text-xs font-bold uppercase tracking-widest rounded-xl border border-red-200 hover:bg-red-50 transition-all"
+              >
+                View Order
+              </button>
+              <Link
+                to={ROUTES.ORDERS}
+                className="px-6 py-2.5 text-xs font-bold uppercase tracking-widest text-red-600 hover:text-red-800 transition-colors self-center"
+              >
+                Choose Cash on Delivery →
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // --- Render states ---
 
   if (isLoading) {
     return (
@@ -184,8 +368,10 @@ const GuestCheckout = () => {
     <div className="container-page py-8">
       <h1 className="text-3xl font-bold text-gray-900 mb-2">Guest Checkout</h1>
       <p className="text-sm text-gray-500 mb-8">
-        You're checking out as a guest. <Link to={ROUTES.LOGIN} className="text-primary-600 hover:text-primary-700">Sign in</Link> to your account for faster checkout.
+        You&apos;re checking out as a guest. <Link to={ROUTES.LOGIN} className="text-primary-600 hover:text-primary-700">Sign in</Link> to your account for faster checkout.
       </p>
+
+      {renderPaymentError()}
 
       <div className="lg:grid lg:grid-cols-3 lg:gap-12">
         <div className="lg:col-span-2">
@@ -289,7 +475,8 @@ const GuestCheckout = () => {
               type="submit"
               className="w-full"
               size="lg"
-              isLoading={guestCheckoutMutation.isPending || guestAuthMutation.isPending}
+              isLoading={isProcessing || createOrder.isPending}
+              disabled={isProcessing || createOrder.isPending || !items.length}
             >
               Place Order
             </Button>

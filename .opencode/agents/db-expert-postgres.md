@@ -43,6 +43,20 @@ Do not re-scan model files or migration directories "to understand current struc
 
 If a previous coverage manifest exists (e.g. if another agent ran before this one), read it to understand what's already implemented — never re-implement what another agent has already built.
 
+### 3.5 Parse Existing Schema with AST
+
+Your prompt file includes an `## AST Context` section with schema validation warnings if any exist. Use the analyzer for deeper detail if needed:
+
+```bash
+node .opencode/lib/ast-parser/ast-analyze.js explore <schema_file>
+node .opencode/lib/ast-parser/ast-analyze.js validate-schema <schema_file>
+```
+
+Use the output to:
+- **Match existing conventions**: field naming, type usage, relation patterns
+- **Detect conflicts**: ensure new model names don't conflict
+- **Reference existing models accurately**: use exact field names and types
+
 ### 4. Generate Schema Code
 
 Create production-ready schema/model code (Prisma schema / Knex migrations / TypeORM entities — match the project's existing ORM):
@@ -114,6 +128,21 @@ CREATE INDEX idx_inventory_status ON inventory_units (status); -- alone, unless 
 ### 8. Write Files
 
 Write the actual files to the project's existing backend directory structure (e.g. `prisma/schema.prisma` + `prisma/migrations/`, or `migrations/` for Knex).
+
+### 8.5 Validate Schema with AST
+
+After writing, run schema validation:
+
+```bash
+node .opencode/lib/ast-parser/ast-analyze.js validate-schema <schema_file>
+```
+
+The `validate-schema` mode checks for:
+- Models without primary keys
+- Relation fields that reference non-existent models
+- Orphaned relations
+
+Fix any issues found before writing the coverage manifest.
 
 ### 9. Write Coverage Manifest
 

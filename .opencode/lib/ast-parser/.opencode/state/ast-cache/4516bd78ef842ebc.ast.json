@@ -1,0 +1,1774 @@
+{
+  "filePath": "/Users/ashutoshraval/www/rrFashion/frontend/src/pages/ProductDetail/components/ProductReviews.tsx",
+  "fileHash": "4516bd78ef842ebc",
+  "language": "tsx",
+  "rootNode": {
+    "type": "program",
+    "text": "",
+    "startPosition": {
+      "row": 0,
+      "column": 0
+    },
+    "endPosition": {
+      "row": 192,
+      "column": 0
+    },
+    "children": [
+      {
+        "type": "import_statement",
+        "text": "",
+        "startPosition": {
+          "row": 0,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 0,
+          "column": 46
+        },
+        "children": [
+          {
+            "type": "import",
+            "text": "",
+            "startPosition": {
+              "row": 0,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 0,
+              "column": 6
+            }
+          },
+          {
+            "type": "import_clause",
+            "text": "",
+            "startPosition": {
+              "row": 0,
+              "column": 7
+            },
+            "endPosition": {
+              "row": 0,
+              "column": 32
+            },
+            "children": [
+              {
+                "type": "named_imports",
+                "text": "",
+                "startPosition": {
+                  "row": 0,
+                  "column": 7
+                },
+                "endPosition": {
+                  "row": 0,
+                  "column": 32
+                },
+                "children": [
+                  {
+                    "type": "{",
+                    "text": "",
+                    "startPosition": {
+                      "row": 0,
+                      "column": 7
+                    },
+                    "endPosition": {
+                      "row": 0,
+                      "column": 8
+                    }
+                  },
+                  {
+                    "type": "import_specifier",
+                    "text": "",
+                    "startPosition": {
+                      "row": 0,
+                      "column": 9
+                    },
+                    "endPosition": {
+                      "row": 0,
+                      "column": 17
+                    },
+                    "children": [
+                      {
+                        "type": "identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 0,
+                          "column": 9
+                        },
+                        "endPosition": {
+                          "row": 0,
+                          "column": 17
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": ",",
+                    "text": "",
+                    "startPosition": {
+                      "row": 0,
+                      "column": 17
+                    },
+                    "endPosition": {
+                      "row": 0,
+                      "column": 18
+                    }
+                  },
+                  {
+                    "type": "import_specifier",
+                    "text": "",
+                    "startPosition": {
+                      "row": 0,
+                      "column": 19
+                    },
+                    "endPosition": {
+                      "row": 0,
+                      "column": 30
+                    },
+                    "children": [
+                      {
+                        "type": "identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 0,
+                          "column": 19
+                        },
+                        "endPosition": {
+                          "row": 0,
+                          "column": 30
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "}",
+                    "text": "",
+                    "startPosition": {
+                      "row": 0,
+                      "column": 31
+                    },
+                    "endPosition": {
+                      "row": 0,
+                      "column": 32
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "from",
+            "text": "",
+            "startPosition": {
+              "row": 0,
+              "column": 33
+            },
+            "endPosition": {
+              "row": 0,
+              "column": 37
+            }
+          },
+          {
+            "type": "string",
+            "text": "",
+            "startPosition": {
+              "row": 0,
+              "column": 38
+            },
+            "endPosition": {
+              "row": 0,
+              "column": 45
+            },
+            "children": [
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 0,
+                  "column": 38
+                },
+                "endPosition": {
+                  "row": 0,
+                  "column": 39
+                }
+              },
+              {
+                "type": "string_fragment",
+                "text": "",
+                "startPosition": {
+                  "row": 0,
+                  "column": 39
+                },
+                "endPosition": {
+                  "row": 0,
+                  "column": 44
+                }
+              },
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 0,
+                  "column": 44
+                },
+                "endPosition": {
+                  "row": 0,
+                  "column": 45
+                }
+              }
+            ]
+          },
+          {
+            "type": ";",
+            "text": "",
+            "startPosition": {
+              "row": 0,
+              "column": 45
+            },
+            "endPosition": {
+              "row": 0,
+              "column": 46
+            }
+          }
+        ]
+      },
+      {
+        "type": "import_statement",
+        "text": "",
+        "startPosition": {
+          "row": 1,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 1,
+          "column": 47
+        },
+        "children": [
+          {
+            "type": "import",
+            "text": "",
+            "startPosition": {
+              "row": 1,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 1,
+              "column": 6
+            }
+          },
+          {
+            "type": "import_clause",
+            "text": "",
+            "startPosition": {
+              "row": 1,
+              "column": 7
+            },
+            "endPosition": {
+              "row": 1,
+              "column": 11
+            },
+            "children": [
+              {
+                "type": "identifier",
+                "text": "",
+                "startPosition": {
+                  "row": 1,
+                  "column": 7
+                },
+                "endPosition": {
+                  "row": 1,
+                  "column": 11
+                }
+              }
+            ]
+          },
+          {
+            "type": "from",
+            "text": "",
+            "startPosition": {
+              "row": 1,
+              "column": 12
+            },
+            "endPosition": {
+              "row": 1,
+              "column": 16
+            }
+          },
+          {
+            "type": "string",
+            "text": "",
+            "startPosition": {
+              "row": 1,
+              "column": 17
+            },
+            "endPosition": {
+              "row": 1,
+              "column": 46
+            },
+            "children": [
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 1,
+                  "column": 17
+                },
+                "endPosition": {
+                  "row": 1,
+                  "column": 18
+                }
+              },
+              {
+                "type": "string_fragment",
+                "text": "",
+                "startPosition": {
+                  "row": 1,
+                  "column": 18
+                },
+                "endPosition": {
+                  "row": 1,
+                  "column": 45
+                }
+              },
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 1,
+                  "column": 45
+                },
+                "endPosition": {
+                  "row": 1,
+                  "column": 46
+                }
+              }
+            ]
+          },
+          {
+            "type": ";",
+            "text": "",
+            "startPosition": {
+              "row": 1,
+              "column": 46
+            },
+            "endPosition": {
+              "row": 1,
+              "column": 47
+            }
+          }
+        ]
+      },
+      {
+        "type": "import_statement",
+        "text": "",
+        "startPosition": {
+          "row": 2,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 2,
+          "column": 51
+        },
+        "children": [
+          {
+            "type": "import",
+            "text": "",
+            "startPosition": {
+              "row": 2,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 2,
+              "column": 6
+            }
+          },
+          {
+            "type": "import_clause",
+            "text": "",
+            "startPosition": {
+              "row": 2,
+              "column": 7
+            },
+            "endPosition": {
+              "row": 2,
+              "column": 13
+            },
+            "children": [
+              {
+                "type": "identifier",
+                "text": "",
+                "startPosition": {
+                  "row": 2,
+                  "column": 7
+                },
+                "endPosition": {
+                  "row": 2,
+                  "column": 13
+                }
+              }
+            ]
+          },
+          {
+            "type": "from",
+            "text": "",
+            "startPosition": {
+              "row": 2,
+              "column": 14
+            },
+            "endPosition": {
+              "row": 2,
+              "column": 18
+            }
+          },
+          {
+            "type": "string",
+            "text": "",
+            "startPosition": {
+              "row": 2,
+              "column": 19
+            },
+            "endPosition": {
+              "row": 2,
+              "column": 50
+            },
+            "children": [
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 2,
+                  "column": 19
+                },
+                "endPosition": {
+                  "row": 2,
+                  "column": 20
+                }
+              },
+              {
+                "type": "string_fragment",
+                "text": "",
+                "startPosition": {
+                  "row": 2,
+                  "column": 20
+                },
+                "endPosition": {
+                  "row": 2,
+                  "column": 49
+                }
+              },
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 2,
+                  "column": 49
+                },
+                "endPosition": {
+                  "row": 2,
+                  "column": 50
+                }
+              }
+            ]
+          },
+          {
+            "type": ";",
+            "text": "",
+            "startPosition": {
+              "row": 2,
+              "column": 50
+            },
+            "endPosition": {
+              "row": 2,
+              "column": 51
+            }
+          }
+        ]
+      },
+      {
+        "type": "import_statement",
+        "text": "",
+        "startPosition": {
+          "row": 3,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 3,
+          "column": 49
+        },
+        "children": [
+          {
+            "type": "import",
+            "text": "",
+            "startPosition": {
+              "row": 3,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 3,
+              "column": 6
+            }
+          },
+          {
+            "type": "import_clause",
+            "text": "",
+            "startPosition": {
+              "row": 3,
+              "column": 7
+            },
+            "endPosition": {
+              "row": 3,
+              "column": 12
+            },
+            "children": [
+              {
+                "type": "identifier",
+                "text": "",
+                "startPosition": {
+                  "row": 3,
+                  "column": 7
+                },
+                "endPosition": {
+                  "row": 3,
+                  "column": 12
+                }
+              }
+            ]
+          },
+          {
+            "type": "from",
+            "text": "",
+            "startPosition": {
+              "row": 3,
+              "column": 13
+            },
+            "endPosition": {
+              "row": 3,
+              "column": 17
+            }
+          },
+          {
+            "type": "string",
+            "text": "",
+            "startPosition": {
+              "row": 3,
+              "column": 18
+            },
+            "endPosition": {
+              "row": 3,
+              "column": 48
+            },
+            "children": [
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 3,
+                  "column": 18
+                },
+                "endPosition": {
+                  "row": 3,
+                  "column": 19
+                }
+              },
+              {
+                "type": "string_fragment",
+                "text": "",
+                "startPosition": {
+                  "row": 3,
+                  "column": 19
+                },
+                "endPosition": {
+                  "row": 3,
+                  "column": 47
+                }
+              },
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 3,
+                  "column": 47
+                },
+                "endPosition": {
+                  "row": 3,
+                  "column": 48
+                }
+              }
+            ]
+          },
+          {
+            "type": ";",
+            "text": "",
+            "startPosition": {
+              "row": 3,
+              "column": 48
+            },
+            "endPosition": {
+              "row": 3,
+              "column": 49
+            }
+          }
+        ]
+      },
+      {
+        "type": "import_statement",
+        "text": "",
+        "startPosition": {
+          "row": 4,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 4,
+          "column": 72
+        },
+        "children": [
+          {
+            "type": "import",
+            "text": "",
+            "startPosition": {
+              "row": 4,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 4,
+              "column": 6
+            }
+          },
+          {
+            "type": "import_clause",
+            "text": "",
+            "startPosition": {
+              "row": 4,
+              "column": 7
+            },
+            "endPosition": {
+              "row": 4,
+              "column": 38
+            },
+            "children": [
+              {
+                "type": "named_imports",
+                "text": "",
+                "startPosition": {
+                  "row": 4,
+                  "column": 7
+                },
+                "endPosition": {
+                  "row": 4,
+                  "column": 38
+                },
+                "children": [
+                  {
+                    "type": "{",
+                    "text": "",
+                    "startPosition": {
+                      "row": 4,
+                      "column": 7
+                    },
+                    "endPosition": {
+                      "row": 4,
+                      "column": 8
+                    }
+                  },
+                  {
+                    "type": "import_specifier",
+                    "text": "",
+                    "startPosition": {
+                      "row": 4,
+                      "column": 9
+                    },
+                    "endPosition": {
+                      "row": 4,
+                      "column": 19
+                    },
+                    "children": [
+                      {
+                        "type": "identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 4,
+                          "column": 9
+                        },
+                        "endPosition": {
+                          "row": 4,
+                          "column": 19
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": ",",
+                    "text": "",
+                    "startPosition": {
+                      "row": 4,
+                      "column": 19
+                    },
+                    "endPosition": {
+                      "row": 4,
+                      "column": 20
+                    }
+                  },
+                  {
+                    "type": "import_specifier",
+                    "text": "",
+                    "startPosition": {
+                      "row": 4,
+                      "column": 21
+                    },
+                    "endPosition": {
+                      "row": 4,
+                      "column": 36
+                    },
+                    "children": [
+                      {
+                        "type": "identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 4,
+                          "column": 21
+                        },
+                        "endPosition": {
+                          "row": 4,
+                          "column": 36
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "}",
+                    "text": "",
+                    "startPosition": {
+                      "row": 4,
+                      "column": 37
+                    },
+                    "endPosition": {
+                      "row": 4,
+                      "column": 38
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "from",
+            "text": "",
+            "startPosition": {
+              "row": 4,
+              "column": 39
+            },
+            "endPosition": {
+              "row": 4,
+              "column": 43
+            }
+          },
+          {
+            "type": "string",
+            "text": "",
+            "startPosition": {
+              "row": 4,
+              "column": 44
+            },
+            "endPosition": {
+              "row": 4,
+              "column": 71
+            },
+            "children": [
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 4,
+                  "column": 44
+                },
+                "endPosition": {
+                  "row": 4,
+                  "column": 45
+                }
+              },
+              {
+                "type": "string_fragment",
+                "text": "",
+                "startPosition": {
+                  "row": 4,
+                  "column": 45
+                },
+                "endPosition": {
+                  "row": 4,
+                  "column": 70
+                }
+              },
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 4,
+                  "column": 70
+                },
+                "endPosition": {
+                  "row": 4,
+                  "column": 71
+                }
+              }
+            ]
+          },
+          {
+            "type": ";",
+            "text": "",
+            "startPosition": {
+              "row": 4,
+              "column": 71
+            },
+            "endPosition": {
+              "row": 4,
+              "column": 72
+            }
+          }
+        ]
+      },
+      {
+        "type": "import_statement",
+        "text": "",
+        "startPosition": {
+          "row": 5,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 5,
+          "column": 56
+        },
+        "children": [
+          {
+            "type": "import",
+            "text": "",
+            "startPosition": {
+              "row": 5,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 5,
+              "column": 6
+            }
+          },
+          {
+            "type": "import_clause",
+            "text": "",
+            "startPosition": {
+              "row": 5,
+              "column": 7
+            },
+            "endPosition": {
+              "row": 5,
+              "column": 23
+            },
+            "children": [
+              {
+                "type": "named_imports",
+                "text": "",
+                "startPosition": {
+                  "row": 5,
+                  "column": 7
+                },
+                "endPosition": {
+                  "row": 5,
+                  "column": 23
+                },
+                "children": [
+                  {
+                    "type": "{",
+                    "text": "",
+                    "startPosition": {
+                      "row": 5,
+                      "column": 7
+                    },
+                    "endPosition": {
+                      "row": 5,
+                      "column": 8
+                    }
+                  },
+                  {
+                    "type": "import_specifier",
+                    "text": "",
+                    "startPosition": {
+                      "row": 5,
+                      "column": 9
+                    },
+                    "endPosition": {
+                      "row": 5,
+                      "column": 21
+                    },
+                    "children": [
+                      {
+                        "type": "identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 5,
+                          "column": 9
+                        },
+                        "endPosition": {
+                          "row": 5,
+                          "column": 21
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "}",
+                    "text": "",
+                    "startPosition": {
+                      "row": 5,
+                      "column": 22
+                    },
+                    "endPosition": {
+                      "row": 5,
+                      "column": 23
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "from",
+            "text": "",
+            "startPosition": {
+              "row": 5,
+              "column": 24
+            },
+            "endPosition": {
+              "row": 5,
+              "column": 28
+            }
+          },
+          {
+            "type": "string",
+            "text": "",
+            "startPosition": {
+              "row": 5,
+              "column": 29
+            },
+            "endPosition": {
+              "row": 5,
+              "column": 55
+            },
+            "children": [
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 5,
+                  "column": 29
+                },
+                "endPosition": {
+                  "row": 5,
+                  "column": 30
+                }
+              },
+              {
+                "type": "string_fragment",
+                "text": "",
+                "startPosition": {
+                  "row": 5,
+                  "column": 30
+                },
+                "endPosition": {
+                  "row": 5,
+                  "column": 54
+                }
+              },
+              {
+                "type": "'",
+                "text": "",
+                "startPosition": {
+                  "row": 5,
+                  "column": 54
+                },
+                "endPosition": {
+                  "row": 5,
+                  "column": 55
+                }
+              }
+            ]
+          },
+          {
+            "type": ";",
+            "text": "",
+            "startPosition": {
+              "row": 5,
+              "column": 55
+            },
+            "endPosition": {
+              "row": 5,
+              "column": 56
+            }
+          }
+        ]
+      },
+      {
+        "type": "interface_declaration",
+        "text": "",
+        "startPosition": {
+          "row": 7,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 9,
+          "column": 1
+        },
+        "children": [
+          {
+            "type": "interface",
+            "text": "",
+            "startPosition": {
+              "row": 7,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 7,
+              "column": 9
+            }
+          },
+          {
+            "type": "type_identifier",
+            "text": "",
+            "startPosition": {
+              "row": 7,
+              "column": 10
+            },
+            "endPosition": {
+              "row": 7,
+              "column": 29
+            }
+          },
+          {
+            "type": "interface_body",
+            "text": "",
+            "startPosition": {
+              "row": 7,
+              "column": 30
+            },
+            "endPosition": {
+              "row": 9,
+              "column": 1
+            },
+            "children": [
+              {
+                "type": "{",
+                "text": "",
+                "startPosition": {
+                  "row": 7,
+                  "column": 30
+                },
+                "endPosition": {
+                  "row": 7,
+                  "column": 31
+                }
+              },
+              {
+                "type": "property_signature",
+                "text": "",
+                "startPosition": {
+                  "row": 8,
+                  "column": 2
+                },
+                "endPosition": {
+                  "row": 8,
+                  "column": 19
+                },
+                "children": [
+                  {
+                    "type": "property_identifier",
+                    "text": "",
+                    "startPosition": {
+                      "row": 8,
+                      "column": 2
+                    },
+                    "endPosition": {
+                      "row": 8,
+                      "column": 11
+                    }
+                  },
+                  {
+                    "type": "type_annotation",
+                    "text": "",
+                    "startPosition": {
+                      "row": 8,
+                      "column": 11
+                    },
+                    "endPosition": {
+                      "row": 8,
+                      "column": 19
+                    },
+                    "children": [
+                      {
+                        "type": ":",
+                        "text": "",
+                        "startPosition": {
+                          "row": 8,
+                          "column": 11
+                        },
+                        "endPosition": {
+                          "row": 8,
+                          "column": 12
+                        }
+                      },
+                      {
+                        "type": "predefined_type",
+                        "text": "",
+                        "startPosition": {
+                          "row": 8,
+                          "column": 13
+                        },
+                        "endPosition": {
+                          "row": 8,
+                          "column": 19
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": ";",
+                "text": "",
+                "startPosition": {
+                  "row": 8,
+                  "column": 19
+                },
+                "endPosition": {
+                  "row": 8,
+                  "column": 20
+                }
+              },
+              {
+                "type": "}",
+                "text": "",
+                "startPosition": {
+                  "row": 9,
+                  "column": 0
+                },
+                "endPosition": {
+                  "row": 9,
+                  "column": 1
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "lexical_declaration",
+        "text": "",
+        "startPosition": {
+          "row": 11,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 189,
+          "column": 2
+        },
+        "children": [
+          {
+            "type": "const",
+            "text": "",
+            "startPosition": {
+              "row": 11,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 11,
+              "column": 5
+            }
+          },
+          {
+            "type": "variable_declarator",
+            "text": "",
+            "startPosition": {
+              "row": 11,
+              "column": 6
+            },
+            "endPosition": {
+              "row": 189,
+              "column": 1
+            },
+            "children": [
+              {
+                "type": "identifier",
+                "text": "",
+                "startPosition": {
+                  "row": 11,
+                  "column": 6
+                },
+                "endPosition": {
+                  "row": 11,
+                  "column": 20
+                }
+              },
+              {
+                "type": "=",
+                "text": "",
+                "startPosition": {
+                  "row": 11,
+                  "column": 21
+                },
+                "endPosition": {
+                  "row": 11,
+                  "column": 22
+                }
+              },
+              {
+                "type": "arrow_function",
+                "text": "",
+                "startPosition": {
+                  "row": 11,
+                  "column": 23
+                },
+                "endPosition": {
+                  "row": 189,
+                  "column": 1
+                },
+                "children": [
+                  {
+                    "type": "formal_parameters",
+                    "text": "",
+                    "startPosition": {
+                      "row": 11,
+                      "column": 23
+                    },
+                    "endPosition": {
+                      "row": 11,
+                      "column": 59
+                    },
+                    "children": [
+                      {
+                        "type": "(",
+                        "text": "",
+                        "startPosition": {
+                          "row": 11,
+                          "column": 23
+                        },
+                        "endPosition": {
+                          "row": 11,
+                          "column": 24
+                        }
+                      },
+                      {
+                        "type": "required_parameter",
+                        "text": "",
+                        "startPosition": {
+                          "row": 11,
+                          "column": 24
+                        },
+                        "endPosition": {
+                          "row": 11,
+                          "column": 58
+                        }
+                      },
+                      {
+                        "type": ")",
+                        "text": "",
+                        "startPosition": {
+                          "row": 11,
+                          "column": 58
+                        },
+                        "endPosition": {
+                          "row": 11,
+                          "column": 59
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "=>",
+                    "text": "",
+                    "startPosition": {
+                      "row": 11,
+                      "column": 60
+                    },
+                    "endPosition": {
+                      "row": 11,
+                      "column": 62
+                    }
+                  },
+                  {
+                    "type": "statement_block",
+                    "text": "",
+                    "startPosition": {
+                      "row": 11,
+                      "column": 63
+                    },
+                    "endPosition": {
+                      "row": 189,
+                      "column": 1
+                    },
+                    "children": [
+                      {
+                        "type": "{",
+                        "text": "",
+                        "startPosition": {
+                          "row": 11,
+                          "column": 63
+                        },
+                        "endPosition": {
+                          "row": 11,
+                          "column": 64
+                        }
+                      },
+                      {
+                        "type": "lexical_declaration",
+                        "text": "",
+                        "startPosition": {
+                          "row": 12,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 12,
+                          "column": 56
+                        }
+                      },
+                      {
+                        "type": "lexical_declaration",
+                        "text": "",
+                        "startPosition": {
+                          "row": 13,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 13,
+                          "column": 42
+                        }
+                      },
+                      {
+                        "type": "lexical_declaration",
+                        "text": "",
+                        "startPosition": {
+                          "row": 14,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 14,
+                          "column": 45
+                        }
+                      },
+                      {
+                        "type": "lexical_declaration",
+                        "text": "",
+                        "startPosition": {
+                          "row": 15,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 15,
+                          "column": 65
+                        }
+                      },
+                      {
+                        "type": "lexical_declaration",
+                        "text": "",
+                        "startPosition": {
+                          "row": 16,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 16,
+                          "column": 49
+                        }
+                      },
+                      {
+                        "type": "lexical_declaration",
+                        "text": "",
+                        "startPosition": {
+                          "row": 17,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 17,
+                          "column": 73
+                        }
+                      },
+                      {
+                        "type": "lexical_declaration",
+                        "text": "",
+                        "startPosition": {
+                          "row": 19,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 19,
+                          "column": 43
+                        }
+                      },
+                      {
+                        "type": "lexical_declaration",
+                        "text": "",
+                        "startPosition": {
+                          "row": 20,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 20,
+                          "column": 73
+                        }
+                      },
+                      {
+                        "type": "lexical_declaration",
+                        "text": "",
+                        "startPosition": {
+                          "row": 22,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 25,
+                          "column": 14
+                        }
+                      },
+                      {
+                        "type": "comment",
+                        "text": "",
+                        "startPosition": {
+                          "row": 27,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 27,
+                          "column": 86
+                        }
+                      },
+                      {
+                        "type": "comment",
+                        "text": "",
+                        "startPosition": {
+                          "row": 28,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 28,
+                          "column": 64
+                        }
+                      },
+                      {
+                        "type": "lexical_declaration",
+                        "text": "",
+                        "startPosition": {
+                          "row": 29,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 29,
+                          "column": 66
+                        }
+                      },
+                      {
+                        "type": "lexical_declaration",
+                        "text": "",
+                        "startPosition": {
+                          "row": 31,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 45,
+                          "column": 4
+                        }
+                      },
+                      {
+                        "type": "return_statement",
+                        "text": "",
+                        "startPosition": {
+                          "row": 47,
+                          "column": 2
+                        },
+                        "endPosition": {
+                          "row": 188,
+                          "column": 4
+                        }
+                      },
+                      {
+                        "type": "}",
+                        "text": "",
+                        "startPosition": {
+                          "row": 189,
+                          "column": 0
+                        },
+                        "endPosition": {
+                          "row": 189,
+                          "column": 1
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": ";",
+            "text": "",
+            "startPosition": {
+              "row": 189,
+              "column": 1
+            },
+            "endPosition": {
+              "row": 189,
+              "column": 2
+            }
+          }
+        ]
+      },
+      {
+        "type": "export_statement",
+        "text": "",
+        "startPosition": {
+          "row": 191,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 191,
+          "column": 30
+        },
+        "children": [
+          {
+            "type": "export",
+            "text": "",
+            "startPosition": {
+              "row": 191,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 191,
+              "column": 6
+            }
+          },
+          {
+            "type": "default",
+            "text": "",
+            "startPosition": {
+              "row": 191,
+              "column": 7
+            },
+            "endPosition": {
+              "row": 191,
+              "column": 14
+            }
+          },
+          {
+            "type": "identifier",
+            "text": "",
+            "startPosition": {
+              "row": 191,
+              "column": 15
+            },
+            "endPosition": {
+              "row": 191,
+              "column": 29
+            }
+          },
+          {
+            "type": ";",
+            "text": "",
+            "startPosition": {
+              "row": 191,
+              "column": 29
+            },
+            "endPosition": {
+              "row": 191,
+              "column": 30
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "type": "function",
+      "name": "ProductReviews",
+      "span": {
+        "start": 407,
+        "end": 8135
+      },
+      "startPosition": {
+        "row": 11,
+        "column": 23
+      },
+      "endPosition": {
+        "row": 189,
+        "column": 1
+      }
+    },
+    {
+      "type": "function",
+      "name": "handleSubmit",
+      "span": {
+        "start": 1319,
+        "end": 1608
+      },
+      "startPosition": {
+        "row": 31,
+        "column": 23
+      },
+      "endPosition": {
+        "row": 45,
+        "column": 3
+      }
+    },
+    {
+      "type": "interface",
+      "name": "ProductReviewsProps",
+      "span": {
+        "start": 328,
+        "end": 382
+      },
+      "startPosition": {
+        "row": 7,
+        "column": 0
+      },
+      "endPosition": {
+        "row": 9,
+        "column": 1
+      }
+    }
+  ],
+  "imports": [
+    {
+      "source": "react",
+      "specifiers": [],
+      "span": {
+        "start": 0,
+        "end": 46
+      }
+    },
+    {
+      "source": "../../../components/ui/Card",
+      "specifiers": [],
+      "span": {
+        "start": 47,
+        "end": 94
+      }
+    },
+    {
+      "source": "../../../components/ui/Button",
+      "specifiers": [],
+      "span": {
+        "start": 95,
+        "end": 146
+      }
+    },
+    {
+      "source": "../../../components/ui/Modal",
+      "specifiers": [],
+      "span": {
+        "start": 147,
+        "end": 196
+      }
+    },
+    {
+      "source": "../../../hooks/useReviews",
+      "specifiers": [],
+      "span": {
+        "start": 197,
+        "end": 269
+      }
+    },
+    {
+      "source": "../../../store/authStore",
+      "specifiers": [],
+      "span": {
+        "start": 270,
+        "end": 326
+      }
+    }
+  ],
+  "exports": [],
+  "classes": [],
+  "functions": [
+    {
+      "name": "ProductReviews",
+      "parameters": [],
+      "decorators": [],
+      "modifiers": [],
+      "isAsync": true,
+      "isStatic": false,
+      "span": {
+        "start": 407,
+        "end": 8135
+      },
+      "startPosition": {
+        "row": 11,
+        "column": 23
+      },
+      "endPosition": {
+        "row": 189,
+        "column": 1
+      }
+    },
+    {
+      "name": "handleSubmit",
+      "parameters": [
+        {
+          "name": "e",
+          "type": ": React.FormEvent",
+          "optional": false
+        }
+      ],
+      "decorators": [],
+      "modifiers": [],
+      "isAsync": true,
+      "isStatic": false,
+      "span": {
+        "start": 1319,
+        "end": 1608
+      },
+      "startPosition": {
+        "row": 31,
+        "column": 23
+      },
+      "endPosition": {
+        "row": 45,
+        "column": 3
+      }
+    }
+  ],
+  "nestjs": {
+    "controllers": [],
+    "services": [],
+    "modules": [],
+    "guards": [],
+    "interceptors": [],
+    "pipes": [],
+    "filters": [],
+    "dtos": [],
+    "entities": []
+  },
+  "routes": [],
+  "react": {
+    "components": [
+      {
+        "name": "ProductReviews",
+        "type": "function",
+        "hooks": [
+          "useState",
+          "useReviews",
+          "useCreateReview",
+          "useAuthStore",
+          "useCallback"
+        ],
+        "stateVariables": [
+          "isModalOpen",
+          "rating",
+          "comment"
+        ],
+        "span": {
+          "start": 407,
+          "end": 8135
+        },
+        "startPosition": {
+          "row": 11,
+          "column": 23
+        },
+        "endPosition": {
+          "row": 189,
+          "column": 1
+        }
+      }
+    ]
+  },
+  "parsedAt": "2026-07-25T08:33:44.632Z"
+}

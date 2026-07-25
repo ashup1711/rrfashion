@@ -48,6 +48,19 @@ Write `.opencode/state/suggestion_report_pre.md` with pre-implementation suggest
 
 Read the research report, design doc, coverage manifest, project state, and explore findings. Use explore findings to validate that the research report's conventions and file paths match the actual codebase.
 
+#### 1.5 Analyze Existing Code with AST
+
+Use the AST analyzer on key files to detect patterns and optimization targets:
+
+```bash
+node .opencode/lib/ast-parser/ast-analyze.js explore <key_code_files>
+```
+
+Use the results to inform:
+- **Pattern risk warnings**: inconsistent pattern usage across files
+- **Dead code**: symbols exported but never imported elsewhere
+- **Import optimization**: same module imported with slightly different paths
+
 #### 2. Analyze the Implementation Plan
 
 Analyze the research report's "What to Build" sections for each layer. For each requirement, assess:
@@ -168,16 +181,26 @@ Compare the coverage manifests against the actual generated code to find suggest
 - **Requirements not claimed**: These were in the research report but no expert claimed them — suggest as follow-up features
 - **Coverage gaps from QA**: If `qa_report` has errors, read them to understand what needs improvement
 
-### 4. Analyze Generated Code
+### 4. Analyze Generated Code with AST
 
-Analyze the implementation by cross-referencing coverage manifests against explore findings:
+Analyze the implementation by running the AST analyzer on generated files:
 
-1. Use `explore_findings.md` as your baseline for "correct" conventions.
-2. Read specific files only when:
+```bash
+node .opencode/lib/ast-parser/ast-analyze.js explore <all_generated_files>
+node .opencode/lib/ast-parser/ast-analyze.js validate-nestjs <all_backend_files>
+node .opencode/lib/ast-parser/ast-analyze.js validate-react <all_frontend_files>
+```
+
+Look for:
+- Classes with many methods (refactoring targets)
+- Exported classes not imported anywhere (dead code)
+- Routes without auth guards
+
+3. Read specific files only when:
    - A coverage claim looks incomplete or suspicious
    - You need a specific implementation detail for a suggestion
    - The implementation deviates from the conventions documented in explore findings
-3. Do not re-read source files to rediscover patterns that are already in explore findings.
+4. Do not re-read source files to rediscover patterns that are already in explore findings.
 
 Focus on understanding the code as written — not what was planned.
 

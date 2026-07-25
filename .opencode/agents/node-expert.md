@@ -44,6 +44,20 @@ If `db-expert` ran in this pass, read the current `db_schema` value from `projec
 
 Also read `.opencode/state/coverage_db.json` (if it exists) to see which database models/migrations were created. This prevents you from re-creating tables or referencing non-existent fields.
 
+### 3.5 Parse Existing Controllers with AST
+
+Your prompt file already includes an `## AST Context` section with pre-computed tables of existing controllers, routes, and services. Read that section to understand the current structure.
+
+If you need additional detail on a specific file, use:
+```bash
+node .opencode/lib/ast-parser/ast-analyze.js explore <specific_file>
+```
+
+Use the output to:
+- **Avoid route conflicts**: ensure new routes don't duplicate existing method+path combinations
+- **Match decorator patterns**: the `controllers` output shows exact decorator arguments — copy these exactly
+- **Identify import paths**: use the `imports` field to match the project's existing module import style
+
 ### 4. Trust the Research Report's Conventions
 
 Do not re-scan route files or controllers "to understand current structure" — the research report's conventions section already contains literal excerpts. Open a source file only at the point you are about to edit it.
@@ -200,6 +214,22 @@ import { APP_GUARD } from '@nestjs/core';
 ### 13. Write Files
 
 Write files into the project's existing backend directory structure as specified in "Exact Files to Modify/Create".
+
+### 13.5 Validate Written Files with AST
+
+After writing all files, run a quick structural check on your output files:
+
+```bash
+node .opencode/lib/ast-parser/ast-analyze.js validate-nestjs <all_written_and_modified_files>
+```
+
+The `validate-nestjs` mode checks for:
+- Missing `@Controller()` decorators on controllers
+- Missing `@Injectable()` decorators on services
+- Routes that may lack auth guards
+- Controllers not registered in any module
+
+Fix any issues found before proceeding to write the coverage manifest.
 
 ### 14. Write Coverage Manifest
 

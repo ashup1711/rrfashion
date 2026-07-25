@@ -84,6 +84,12 @@ export class LocalStorageService implements StorageInterface {
     return `/uploads/${key}`;
   }
 
+  async getSignedUrl(key: string, expiresIn?: number): Promise<string> {
+    // Local storage doesn't support signed URLs — return public URL directly
+    void expiresIn;
+    return this.getPublicUrl(key);
+  }
+
   async delete(key: string): Promise<void> {
     try {
       const filePath = path.join(this.uploadDir, key);

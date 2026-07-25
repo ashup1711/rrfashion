@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { initializeGuestSession } from '../utils/guestSession';
+import { useEffect, useState, useCallback } from 'react';
+import { initializeGuestSession, refreshGuestSession, getGuestToken } from '../utils/guestSession';
 
 export function useGuestSession() {
   const [initialized, setInitialized] = useState(false);
@@ -19,5 +19,17 @@ export function useGuestSession() {
     };
   }, []);
 
-  return { initialized, error };
+  const refresh = useCallback(async () => {
+    try {
+      const newToken = await refreshGuestSession();
+      return !!newToken;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // Check if guest token exists (initialized or previously stored)
+  const hasGuestToken = !!getGuestToken();
+
+  return { initialized, error, refresh, hasGuestToken };
 }

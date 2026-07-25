@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { adminGetMe } from '../../api/admin-auth';
 import type { AdminUser } from '../../types/admin';
+import { initializeGuestSession } from '../../utils/guestSession';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 interface AuthInitializerProps {
@@ -16,6 +17,11 @@ export const AuthInitializer = ({ children }: AuthInitializerProps) => {
   const { setAdminAuth, adminLogout } = useAuthStore();
 
   useEffect(() => {
+    // Initialize guest session in background — NEVER blocks render
+    initializeGuestSession().catch((err) => {
+      console.warn('Guest session init failed (non-blocking):', err);
+    });
+
     const validateAuth = async () => {
       const adminToken = localStorage.getItem('admin_token');
       const isAdminRoute = location.pathname.startsWith('/admin');

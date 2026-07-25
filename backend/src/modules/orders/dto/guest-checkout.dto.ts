@@ -9,7 +9,7 @@ import {
   IsEmail,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 class GuestCheckoutItemDto {
   @ApiProperty({
@@ -117,4 +117,14 @@ export class GuestCheckoutDto {
   @ApiProperty({ description: 'Payment method', example: 'razorpay', readOnly: false })
   @IsString()
   paymentMethod!: string;
+
+  @ApiPropertyOptional({
+    description: 'Coupon code to apply discount',
+    example: 'SAVE20',
+    readOnly: false,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  couponCode?: string;
 }

@@ -429,8 +429,8 @@ model ProductImage {
   sortOrder     Int               @default(0)
   width         Int?
   height        Int?
-  fileSize      Int?              @map("file_size")
-  mimeType      String?           @map("mime_type")
+  fileSize      Int               @default(0)      @map("file_size")
+  mimeType      String            @default("image/webp") @map("mime_type")
   variantType   ImageVariantType  @default(ORIGINAL) @map("variant_type")
   parentImageId String?           @map("parent_image_id")
   parentImage   ProductImage?     @relation("ImageVariants", fields: [parentImageId], references: [id], onDelete: Cascade)
@@ -441,6 +441,8 @@ model ProductImage {
   @@index([variantId])
   @@index([storageKey])
   @@index([parentImageId])
+  @@index([variantId, variantType])
+  @@unique([storageKey])
   @@map("product_images")
 }
 
@@ -1069,6 +1071,7 @@ model GuestSession {
 
   @@index([expiresAt])
   @@index([lastActivityAt])
+  @@index([expiresAt, lastActivityAt])
   @@map("guest_sessions")
 }
 

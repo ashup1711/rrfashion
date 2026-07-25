@@ -22,21 +22,33 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         globIgnores: ['**/runtime-env.js'],
+        skipWaiting: true,
+        clientsClaim: true,
+        navigateFallback: '/rrfashion/index.html',
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           // Network-only for runtime-env.js — always fetch fresh API URL from server
           {
             urlPattern: /\/runtime-env\.js$/,
             handler: 'NetworkOnly',
           },
-          // Stale-while-revalidate for app shell assets (JS, CSS, HTML)
-          // CacheFirst can serve stale chunks after deployment, causing errors
-          // StaleWhileRevalidate serves cached content immediately but fetches updates in the background
+          // NetworkFirst for index.html — always try network first, fall back to cache
           {
-            urlPattern: /\.(?:js|css|html)$/,
-            handler: 'StaleWhileRevalidate',
+            urlPattern: /\/rrfashion\/index\.html$/,
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'app-shell',
-              expiration: { maxEntries: 50, maxAgeSeconds: 7 * 24 * 60 * 60 },
+              expiration: { maxEntries: 1, maxAgeSeconds: 7 * 24 * 60 * 60 },
+              networkTimeoutSeconds: 5,
+            },
+          },
+          // Stale-while-revalidate for JS/CSS assets
+          {
+            urlPattern: /\.(?:js|css)$/,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'app-assets',
+              expiration: { maxEntries: 100, maxAgeSeconds: 7 * 24 * 60 * 60 },
             },
           },
           // Network-first for real-time stock/inventory API

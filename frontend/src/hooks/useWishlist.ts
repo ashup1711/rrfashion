@@ -4,7 +4,7 @@ import { getWishlist, addToWishlist, removeFromWishlist, addAllWishlistToCart, t
 import { useWishlistStore, type WishlistItem as GuestWishlistItem } from '../store/wishlistStore';
 import { useAuthStore } from '../store/authStore';
 import { QUERY_KEYS } from '../utils/constants';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 export type WishlistEntry = ApiWishlistItem | GuestWishlistItem;
 
@@ -13,7 +13,7 @@ export const isApiWishlistItem = (item: WishlistEntry): item is ApiWishlistItem 
 
 export const useWishlist = () => {
   const queryClient = useQueryClient();
-  const { setGuestItems, guestItems } = useWishlistStore();
+  const { setGuestItems, guestItems, addGuestItem, removeGuestItem } = useWishlistStore();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   // Interceptor always provides the best available token (admin_token > auth_token > guest_token)
@@ -44,23 +44,40 @@ export const useWishlist = () => {
   const addMutation = useMutation({
     mutationFn: ({ variantId, notifyOnPriceDrop }: { variantId: string; notifyOnPriceDrop?: boolean }) =>
       addToWishlist(variantId, notifyOnPriceDrop),
-    onSuccess: () => {
+    onMutate: async ({ variantId }) => {
+      // Cancel ongoing queries so they don't overwrite optimistic update
+      await queryClient.cancelQueries({ queryKey: [QUERY_KEYS.wishlist] });
+    },
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.wishlist] });
       toast.success('Added to wishlist!');
     },
     onError: (error) => {
       console.error('Failed to add to wishlist:', error);
-      toast.error('Failed to add to wishlist');
+      toast.error('Failed to add to wishlist. Please try again.');
     },
   });
 
   const removeMutation = useMutation({
     mutationFn: (variantId: string) => removeFromWishlist(variantId),
+    onMutate: async (variantId) => {
+      // Cancel ongoing queries so they don't overwrite optimistic update
+      await queryClient.cancelQueries({ queryKey: [QUERY_KEYS.wishlist] });
+
+      // For guest users, optimistically remove from local store
+      if (!isAuthenticated) {
+        removeGuestItem(variantId);
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.wishlist] });
+      toast.success('Removed from wishlist');
     },
     onError: (error) => {
       console.error('Failed to remove from wishlist:', error);
+      toast.error('Failed to remove from wishlist. Please try again.');
+      // Refetch to revert optimistic state
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.wishlist] });
     },
   });
 
@@ -72,7 +89,7 @@ export const useWishlist = () => {
       toast.success('Items added to cart!');
     },
     onError: () => {
-      toast.error('Failed to add items to cart');
+      toast.error('Failed to add items to cart. Please try again.');
     },
   });
 
@@ -83,13 +100,28 @@ export const useWishlist = () => {
     return guestItems;
   }, [isAuthenticated, wishlistQuery.data, guestItems]);
 
+  const handleAddItem = useCallback((variantId: string, notifyOnPriceDrop?: boolean) => {
+    // For guest users, optimistically add to local store
+    if (!isAuthenticated) {
+      addGuestItem({ variantId });
+    }
+    addMutation.mutate({ variantId, notifyOnPriceDrop });
+  }, [isAuthenticated, addMutation, addGuestItem]);
+
+  const handleRemoveItem = useCallback((variantId: string) => {
+    // For guest users, optimistically remove from local store
+    if (!isAuthenticated) {
+      removeGuestItem(variantId);
+    }
+    removeMutation.mutate(variantId);
+  }, [isAuthenticated, removeMutation, removeGuestItem]);
+
   return {
     items,
     isLoading: wishlistQuery.isLoading,
     error: wishlistQuery.error,
-    addItem: (variantId: string, notifyOnPriceDrop?: boolean) =>
-      addMutation.mutate({ variantId, notifyOnPriceDrop }),
-    removeItem: (variantId: string) => removeMutation.mutate(variantId),
+    addItem: handleAddItem,
+    removeItem: handleRemoveItem,
     isAdding: addMutation.isPending,
     addAllToCart: addAllToCartMutation.mutateAsync,
     isAddingAllToCart: addAllToCartMutation.isPending,

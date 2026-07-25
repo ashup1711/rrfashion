@@ -48,3 +48,12 @@ export const startGuestSession = async (): Promise<{
   const { data } = await apiClient.post('/guest/start');
   return data;
 };
+
+export const refreshGuestSession = async (): Promise<{
+  guestSessionId: string;
+  guestToken: string;
+  expiresAt: string;
+}> => {
+  const { data } = await apiClient.post('/guest/refresh');
+  return data;
+};

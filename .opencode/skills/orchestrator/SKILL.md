@@ -20,16 +20,60 @@ The pipeline supports multiple modes to give you flexible control over which age
 
 ### Pipeline Modes
 
-| Mode | When to Use | What It Does |
-|------|-------------|-------------|
-| `full` | Default — you want the complete flow | Explore → Research → Experts → QA → Suggestion |
-| `research-first` | You want to plan first, implement later | Runs explore + research + suggestion only, writes reports, stops |
-| `implement` | You already have a research report (e.g. from a prior `research-first` run) | Reuses existing explore_findings.md + research report, skips research phase, starts from expert agents |
-| `qa-only` | You want to review existing code without running agents | Runs only code-review-and-qa |
+| Mode | When to Use | What It Does | AST Parser |
+|------|-------------|-------------|------------|
+| `full` | Default — you want the complete flow | Explore → Research → Experts → QA → Suggestion | Initialized + used by all agents |
+| `research-first` | You want to plan first, implement later | Runs explore + research + suggestion only, writes reports, stops | Initialized + used by all agents |
+| `implement` | You already have a research report (e.g. from a prior `research-first` run) | Reuses existing explore_findings.md + research report, skips research phase, starts from expert agents | Initialized for expert agents + QA |
+| `qa-only` | You want to review existing code without running agents | Runs only code-review-and-qa | Initialized for structural verification |
 
 ### Phase 0: Codebase Exploration (Request-Matching)
 
 The orchestrator checks if `.opencode/state/explore_findings.md` exists and matches the current request (via a `<!-- request_id: <hash> -->` marker on the first line). If match found, findings are reused; otherwise the explore agent is dispatched. The same `request_id` check applies to ALL cached artifacts (`research_report.md`, `research_report_coverage.json`, `suggestion_report_pre.md`, `suggestion_report.md`) — any mismatch causes the pipeline to regenerate or fall back to `full` mode.
+
+### Phase 0.5: AST Parser Initialization (All Modes)
+
+Before dispatching any agent, the orchestrator initializes the tree-sitter AST parser via `pipeline-ast.js init`. This runs once per pipeline:
+
+- **Initializes** web-tree-sitter for TypeScript/TSX, SQL/Prisma, JSON/YAML parsing
+- **Verifies** the parser is built and ready (falls back gracefully to text-based analysis if unavailable)
+- **Records** initialization status in `project_state.json.ast_parser`
+
+### Phase 0.6: AST Data Injection Into Prompt Files (Automated via pipeline-ast.js)
+
+Before every agent dispatch, the orchestrator runs:
+```bash
+node .opencode/lib/ast-parser/pipeline-ast.js pre-dispatch <agent-name> <prompt-file-path>
+```
+This automatically:
+- Discovers relevant source files based on project_state.json and the agent type
+- Runs AST exploration on controllers, components, and schema files
+- Appends a compact `## AST Context` section to the agent's prompt file
+
+Agents receive structural data (routes, components, models, hooks) in their prompt — they do NOT need to run the AST analyzer themselves.
+
+### Phase 0.7: Post-Dispatch AST Validation (Automated via pipeline-ast.js)
+
+After each expert agent completes, the orchestrator runs:
+```bash
+node .opencode/lib/ast-parser/pipeline-ast.js post-dispatch <agent-name>
+```
+This automatically:
+- node-expert: Validates NestJS decorators and route guards
+- db-expert-postgres: Validates Prisma model relations and primary keys
+- react-expert: Validates component exports
+- Schema validation for all agents
+
+If validation fails, the pipeline halts and the agent must be re-dispatched.
+
+### Agent-Side AST Usage (Optional — Only for Deep Dives)
+
+Agents can also use the AST analyzer directly for deeper investigation:
+```bash
+node .opencode/lib/ast-parser/ast-analyze.js explore <file1> <file2> ...
+node .opencode/lib/ast-parser/ast-analyze.js validate-nestjs <files>
+node .opencode/lib/ast-parser/ast-analyze.js validate-schema <files>
+```
 
 ```
 (check: findings exist for this request?)

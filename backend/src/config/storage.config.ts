@@ -10,4 +10,5 @@ export const storageConfig = registerAs('storage', () => ({
   bucket: process.env.MINIO_BUCKET || 'rrfashion',
   useSSL: process.env.MINIO_USE_SSL === 'true',
   region: process.env.AWS_REGION || 'ap-south-1',
+  cdnBaseUrl: process.env.CDN_BASE_URL || '',
 }));

@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder, SwaggerDocumentOptions } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { join } from 'path';
+import { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -29,7 +30,68 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.use(helmet());
+  // ── Security Headers with explicit CSP ──────────────────────────────
+  // REQ-BE-002: Strengthen Helmet CSP with strict directives + reporting
+  // REQ-BE-004: Add security audit headers
+  const isProduction = process.env.NODE_ENV === 'production';
+  app.use(
+    helmet({
+      contentSecurityPolicy: isProduction
+        ? {
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'", "'unsafe-inline'"],
+              styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+              fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+              imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+              connectSrc: ["'self'", 'https://api.rrfashion.com', 'https://rrfashion.com'],
+              frameSrc: ["'none'"],
+              objectSrc: ["'none'"],
+              baseUri: ["'self'"],
+              formAction: ["'self'"],
+              upgradeInsecureRequests: [],
+              reportUri: '/api/csp-report',
+            },
+            reportOnly: !isProduction,
+          }
+        : false,
+      hsts: isProduction
+        ? {
+            maxAge: 31536000, // 1 year
+            includeSubDomains: true,
+            preload: true,
+          }
+        : false,
+      frameguard: { action: 'deny' },
+      noSniff: true, // X-Content-Type-Options: nosniff
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      xssFilter: true,
+      hidePoweredBy: true, // Remove X-Powered-By
+      permittedCrossDomainPolicies: { permittedPolicies: 'none' },
+    }),
+  );
+
+  // Add Permissions-Policy header (not available in Helmet 7 directly)
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader(
+      'Permissions-Policy',
+      'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+    );
+    next();
+  });
+
+  // REQ-BE-006: Request body size limiting
+  app.useBodyParser('json', { limit: '1mb' });
+  app.useBodyParser('urlencoded', { limit: '1mb', extended: true });
+
+  // REQ-BE-001: Fix static asset serving for SPA fallback
+  // The app uses HashRouter, so SPA fallback is handled by the frontend.
+  // We serve the frontend build directory if it exists.
+  // This ensures the backend doesn't break on route requests.
+  app.useStaticAssets(join(__dirname, '..', '..', 'frontend', 'dist'), {
+    index: 'index.html',
+    redirect: false,
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

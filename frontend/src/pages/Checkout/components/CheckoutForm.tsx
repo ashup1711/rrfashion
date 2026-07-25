@@ -7,6 +7,7 @@ import { useAddresses } from '../../../hooks/useAddresses';
 import { useCart } from '../../../hooks/useCart';
 import { useCreateOrder } from '../../../hooks/useOrders';
 import { verifyPayment } from '../../../api/payments';
+import { useAuthStore } from '../../../store/authStore';
 import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS, ROUTES } from '../../../utils/constants';
 import { formatCurrency } from '../../../utils/formatCurrency';
@@ -46,6 +47,7 @@ const CheckoutForm = ({ onStepChange, currentStep }: CheckoutFormProps) => {
   const { data: addresses, isLoading: addressesLoading, error: addressesError } = useAddresses();
   const { items: cartItems, total: cartTotal } = useCart();
   const createOrder = useCreateOrder();
+  const { user } = useAuthStore();
 
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
   const [useNewAddress, setUseNewAddress] = useState(false);
@@ -329,6 +331,7 @@ const CheckoutForm = ({ onStepChange, currentStep }: CheckoutFormProps) => {
         },
         prefill: {
           name: shippingAddress.name,
+          email: user?.email || '',
           contact: shippingAddress.phone,
         },
         theme: { color: '#2A2522' }, // Use primary-900 color

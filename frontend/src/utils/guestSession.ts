@@ -72,3 +72,26 @@ export async function initializeGuestSession(): Promise<string> {
   setGuestSessionId(data.guestSessionId);
   return data.guestToken;
 }
+
+/**
+ * Refresh an expiring guest session by calling POST /guest/refresh.
+ * Returns the new guest token and updates stored values.
+ */
+export async function refreshGuestSession(): Promise<string | null> {
+  const currentToken = getGuestToken();
+  if (!currentToken) return null;
+
+  try {
+    const { data } = await apiClient.post('/guest/refresh');
+    if (data.guestToken) {
+      setGuestToken(data.guestToken);
+    }
+    if (data.guestSessionId) {
+      setGuestSessionId(data.guestSessionId);
+    }
+    return data.guestToken || null;
+  } catch (error) {
+    console.warn('Failed to refresh guest session:', error);
+    return null;
+  }
+}

@@ -61,6 +61,19 @@ For any direct file reads you perform, record the file path and reason in the "P
 
 Skip any layer section in explore_findings.md if that layer is not in `prompt_analysis.layers_affected`.
 
+### 2.5 Validate Explore Findings with AST
+
+Your prompt file includes an `## AST Context` section with pre-computed structural data. Use that as your primary reference.
+
+For deeper validation of specific files referenced in explore findings, use:
+```bash
+node .opencode/lib/ast-parser/ast-analyze.js explore <specific_file>
+```
+
+Use the AST analysis to:
+- **Validate symbols**: confirm classes, functions, routes, and models exist with correct signatures
+- **Identify NestJS decorators**: copy exact decorator patterns from the output
+- **Get exact route paths**: precise method+path for every backend endpoint
 ### 2.5. Web Research
 
 Perform targeted web research to validate and enrich the research report. **Budget**: up to 5 searches total.
@@ -108,7 +121,17 @@ Expert agents no longer read `design_doc.md` themselves (it's optional for them,
 5. If you deliberately decided NOT to carry a design_doc.md point forward (e.g. it's superseded by something you found in the actual codebase), state that explicitly in "Potential Pitfalls & Warnings" with the reason — never omit it silently.
 6. Only after every checklist item is accounted for (carried forward or explicitly noted as excluded-with-reason) should you proceed to Step 5.
 
-### 5. Produce the Final Requirement Prompt
+### 5. Validate Code Skeletons with AST
+
+Before writing the research report, quickly verify that key symbols exist:
+
+```bash
+node .opencode/lib/ast-parser/ast-analyze.js explore <files_referenced_in_skeletons>
+```
+
+If any file referenced in your code skeletons doesn't exist (for CREATE actions) or doesn't contain the expected symbols (for MODIFY actions), flag this in "Potential Pitfalls & Warnings" and adjust the skeleton accordingly.
+
+### 6. Produce the Final Requirement Prompt
 
 Write `.opencode/state/research_report.md` with this exact structure (prepend `<!-- request_id: <request_id> -->` as the first line using the `request_id` from `project_state.json`):
 

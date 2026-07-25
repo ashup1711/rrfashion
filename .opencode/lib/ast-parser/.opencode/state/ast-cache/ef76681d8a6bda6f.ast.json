@@ -1,0 +1,500 @@
+{
+  "filePath": "/tmp/test-ast.ts",
+  "fileHash": "ef76681d8a6bda6f",
+  "language": "typescript",
+  "rootNode": {
+    "type": "program",
+    "text": "",
+    "startPosition": {
+      "row": 0,
+      "column": 0
+    },
+    "endPosition": {
+      "row": 4,
+      "column": 1
+    },
+    "children": [
+      {
+        "type": "class_declaration",
+        "text": "",
+        "startPosition": {
+          "row": 0,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 4,
+          "column": 1
+        },
+        "children": [
+          {
+            "type": "decorator",
+            "text": "",
+            "startPosition": {
+              "row": 0,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 0,
+              "column": 19
+            },
+            "children": [
+              {
+                "type": "@",
+                "text": "",
+                "startPosition": {
+                  "row": 0,
+                  "column": 0
+                },
+                "endPosition": {
+                  "row": 0,
+                  "column": 1
+                }
+              },
+              {
+                "type": "call_expression",
+                "text": "",
+                "startPosition": {
+                  "row": 0,
+                  "column": 1
+                },
+                "endPosition": {
+                  "row": 0,
+                  "column": 19
+                },
+                "children": [
+                  {
+                    "type": "identifier",
+                    "text": "",
+                    "startPosition": {
+                      "row": 0,
+                      "column": 1
+                    },
+                    "endPosition": {
+                      "row": 0,
+                      "column": 11
+                    }
+                  },
+                  {
+                    "type": "arguments",
+                    "text": "",
+                    "startPosition": {
+                      "row": 0,
+                      "column": 11
+                    },
+                    "endPosition": {
+                      "row": 0,
+                      "column": 19
+                    },
+                    "children": [
+                      {
+                        "type": "(",
+                        "text": "",
+                        "startPosition": {
+                          "row": 0,
+                          "column": 11
+                        },
+                        "endPosition": {
+                          "row": 0,
+                          "column": 12
+                        }
+                      },
+                      {
+                        "type": "string",
+                        "text": "",
+                        "startPosition": {
+                          "row": 0,
+                          "column": 12
+                        },
+                        "endPosition": {
+                          "row": 0,
+                          "column": 18
+                        }
+                      },
+                      {
+                        "type": ")",
+                        "text": "",
+                        "startPosition": {
+                          "row": 0,
+                          "column": 18
+                        },
+                        "endPosition": {
+                          "row": 0,
+                          "column": 19
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "class",
+            "text": "",
+            "startPosition": {
+              "row": 1,
+              "column": 0
+            },
+            "endPosition": {
+              "row": 1,
+              "column": 5
+            }
+          },
+          {
+            "type": "type_identifier",
+            "text": "",
+            "startPosition": {
+              "row": 1,
+              "column": 6
+            },
+            "endPosition": {
+              "row": 1,
+              "column": 9
+            }
+          },
+          {
+            "type": "class_body",
+            "text": "",
+            "startPosition": {
+              "row": 1,
+              "column": 10
+            },
+            "endPosition": {
+              "row": 4,
+              "column": 1
+            },
+            "children": [
+              {
+                "type": "{",
+                "text": "",
+                "startPosition": {
+                  "row": 1,
+                  "column": 10
+                },
+                "endPosition": {
+                  "row": 1,
+                  "column": 11
+                }
+              },
+              {
+                "type": "decorator",
+                "text": "",
+                "startPosition": {
+                  "row": 2,
+                  "column": 2
+                },
+                "endPosition": {
+                  "row": 2,
+                  "column": 8
+                },
+                "children": [
+                  {
+                    "type": "@",
+                    "text": "",
+                    "startPosition": {
+                      "row": 2,
+                      "column": 2
+                    },
+                    "endPosition": {
+                      "row": 2,
+                      "column": 3
+                    }
+                  },
+                  {
+                    "type": "call_expression",
+                    "text": "",
+                    "startPosition": {
+                      "row": 2,
+                      "column": 3
+                    },
+                    "endPosition": {
+                      "row": 2,
+                      "column": 8
+                    },
+                    "children": [
+                      {
+                        "type": "identifier",
+                        "text": "",
+                        "startPosition": {
+                          "row": 2,
+                          "column": 3
+                        },
+                        "endPosition": {
+                          "row": 2,
+                          "column": 6
+                        }
+                      },
+                      {
+                        "type": "arguments",
+                        "text": "",
+                        "startPosition": {
+                          "row": 2,
+                          "column": 6
+                        },
+                        "endPosition": {
+                          "row": 2,
+                          "column": 8
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "method_definition",
+                "text": "",
+                "startPosition": {
+                  "row": 3,
+                  "column": 2
+                },
+                "endPosition": {
+                  "row": 3,
+                  "column": 10
+                },
+                "children": [
+                  {
+                    "type": "property_identifier",
+                    "text": "",
+                    "startPosition": {
+                      "row": 3,
+                      "column": 2
+                    },
+                    "endPosition": {
+                      "row": 3,
+                      "column": 5
+                    }
+                  },
+                  {
+                    "type": "formal_parameters",
+                    "text": "",
+                    "startPosition": {
+                      "row": 3,
+                      "column": 5
+                    },
+                    "endPosition": {
+                      "row": 3,
+                      "column": 7
+                    },
+                    "children": [
+                      {
+                        "type": "(",
+                        "text": "",
+                        "startPosition": {
+                          "row": 3,
+                          "column": 5
+                        },
+                        "endPosition": {
+                          "row": 3,
+                          "column": 6
+                        }
+                      },
+                      {
+                        "type": ")",
+                        "text": "",
+                        "startPosition": {
+                          "row": 3,
+                          "column": 6
+                        },
+                        "endPosition": {
+                          "row": 3,
+                          "column": 7
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "statement_block",
+                    "text": "",
+                    "startPosition": {
+                      "row": 3,
+                      "column": 8
+                    },
+                    "endPosition": {
+                      "row": 3,
+                      "column": 10
+                    },
+                    "children": [
+                      {
+                        "type": "{",
+                        "text": "",
+                        "startPosition": {
+                          "row": 3,
+                          "column": 8
+                        },
+                        "endPosition": {
+                          "row": 3,
+                          "column": 9
+                        }
+                      },
+                      {
+                        "type": "}",
+                        "text": "",
+                        "startPosition": {
+                          "row": 3,
+                          "column": 9
+                        },
+                        "endPosition": {
+                          "row": 3,
+                          "column": 10
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "}",
+                "text": "",
+                "startPosition": {
+                  "row": 4,
+                  "column": 0
+                },
+                "endPosition": {
+                  "row": 4,
+                  "column": 1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "type": "class",
+      "name": "Foo",
+      "span": {
+        "start": 0,
+        "end": 53
+      },
+      "startPosition": {
+        "row": 0,
+        "column": 0
+      },
+      "endPosition": {
+        "row": 4,
+        "column": 1
+      }
+    }
+  ],
+  "imports": [],
+  "exports": [],
+  "classes": [
+    {
+      "name": "Foo",
+      "decorators": [
+        {
+          "name": "Controller",
+          "arguments": [
+            "\"test\""
+          ],
+          "span": {
+            "start": 0,
+            "end": 19
+          }
+        }
+      ],
+      "methods": [
+        {
+          "name": "bar",
+          "parameters": [],
+          "decorators": [],
+          "modifiers": [],
+          "isAsync": false,
+          "isStatic": false,
+          "span": {
+            "start": 43,
+            "end": 51
+          },
+          "startPosition": {
+            "row": 3,
+            "column": 2
+          },
+          "endPosition": {
+            "row": 3,
+            "column": 10
+          }
+        }
+      ],
+      "properties": [],
+      "span": {
+        "start": 0,
+        "end": 53
+      },
+      "startPosition": {
+        "row": 0,
+        "column": 0
+      },
+      "endPosition": {
+        "row": 4,
+        "column": 1
+      }
+    }
+  ],
+  "functions": [],
+  "nestjs": {
+    "controllers": [
+      {
+        "name": "Foo",
+        "decorators": [
+          {
+            "name": "Controller",
+            "arguments": [
+              "\"test\""
+            ],
+            "span": {
+              "start": 0,
+              "end": 19
+            }
+          }
+        ],
+        "methods": [
+          {
+            "name": "bar",
+            "parameters": [],
+            "decorators": [],
+            "modifiers": [],
+            "isAsync": false,
+            "isStatic": false,
+            "span": {
+              "start": 43,
+              "end": 51
+            },
+            "startPosition": {
+              "row": 3,
+              "column": 2
+            },
+            "endPosition": {
+              "row": 3,
+              "column": 10
+            }
+          }
+        ],
+        "properties": [],
+        "span": {
+          "start": 0,
+          "end": 53
+        },
+        "startPosition": {
+          "row": 0,
+          "column": 0
+        },
+        "endPosition": {
+          "row": 4,
+          "column": 1
+        }
+      }
+    ],
+    "services": [],
+    "modules": [],
+    "guards": [],
+    "interceptors": [],
+    "pipes": [],
+    "filters": [],
+    "dtos": [],
+    "entities": []
+  },
+  "routes": [],
+  "parsedAt": "2026-07-25T08:17:49.038Z"
+}

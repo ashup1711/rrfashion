@@ -27,39 +27,51 @@ Read the detailed skill documentation at: `.opencode/skills/orchestrator/SKILL.m
 
 The pipeline supports four modes controlled by `project_state.json` → `pipeline_mode`:
 
-| Mode | Agents | Use Case |
-|------|--------|----------|
-| `full` | explore → research → experts → QA → suggestion | Complete flow from scratch |
-| `research-first` | explore → research → suggestion (pre-impl) | Pre-planning only — stops after reports written |
-| `implement` | expert agents → QA → suggestion | Resume from existing explore + research + suggestion reports |
-| `qa-only` | code-review-and-qa | Review existing code without changes |
+| Mode | Agents | Use Case | AST Parser |
+|------|--------|----------|------------|
+| `full` | explore → research → experts → QA → suggestion | Complete flow from scratch | Initialized + used by all agents |
+| `research-first` | explore → research → suggestion (pre-impl) | Pre-planning only — stops after reports written | Initialized + used by all agents |
+| `implement` | expert agents → QA → suggestion | Resume from existing explore + research + suggestion reports | Initialized (cache reused) |
+| `qa-only` | code-review-and-qa | Review existing code without changes | Initialized for structural verification |
 
 ## Pipeline Order
 
 ### Phase 0 (All Modes)
+
+The AST parser is initialized in Step 2.5 before any agent dispatches. This ensures all agents can use AST-based analysis regardless of pipeline mode.
+
 ```
-explore (subagent_type: "explore") — one-time codebase scan
-   ↓ writes
+explore (subagent_type: "explore") — one-time codebase scan (skipped in implement/qa-only if findings match)
+    ↓ writes
 .opencode/state/explore_findings.md — shared context for research + suggestion agents
 ```
 
 ### Full Mode
+
 ```
 explore → research-agent → expert agents → code-review-and-qa → suggestion-agent
 ```
 
 ### Research-First Mode (Pre-Planning)
+
 ```
 explore → research-agent → suggestion-agent (pre-implementation mode)
-   ↓
+    ↓
 Stops after writing research_report.md + research_report_coverage.json + suggestion_report_pre.md
 ```
 
 ### Implement Mode (Warm-Start)
+
 ```
-reads existing explore_findings.md + research_report.md + suggestion_report_pre.md + research_report_coverage.json
-   ↓
+AST parser initialized (reuses existing cache) → reads existing explore_findings.md + research_report.md + suggestion_report_pre.md + research_report_coverage.json
+    ↓
 expert agents → code-review-and-qa → suggestion-agent
+```
+
+### QA-Only Mode
+
+```
+AST parser initialized → code-review-and-qa (reads existing code on disk, uses AST for structural verification)
 ```
 
 ## Steps
@@ -93,6 +105,20 @@ If `.opencode/state/project_state.json` doesn't exist for this task, create it w
 - `request_id`: a stable identifier derived from `user_prompt` (e.g. first 12 characters of `sha256(user_prompt)`) — used for artifact request-matching across all cached files
 - `status`: `"in_progress"`
 - `requirement_coverage`: `{ total: 0, covered: 0, gap: 0, gap_items: [] }`
+
+### 2.5 Initialize AST Parser
+
+Initialize the tree-sitter AST parser so all downstream agents can use it. This runs in **every** pipeline mode (full, research-first, implement, qa-only):
+
+```bash
+mkdir -p .opencode/state/ast-cache && node .opencode/lib/ast-parser/ast-analyze.js explore .opencode/lib/ast-parser/ast-analyze.js > /dev/null 2>&1 && echo '{"status":"ready","error":null}' || echo '{"status":"failed","error":"parser not available"}'
+```
+
+If initialization fails (e.g. parser not built), log a warning and continue — agents will fall back to text-based analysis. Record the result in `.opencode/state/project_state.json` under `ast_parser: { initialized: true|false, cache_path: ".opencode/state/ast-cache" }`.
+
+### 2.6 Pre-Discovery AST Scan (Relevant Files) — SKIP THIS STEP
+
+Pre-discovery is no longer needed. The `pipeline-ast.js` script in Step 8 handles AST injection **just-in-time** when each agent is dispatched, discovering files dynamically based on the current `project_state.json`.
 
 ### 3. Detect Project Setup
 
@@ -166,6 +192,17 @@ Use the Task tool to dispatch subagents. The order depends on `pipeline_mode`. *
 
 **Prompt file pattern — prevent oversized Task prompts:** Before every agent dispatch (including QA-loop re-dispatches), extract the agent-specific instructions from the research report and write them to a dedicated file at `.opencode/state/prompts/<agent-name>-<run-id>.md`. This avoids inflating the Task `prompt` parameter with large inline text — the file can be arbitrarily large without hitting prompt limits. The file contains only the sections relevant to that agent (e.g., for `node-expert` only backend sections, for `react-expert` only frontend sections). In the Task `prompt`, reference this file path instead of inlining the instructions.
 
+**AST data injection — AUTOMATIC (run this after writing the prompt file):**
+```bash
+node .opencode/lib/ast-parser/pipeline-ast.js pre-dispatch <agent-name> .opencode/state/prompts/<agent-name>-<run-id>.md
+```
+This automatically:
+1. Discovers relevant source files (controllers, services, components, schema)
+2. Runs AST analysis on them
+3. Appends a `## AST Context` section to the prompt file with pre-computed tables
+
+The agent receives all structural context in its prompt. It does NOT need to run any AST commands itself.
+
 Create the `.opencode/state/prompts/` directory on first dispatch if it doesn't exist.
 
 #### Phase 0: Codebase Exploration
@@ -233,15 +270,32 @@ When dispatching experts, pass:
 - The agent prompt file path at `.opencode/state/prompts/<agent-name>-<run-id>.md`
 - `explore_findings.md` path — for codebase convention context (if needed)
 
-### 9. Coverage Aggregation (full / implement mode)
+### 9. Post-Dispatch AST Validation (full / implement mode) — AUTOMATIC
 
-After all expert agents complete, aggregate all coverage manifests into the state file:
+After each expert agent completes writing its files, run automated AST validation with a single command:
+
+```bash
+node .opencode/lib/ast-parser/pipeline-ast.js post-dispatch <agent-name>
+```
+
+This automatically:
+1. Discovers relevant files based on the agent type and project_state.json
+2. Runs the appropriate validation (validate-nestjs, validate-react, or validate-schema)
+3. Outputs JSON with `{ passed: true/false, issues: [...] }`
+
+If the output contains `"passed": false`, parse the issues, log them in `project_state.json` under `ast_parser.post_dispatch_validation.<agent_name>`, and **halt the pipeline** — do not dispatch the next agent. The agent whose output failed validation must be re-dispatched (increment retry_count).
+
+Only proceed to the next agent if AST validation passes.
+
+### 10. Coverage Aggregation (full / implement mode)
+
+After all expert agents complete and pass AST validation, aggregate all coverage manifests into the state file:
 - Read each `coverage_<agent>.json` from `project_state.json.coverage_manifests`
 - Merge all claimed requirement IDs
 - Update `requirement_coverage.covered` and `requirement_coverage.gap` in `project_state.json`
 - If any requirement IDs from `research_report_coverage.json` are unclaimed, log them as gaps but do not halt (code-review-and-qa will verify formally)
 
-### 10. Dispatch code-review-and-qa
+### 11. Dispatch code-review-and-qa
 
 Dispatch `code-review-and-qa` to review and validate all changes (ask which model to use per Step 7 first). It produces a `qa_report` in the state file.
 

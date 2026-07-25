@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import type { User } from '../types/user';
 import type { AdminUser } from '../types/admin';
-import { clearGuestSessionId, clearGuestToken } from '../utils/guestSession';
+import { clearGuestSessionId, clearGuestToken, getGuestToken } from '../utils/guestSession';
+import { mergeCart } from '../api/cart';
+import { mergeWishlist } from '../api/wishlist';
 
 interface AuthState {
   user: User | null;
@@ -50,19 +52,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (refreshToken) {
       localStorage.setItem('refresh_token', refreshToken);
     }
-    // Migration is now handled server-side via the guestSessionId in the
-    // login/register body; just clear the local session.
+
+    // Get guest session ID before clearing it — used for cart/wishlist merge
+    const guestSessionId = localStorage.getItem('guest_session_id');
+
+    // Clear local guest data
     clearGuestSessionId();
     clearGuestToken();
     localStorage.removeItem('guest_id');
     localStorage.removeItem('guest_cart_items');
     localStorage.removeItem('guest_wishlist');
+
     set({
       user,
       token: accessToken,
       refreshTokenValue: refreshToken || get().refreshTokenValue,
       isAuthenticated: true,
     });
+
+    // Trigger guest-to-auth cart and wishlist merge in the background
+    if (guestSessionId) {
+      mergeCart(guestSessionId).catch((err) =>
+        console.warn('Guest cart merge failed (non-blocking):', err),
+      );
+      mergeWishlist(guestSessionId).catch((err) =>
+        console.warn('Guest wishlist merge failed (non-blocking):', err),
+      );
+    }
   },
 
   setAdminAuth: (admin, permissions, accessToken, refreshToken) => {

@@ -41,6 +41,20 @@ Only open `design_doc.md` if the research report explicitly flags a gap. Don't r
 
 Don't re-scan the existing component tree "to understand current structure" — the research report already contains literal excerpts of the conventions you need. Open a source file only at the point you are about to edit it.
 
+### 3.5 Parse Existing Components with AST
+
+Your prompt file already includes an `## AST Context` section with pre-computed tables of existing React components and their detected hooks. Read that section to understand current patterns.
+
+If you need additional detail on a specific file, use:
+```bash
+node .opencode/lib/ast-parser/ast-analyze.js explore <specific_file>
+```
+
+Use the output to:
+- **Match existing conventions**: component names, detected hooks, props, and state variables
+- **Identify import patterns**: how existing components import API services, state stores, and UI components
+- **Detect naming conflicts**: ensure new component names don't conflict
+
 ### 4. Identify Surface (Storefront vs Admin)
 
 Determine which app surface the request targets:
@@ -177,6 +191,18 @@ Claim every REQ-FE-* and REQ-CR-* requirement ID from `research_report_coverage.
 ### 11. Write Files
 
 Write files into the project's existing frontend directory structure as specified in "Exact Files to Modify/Create".
+
+### 11.5 Validate Components with AST
+
+After writing all component files, run a quick check:
+
+```bash
+node .opencode/lib/ast-parser/ast-analyze.js validate-react <all_written_files>
+```
+
+The `validate-react` mode checks for components that are not exported.
+
+Fix any export issues found before writing the coverage manifest.
 
 ### 12. Update Project State
 

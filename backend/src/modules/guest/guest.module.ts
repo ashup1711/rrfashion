@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GuestController } from './guest.controller';
 import { GuestSessionService } from './guest-session.service';
 import { GuestAddressService } from './guest-address.service';
+import { GuestCleanupService } from './guest-cleanup.service';
 
 @Module({
   imports: [
@@ -19,7 +20,7 @@ import { GuestAddressService } from './guest-address.service';
     }),
   ],
   controllers: [GuestController],
-  providers: [GuestSessionService, GuestAddressService],
+  providers: [GuestSessionService, GuestAddressService, GuestCleanupService],
   exports: [GuestSessionService, GuestAddressService],
 })
 export class GuestModule {}

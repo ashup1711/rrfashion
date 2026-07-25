@@ -75,6 +75,29 @@ Otherwise don't read it as a default step.
 
 Read every file listed in `backend_code`, `db_schema`, and `frontend_code` from the state file. Also read any files the research report says were modified. You must see the actual code on disk to review it.
 
+### Step 4.5: Parse Generated Code with AST
+
+Run the AST analyzer on written files for structural verification:
+
+```bash
+# Full structural exploration of all modified files
+node .opencode/lib/ast-parser/ast-analyze.js explore <all_modified_files>
+
+# Backend validation
+node .opencode/lib/ast-parser/ast-analyze.js validate-nestjs <all_backend_files>
+
+# Frontend validation  
+node .opencode/lib/ast-parser/ast-analyze.js validate-react <all_frontend_files>
+
+# Schema validation
+node .opencode/lib/ast-parser/ast-analyze.js validate-schema <schema_file>
+```
+
+Use the results to validate that:
+- Every claimed controller/service/component exists
+- Route methods and paths match the research report's "Exact Contracts"
+- No missing imports or unresolved references
+
 ### Phase 1: Technical Code Review
 
 Review each file for:
@@ -107,6 +130,9 @@ Review each file for:
 - Are there N+1 query patterns?
 - Are database indexes appropriate for the query patterns?
 - Is the test coverage sufficient (happy path + error paths)?
+- **AST check — Decorator presence**: Verify that NestJS controllers have `@Controller()`, services have `@Injectable()`, and modules have `@Module()` decorators. Flag missing decorators as `pattern_violation`.
+- **AST check — Route contract match**: For every route in the AST analysis, verify its method + path matches the "Exact Contracts" section of the research report. Mismatches are `contract_mismatch`.
+- **AST check — Import resolution**: Verify that all imported symbols in the analyzed files resolve to existing files or packages. Unresolved imports are `quality` errors.
 
 #### E. Frontend-Specific Review
 - Are loading, error, and empty states handled for every screen?
@@ -115,6 +141,8 @@ Review each file for:
 - Are there memory leaks (unsubscriptions, undisposed controllers)?
 - Are widgets properly using `const` constructors where possible?
 - Are there unnecessary widget rebuilds?
+- **AST check — Component hooks**: Verify that React components identified by the AST parser use `useState`, `useEffect`, `useCallback` hooks appropriately. Components that fetch data but lack `useState` for the result should be flagged.
+- **AST check — Named export**: Verify that all React components are properly exported. Components detected by the parser that lack an export entry are `pattern_violation`.
 
 #### F. Database-Specific Review
 - Are column types appropriate for the data?
@@ -122,6 +150,8 @@ Review each file for:
 - Are indexes present on foreign keys and frequently queried columns?
 - Are enums handled consistently (Python Enum in DB, matching API values)?
 - Are migration files complete with proper upgrade/downgrade?
+- **AST check — Model field types**: Verify that Prisma model fields parsed by the AST match the types specified in the research report. Mismatches are `type_mismatch`.
+- **AST check — Relation validation**: Verify that Prisma model relations parsed by the AST have corresponding fields in the related models. Orphaned relations are `quality` errors.
 
 ### Phase 2: QA Verification
 
@@ -148,6 +178,37 @@ Run available checks via Bash:
 - `python -m py_compile <file>` for Python files
 - `dart analyze <file>` for Dart files (if available)
 - Check for import errors, type errors, syntax errors
+
+#### J. AST Structural Verification (Automated)
+
+Run the AST parser on modified files for mechanical structural checks:
+
+**1. Validate backend files:**
+```bash
+node .opencode/lib/ast-parser/ast-analyze.js validate-nestjs <all_backend_files>
+```
+
+**2. Validate frontend files:**
+```bash
+node .opencode/lib/ast-parser/ast-analyze.js validate-react <all_frontend_files>
+```
+
+**3. Validate schema files:**
+```bash
+node .opencode/lib/ast-parser/ast-analyze.js validate-schema <schema_file>
+```
+
+**4. Cross-check route contracts:**
+```bash
+node .opencode/lib/ast-parser/ast-analyze.js validate-contracts <all_backend_files>
+```
+
+Record any AST verification failures in `qa_report.errors` with:
+- `type`: `"qa_failure"`
+- `subtype`: `"ast_verification_failed"` — the AST analysis found structural issues
+- `expected`: what the research report / coverage manifest claimed
+- `actual`: what the AST parser actually found
+- `fix`: actionable correction
 
 ### Step 4: Compile Findings
 
@@ -224,9 +285,9 @@ The `loopback_targets` should list only the specific agent(s) whose output needs
 |---------|-------------|---------|
 | `security` | Security vulnerability | Hardcoded secret, SQL injection, missing auth |
 | `error_handling` | Missing or incorrect error handling | Swallowed exception, wrong status code |
-| `pattern_violation` | Doesn't follow project conventions | Wrong naming, inconsistent style |
+| `pattern_violation` | Doesn't follow project conventions | Wrong naming, inconsistent style, missing decorator |
 | `performance` | Performance issue | N+1 query, missing index, unnecessary rebuild |
-| `quality` | Code quality issue | Duplicated code, overly complex function |
+| `quality` | Code quality issue | Duplicated code, overly complex function, unresolved import |
 | `testing` | Missing or insufficient tests | No error path test, no auth test |
 
 ### QA Verification Errors
@@ -237,9 +298,10 @@ The `loopback_targets` should list only the specific agent(s) whose output needs
 | `missing_file` | File not created/modified | Schema file not updated |
 | `missing_file_evidence` | Requirement claimed but file evidence missing | node-expert claims REQ-BE-002 but addresses.controller.ts doesn't exist |
 | `unexpected_claim` | Expert claimed a requirement ID not in the coverage manifest | db-expert claims REQ-FE-001 (frontend-only requirement) |
-| `contract_mismatch` | Cross-stack contract broken | Frontend field name doesn't match backend |
+| `contract_mismatch` | Cross-stack contract broken | Frontend field name doesn't match backend; route method/path mismatch |
 | `type_mismatch` | Type inconsistency across layers | DB column type doesn't match API field type |
 | `syntax_error` | Code doesn't compile | Python ImportError, Dart syntax error |
+| `ast_verification_failed` | AST structural verification failed | Claimed controller not found by parser; missing decorator on NestJS class |
 
 ## Hard Rules
 

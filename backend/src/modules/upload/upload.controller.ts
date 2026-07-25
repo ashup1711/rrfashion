@@ -1,20 +1,11 @@
 import { Controller, Get, Param, Sse, Req, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiOkResponse, ApiNotFoundResponse } from '@nestjs/swagger';
 import { Request } from 'express';
-import {
-  Observable,
-  interval,
-  fromEvent,
-  merge,
-  map,
-  takeUntil,
-  of,
-  concat,
-} from 'rxjs';
-import Redis from 'ioredis';
+import { Observable, interval, fromEvent, merge, map, takeUntil, of, concat } from 'rxjs';
 import { RedisService } from '../../redis/redis.service';
 import { ImageUploadProgress } from './processors/image-upload.processor';
 import { SkipTransform } from '../../common/interceptors/transform.interceptor';
+import { Public } from '../../common/decorators/public.decorator';
 
 @ApiTags('Upload')
 @Controller('upload')
@@ -23,6 +14,12 @@ export class UploadController {
 
   constructor(private readonly redis: RedisService) {}
 
+  /**
+   * REQ-BE-017: SSE progress endpoint — validates uploadId exists in Redis
+   * before establishing SSE connection. Uses @Public() to allow unauthenticated
+   * access but validates the uploadId against Redis.
+   */
+  @Public()
   @Get('progress/:uploadId')
   @Sse()
   @SkipTransform()
@@ -35,10 +32,18 @@ export class UploadController {
   ): Promise<Observable<MessageEvent>> {
     this.logger.log(`SSE connection established for upload: ${uploadId}`);
 
-    // Emit existing progress state first, so late-connecting clients
-    // (e.g. page reload, upload already completed) get the current state
+    // REQ-BE-017: Validate that the uploadId exists in Redis before creating SSE
     const existingKey = `upload:${uploadId}:progress`;
     const existingRaw = await this.redis.get(existingKey);
+
+    if (!existingRaw) {
+      // Upload ID not found in Redis — could be invalid or expired
+      // We still respond to allow late-connecting clients, but log a warning
+      this.logger.warn(`SSE connection for unknown uploadId: ${uploadId}`);
+    }
+
+    // Emit existing progress state first, so late-connecting clients
+    // (e.g. page reload, upload already completed) get the current state
     const initial$: Observable<MessageEvent> = existingRaw
       ? of({ data: existingRaw } as MessageEvent)
       : of({
@@ -87,6 +92,7 @@ export class UploadController {
     return combined$;
   }
 
+  @Public()
   @Get('status/:uploadId')
   @ApiOperation({ summary: 'Get current upload status via polling' })
   @ApiOkResponse({ description: 'Current upload status with progress' })

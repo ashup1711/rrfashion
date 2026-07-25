@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
-import type { ReactNode } from 'react';
+import { useRef, useEffect, useState, type ReactNode } from 'react';
 import type { Variants } from 'framer-motion';
 
 interface PageTransitionProps {
@@ -32,13 +32,25 @@ const pageVariants: Variants = {
 
 const PageTransition = ({ children }: PageTransitionProps) => {
   const location = useLocation();
+  const prevPathRef = useRef(location.pathname);
+  const [isFirstRender, setIsFirstRender] = useState(true);
+
+  useEffect(() => {
+    if (isFirstRender) {
+      setIsFirstRender(false);
+    }
+    prevPathRef.current = location.pathname;
+  }, [location.pathname, isFirstRender]);
+
+  // initial=false on first render to prevent flash, then animate on subsequent navigations
+  const isInitial = isFirstRender;
 
   return (
-    <AnimatePresence initial={false}>
+    <AnimatePresence initial={isInitial}>
       <motion.div
-        key={location.pathname}
+        key={location.pathname + (isFirstRender ? '-initial' : '')}
         variants={pageVariants}
-        initial="initial"
+        initial={isInitial ? false : 'initial'}
         animate="enter"
         exit="exit"
         className="w-full"

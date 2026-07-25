@@ -7,11 +7,12 @@ import { getPersistentItem } from '../utils/persistentStorage';
 import { QUERY_KEYS, ROUTES } from '../utils/constants';
 import { useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
+import type { CartItemState } from '../store/cartStore';
 
 export const useCart = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { setItems, items, syncWithBackend, isSynced, isSyncing } = useCartStore();
+  const { setItems, items, syncWithBackend, isSynced, isSyncing, addItem: addItemToStore, removeItem: removeItemFromStore, updateQuantity: updateQuantityInStore } = useCartStore();
   const itemCount = useCartStore((state) => state.itemCount);
   const total = useCartStore((state) => state.total);
 
@@ -28,6 +29,8 @@ export const useCart = () => {
     enabled: hasCredentials,
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    // Persist guest cart data in the cache across navigations
+    gcTime: 1000 * 60 * 30, // Keep in garbage collection cache for 30 min (formerly cacheTime)
   });
 
   // Handle cart query errors via side effect (React Query v5 removed onError from useQuery options)
@@ -107,6 +110,7 @@ export const useCart = () => {
       updateCartItem(itemId, quantity),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.cart] });
+      toast.success('Cart updated');
     },
     onError: (error: any) => {
       console.error('Failed to update cart item:', error);
@@ -140,9 +144,51 @@ export const useCart = () => {
         toast.info('This item is already in your cart');
         return;
       }
+
+      // For guest users, optimistically update local store + localStorage immediately
+      if (!isAuthenticated && hasGuestSession) {
+        const newItem: CartItemState = {
+          productId: variantId,
+          variantId,
+          name: 'Product',
+          basePrice: 0,
+          image: '/images/placeholder.svg',
+          quantity,
+          type: normalizedType,
+          isOptimistic: true,
+        };
+        addItemToStore(newItem);
+        toast.success('Item added to cart');
+        return;
+      }
+
       addItemMutation.mutate({ variantId, quantity, type: normalizedType });
     },
-    [items, addItemMutation],
+    [items, addItemMutation, isAuthenticated, hasGuestSession, addItemToStore],
+  );
+
+  const handleRemoveItem = useCallback(
+    (itemId: string) => {
+      // For guest users, optimistically remove from local store
+      if (!isAuthenticated && hasGuestSession) {
+        removeItemFromStore(itemId);
+        toast.success('Item removed from cart');
+        return;
+      }
+      removeItemMutation.mutate(itemId);
+    },
+    [isAuthenticated, hasGuestSession, removeItemMutation, removeItemFromStore],
+  );
+
+  const handleUpdateQuantity = useCallback(
+    (itemId: string, quantity: number) => {
+      if (!isAuthenticated && hasGuestSession) {
+        updateQuantityInStore(itemId, quantity);
+        return;
+      }
+      updateItemMutation.mutate({ itemId, quantity });
+    },
+    [isAuthenticated, hasGuestSession, updateItemMutation, updateQuantityInStore],
   );
 
   return {
@@ -151,17 +197,16 @@ export const useCart = () => {
     total,
     serverItems: cartQuery.data?.items,
     isLoading: cartQuery.isLoading,
-    isSyncing, // NEW
+    isSyncing,
     error: cartQuery.error,
     addItem: handleAddItem,
-    updateQuantity: (itemId: string, quantity: number) =>
-      updateItemMutation.mutate({ itemId, quantity }),
-    removeItem: (itemId: string) => removeItemMutation.mutate(itemId),
+    updateQuantity: handleUpdateQuantity,
+    removeItem: handleRemoveItem,
     isAdding: addItemMutation.isPending,
     isUpdating: updateItemMutation.isPending,
     isRemoving: removeItemMutation.isPending,
     refetch: cartQuery.refetch,
-    syncWithBackend, // NEW
-    isSynced, // NEW
+    syncWithBackend,
+    isSynced,
   };
 };

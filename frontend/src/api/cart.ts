@@ -47,3 +47,8 @@ export const updateCartItem = async (itemId: string, quantity: number): Promise<
 export const removeFromCart = async (itemId: string): Promise<void> => {
   await apiClient.delete(`/cart/items/${itemId}`);
 };
+
+export const mergeCart = async (guestSessionId: string): Promise<{ merged: boolean; items: CartItem[] }> => {
+  const { data } = await apiClient.post<{ merged: boolean; items: CartItem[] }>('/cart/merge', { guestSessionId });
+  return data;
+};

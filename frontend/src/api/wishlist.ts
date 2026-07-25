@@ -35,3 +35,8 @@ export const addAllWishlistToCart = async (): Promise<{ added: number; skipped: 
   const { data } = await apiClient.post('/wishlist/add-all-to-cart');
   return data;
 };
+
+export const mergeWishlist = async (guestSessionId: string): Promise<{ merged: boolean }> => {
+  const { data } = await apiClient.post<{ merged: boolean }>('/wishlist/merge', { guestSessionId });
+  return data;
+};

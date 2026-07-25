@@ -983,7 +983,24 @@ export class OrdersService {
       inventoryDecrementMap.set(item.variantId, currentQty + item.quantity);
     }
 
-    const totalAmount = subtotal;
+    // Apply coupon if provided
+    let discountAmount = 0;
+    let appliedCouponId: string | null = null;
+
+    if (dto.couponCode) {
+      try {
+        const couponResult = await this.applyCouponToGuestCheckout(dto.couponCode, subtotal);
+        discountAmount = couponResult.discountAmount;
+        appliedCouponId = couponResult.couponId;
+      } catch (error) {
+        this.logger.warn(
+          { couponCode: dto.couponCode, error: (error as Error).message },
+          'Coupon validation failed during guest checkout, proceeding without discount',
+        );
+      }
+    }
+
+    const totalAmount = subtotal - discountAmount;
 
     const order = await this.prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
@@ -992,6 +1009,8 @@ export class OrdersService {
           userId: dto.guestId,
           totalAmount,
           subtotal,
+          discountAmount,
+          ...(appliedCouponId ? { couponId: appliedCouponId } : {}),
           shippingAddress: dto.shippingAddress as unknown as Prisma.InputJsonValue,
           paymentMethod: dto.paymentMethod,
           channel: 'online',
@@ -1209,6 +1228,66 @@ export class OrdersService {
             value: Number(coupon.value),
             description: coupon.description,
           },
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  /**
+   * Validates a coupon code and returns discount details for guest checkout.
+   * Mirrors the logic in applyCoupon() but operates without userId/guestSessionId context.
+   */
+  private async applyCouponToGuestCheckout(
+    code: string,
+    cartTotal: number,
+  ): Promise<{ discountAmount: number; finalTotal: number; couponId: string }> {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const now = new Date();
+
+        const coupon = await tx.coupon.findUnique({ where: { code } });
+
+        if (!coupon) {
+          throw new NotFoundException('Coupon not found');
+        }
+        if (!coupon.isActive) {
+          throw new BadRequestException('This coupon is no longer active');
+        }
+        if (now < coupon.validFrom) {
+          throw new BadRequestException('This coupon is not yet valid');
+        }
+        if (now > coupon.validUntil) {
+          throw new BadRequestException('This coupon has expired');
+        }
+        if (coupon.usageLimit !== null && coupon.usedCount >= coupon.usageLimit) {
+          throw new ConflictException('This coupon has reached its usage limit');
+        }
+        // Skip per-user usage check for guest checkout (no user context)
+        if (Number(cartTotal) < Number(coupon.minCartValue)) {
+          throw new BadRequestException(
+            `Minimum cart value of ₹${Number(coupon.minCartValue)} required for this coupon`,
+          );
+        }
+
+        // Calculate discount
+        let discountAmount: number;
+        if (coupon.type === 'PERCENT') {
+          discountAmount = (Number(cartTotal) * Number(coupon.value)) / 100;
+          if (coupon.maxDiscount !== null && discountAmount > Number(coupon.maxDiscount)) {
+            discountAmount = Number(coupon.maxDiscount);
+          }
+        } else {
+          discountAmount = Number(coupon.value);
+        }
+        discountAmount = Math.min(discountAmount, Number(cartTotal));
+
+        const finalTotal = Number(cartTotal) - discountAmount;
+
+        return {
+          discountAmount: Math.round(discountAmount * 100) / 100,
+          finalTotal: Math.round(finalTotal * 100) / 100,
+          couponId: coupon.id,
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },

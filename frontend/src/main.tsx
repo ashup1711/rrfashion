@@ -5,12 +5,11 @@ import { QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-qu
 import { Toaster, toast } from 'sonner';
 import App from './App';
 import { AuthInitializer } from './components/auth/AuthInitializer';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import './styles/globals.css';
-import { ensureGuestSession } from './utils/guestSessionInit';
 
-// Initialize guest session early so the request interceptor
-// never needs to make a recursive API call for it.
-ensureGuestSession();
+// ensureGuestSession() is REMOVED from here — now called inside AuthInitializer useEffect.
+// This eliminates the race condition between guest session init and React hydration.
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,13 +32,15 @@ const queryClient = new QueryClient({
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <HashRouter>
-        <AuthInitializer>
-          <App />
-        </AuthInitializer>
-        <Toaster richColors position="top-right" duration={4000} />
-      </HashRouter>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <HashRouter>
+          <AuthInitializer>
+            <App />
+          </AuthInitializer>
+          <Toaster richColors position="top-right" duration={4000} />
+        </HashRouter>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 );

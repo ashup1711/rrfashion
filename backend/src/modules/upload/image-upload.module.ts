@@ -1,6 +1,7 @@
 import { Module, Global, forwardRef, Logger, OnModuleInit } from '@nestjs/common';
 import { BullModule, InjectQueue } from '@nestjs/bullmq';
 import { MulterModule } from '@nestjs/platform-express';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { diskStorage } from 'multer';
 import { mkdirSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
@@ -26,12 +27,14 @@ mkdirSync(TEMP_DIR, { recursive: true });
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
+// REQ-BE-009: Default max file sizes (can be overridden via env)
+const DEFAULT_MAX_SIZE_VARIANT_IMAGE = 10 * 1024 * 1024; // 10MB
+const DEFAULT_MAX_SIZE_PROFILE_PHOTO = 5 * 1024 * 1024; // 5MB
+
 @Injectable()
 export class BullQueueHealthCheck implements OnModuleInit {
   private readonly logger = new Logger(BullQueueHealthCheck.name);
-  constructor(
-    @InjectQueue('image-upload-queue') private readonly queue: Queue,
-  ) {}
+  constructor(@InjectQueue('image-upload-queue') private readonly queue: Queue) {}
   async onModuleInit() {
     try {
       const workers = await this.queue.getWorkers();
@@ -57,31 +60,44 @@ export class BullQueueHealthCheck implements OnModuleInit {
     StorageModule,
     RedisModule,
     forwardRef(() => ProductImagesModule),
-    MulterModule.register({
-      storage: diskStorage({
-        destination: TEMP_DIR,
-        filename: (_req, file, cb) => {
-          const ext = file.originalname.split('.').pop() ?? 'jpg';
-          cb(null, `${uuidv4()}.${ext}`);
-        },
-      }),
-      limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB
-        files: 10,
-      },
-      fileFilter: (_req, file, cb) => {
-        if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-          return cb(new Error('Only JPEG, PNG, and WebP images are allowed'), false);
-        }
-        cb(null, true);
+    MulterModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        // REQ-BE-009: Configurable max file sizes per upload type
+        // Use process.env directly since ConfigService may not be initialized yet
+        const maxSizeVariant =
+          parseInt(configService.get<string>('UPLOAD_MAX_SIZE_VARIANT_IMAGE', ''), 10) ||
+          DEFAULT_MAX_SIZE_VARIANT_IMAGE;
+        const maxSizeProfile =
+          parseInt(configService.get<string>('UPLOAD_MAX_SIZE_PROFILE_PHOTO', ''), 10) ||
+          DEFAULT_MAX_SIZE_PROFILE_PHOTO;
+        // Use the larger of the two as the global limit for Multer
+        const globalLimit = Math.max(maxSizeVariant, maxSizeProfile);
+
+        return {
+          storage: diskStorage({
+            destination: TEMP_DIR,
+            filename: (_req, file, cb) => {
+              const ext = file.originalname.split('.').pop() ?? 'jpg';
+              cb(null, `${uuidv4()}.${ext}`);
+            },
+          }),
+          limits: {
+            fileSize: globalLimit,
+            files: 10,
+          },
+          fileFilter: (_req, file, cb) => {
+            if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+              return cb(new Error('Only JPEG, PNG, and WebP images are allowed'), false);
+            }
+            cb(null, true);
+          },
+        };
       },
     }),
   ],
-  controllers: [
-    UploadController,
-    TempUploadController,
-    PromoteImagesController,
-  ],
+  controllers: [UploadController, TempUploadController, PromoteImagesController],
   providers: [
     ImageUploadProcessor,
     ImageUploadService,

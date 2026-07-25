@@ -41,9 +41,11 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { RemindersModule } from './modules/reminders/reminders.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
 import { ImageUploadModule } from './modules/upload/image-upload.module';
+import { ImagesModule } from './modules/images/images.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { AdminJwtStrategy } from './common/strategies/admin-jwt.strategy';
 import { ThrottlerProxyGuard } from './common/guards/throttler-proxy.guard';
+import { CsrfGuard } from './common/guards/csrf.guard';
 import { RedisThrottlerStorage } from './common/providers/redis-throttler-storage.service';
 import { StoreAuthModule } from './common/guards/store-auth.module';
 import { envConfig } from './config/env.config';
@@ -151,6 +153,7 @@ import { StorageModule } from './storage/storage.module';
     AddressesModule,
     GuestModule,
     ImageUploadModule,
+    ImagesModule, // REQ-BE-012: Image proxy endpoint
     StoreAuthModule,
   ],
   providers: [
@@ -159,6 +162,12 @@ import { StorageModule } from './storage/storage.module';
     {
       provide: APP_GUARD,
       useClass: ThrottlerProxyGuard,
+    },
+    // REQ-BE-003: CSRF guard applied globally as defense-in-depth
+    // Only activates on state-changing requests without Authorization header
+    {
+      provide: APP_GUARD,
+      useClass: CsrfGuard,
     },
   ],
 })

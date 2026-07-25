@@ -8,8 +8,11 @@ import {
   Param,
   HttpCode,
   UseGuards,
+  Headers,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { JwtService } from '@nestjs/jwt';
 import { ApiCommonResponse } from '../../common/decorators/api-response.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { StoreAuthGuard } from '../../common/guards/store-auth.guard';
@@ -26,7 +29,10 @@ import {
 @ApiTags('Guest')
 @Controller('guest')
 export class GuestController {
-  constructor(private readonly guestSessionService: GuestSessionService) {}
+  constructor(
+    private readonly guestSessionService: GuestSessionService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   @Public()
   @Post('start')
@@ -38,6 +44,38 @@ export class GuestController {
   })
   async startGuest(): Promise<GuestStartResponseDto> {
     return this.guestSessionService.createWithToken();
+  }
+
+  /**
+   * REQ-BE-016: Refresh an expiring guest session.
+   * Accepts the current guest token and returns a new token with extended expiry.
+   */
+  @Public()
+  @Post('refresh')
+  @ApiCommonResponse({
+    summary: 'Refresh an expiring guest session',
+    status: 201,
+    auth: false,
+    type: GuestStartResponseDto,
+  })
+  async refreshSession(
+    @Headers('authorization') authHeader?: string,
+  ): Promise<GuestStartResponseDto> {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Guest token required');
+    }
+    const token = authHeader.slice(7);
+    try {
+      // Decode the current token to get session ID
+      const decoded = this.jwtService.verify(token) as { guestSessionId: string; type: string };
+      if (decoded.type !== 'guest') {
+        throw new UnauthorizedException('Invalid guest token');
+      }
+      return this.guestSessionService.refreshSession(decoded.guestSessionId);
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
+      throw new UnauthorizedException('Invalid or expired guest token');
+    }
   }
 
   @UseGuards(StoreAuthGuard)
