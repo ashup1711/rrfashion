@@ -189,7 +189,7 @@ const CheckoutForm = ({ onStepChange, currentStep }: CheckoutFormProps) => {
     const shippingAddress = {
       name: useNewAddress 
         ? `${formData.firstName.trim()} ${formData.lastName.trim()}`.trim()
-        : addresses?.find(a => a.id === selectedAddressId)?.label || 'Saved Address',
+        : (user?.name || `${formData.firstName.trim()} ${formData.lastName.trim()}`.trim() || addresses?.find(a => a.id === selectedAddressId)?.label || 'Customer'),
       phone: formData.phone.trim(),
       line1: formData.line1.trim(),
       line2: formData.line2.trim() || undefined,
@@ -697,7 +697,7 @@ const CheckoutForm = ({ onStepChange, currentStep }: CheckoutFormProps) => {
                 <p className="font-bold text-base mb-2 uppercase tracking-tight">
                   {useNewAddress
                     ? `${formData.firstName} ${formData.lastName}`.trim()
-                    : (addresses?.find(a => a.id === selectedAddressId)?.label || 'Saved Address')}
+                    : (user?.name || addresses?.find(a => a.id === selectedAddressId)?.label || 'Customer')}
                 </p>
                 <p className="opacity-70 mb-1">{formData.line1}</p>
                 {formData.line2 && <p className="opacity-70 mb-1">{formData.line2}</p>}

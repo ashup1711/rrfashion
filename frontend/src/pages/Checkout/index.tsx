@@ -17,11 +17,21 @@ const STEPS = [
 const Checkout = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [pageState, setPageState] = useState<'loading' | 'ready' | 'redirecting'>('loading');
+  const [authResolved, setAuthResolved] = useState(false);
   const navigate = useNavigate();
   const hasTriggeredRedirect = useRef(false);
 
   const { isAuthenticated } = useAuthStore();
   const { items, isLoading: cartLoading, serverItems } = useCart();
+
+  // Guard: track when the auth store has rehydrated from localStorage.
+  // This prevents the cart query from being disabled due to stale auth state
+  // (isAuthenticated briefly false before Zustand persist middleware rehydrates).
+  useEffect(() => {
+    if (isAuthenticated) {
+      setAuthResolved(true);
+    }
+  }, [isAuthenticated]);
 
   // Drive page state transitions based on cart loading status and items
   useEffect(() => {
@@ -117,10 +127,10 @@ const Checkout = () => {
         </div>
       </div>
     );
-  } else if (pageState === 'loading') {
+  } else if (pageState === 'loading' || !authResolved) {
     content = (
       <div className="bg-neutral-white min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" label="Loading checkout..." />
+        <LoadingSpinner size="lg" label={!authResolved ? "Authenticating..." : "Loading checkout..."} />
       </div>
     );
   } else if (pageState === 'redirecting') {
@@ -200,6 +210,13 @@ const Checkout = () => {
             </div>
           </div>
         </div>
+      </div>
+    );
+  } else {
+    // Defensive fallback — prevents React Error #300 if content is ever undefined
+    content = (
+      <div className="bg-neutral-white min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="lg" label="Preparing checkout..." />
       </div>
     );
   }

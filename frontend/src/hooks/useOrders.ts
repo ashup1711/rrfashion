@@ -4,14 +4,13 @@ import {
   getOrder,
   createOrder,
   updateOrder,
-  getMyOrders,
-  getMyOrder,
-  repurchaseOrder,
-  downloadOrderInvoice,
 } from '../api/orders';
 import { QUERY_KEYS } from '../utils/constants';
 import type { CreateOrderData } from '../types/order';
 
+/**
+ * Admin/all orders — GET /orders (with filters).
+ */
 export const useOrders = (filters?: { page?: number; limit?: number; status?: string }) => {
   return useQuery({
     queryKey: [QUERY_KEYS.orders, filters],
@@ -19,6 +18,9 @@ export const useOrders = (filters?: { page?: number; limit?: number; status?: st
   });
 };
 
+/**
+ * Single admin order — GET /orders/:id.
+ */
 export const useOrder = (id: string) => {
   return useQuery({
     queryKey: [QUERY_KEYS.order, id],
@@ -28,48 +30,9 @@ export const useOrder = (id: string) => {
 };
 
 /**
- * Alias for useOrders — fetches current user's orders from GET /orders/my.
+ * Create order mutation — POST /orders.
+ * Invalidates orders, inventory, and cart caches on success.
  */
-export const useMyOrders = (filters?: { page?: number; limit?: number; status?: string }) => {
-  return useQuery({
-    queryKey: [QUERY_KEYS.myOrders, filters],
-    queryFn: () => getMyOrders(filters),
-  });
-};
-
-/**
- * Fetches a single order by ID from GET /orders/my/:id.
- */
-export const useMyOrder = (id: string) => {
-  return useQuery({
-    queryKey: [QUERY_KEYS.myOrder, id],
-    queryFn: () => getMyOrder(id),
-    enabled: !!id,
-  });
-};
-
-/**
- * Repurchase mutation — POST /orders/my/:id/repurchase.
- */
-export const useRepurchase = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: repurchaseOrder,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.cart] });
-    },
-  });
-};
-
-/**
- * Download invoice mutation — returns a Blob.
- */
-export const useDownloadInvoice = () => {
-  return useMutation({
-    mutationFn: downloadOrderInvoice,
-  });
-};
-
 export const useCreateOrder = () => {
   const queryClient = useQueryClient();
 
@@ -79,10 +42,17 @@ export const useCreateOrder = () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.orders] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.inventory] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.inventoryVariant] });
+      // Invalidate cart — backend clears cart items inside the order creation transaction,
+      // so the next cart fetch will return an empty cart. Without this, callers must
+      // manually invalidate, which is easy to forget.
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.cart] });
     },
   });
 };
 
+/**
+ * Update order mutation — PATCH /orders/:id.
+ */
 export const useUpdateOrder = () => {
   const queryClient = useQueryClient();
 
