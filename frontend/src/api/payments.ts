@@ -9,12 +9,14 @@ export interface VerifyPaymentData {
 export interface VerifyPaymentResponse {
   verified: boolean;
   paymentId: string;
+  alreadyPaid?: boolean;
 }
 
 export interface PaymentStatusResponse {
   paymentStatus: string;
   paidAmount: number;
-  paymentMethod: string;
+  paymentMethod: string | null;
+  invoiceGenerated: boolean;
 }
 
 /**

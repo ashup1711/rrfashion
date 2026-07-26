@@ -303,6 +303,11 @@ export class PaymentsService implements OnModuleInit {
       throw new BadRequestException('Payment record not found');
     }
 
+    // Idempotency check: if already PAID, skip updates and invoice generation
+    if (payment.status === 'PAID') {
+      return { verified: true, paymentId: payment.id, alreadyPaid: true };
+    }
+
     await this.prisma.payment.update({
       where: { id: payment.id },
       data: {
@@ -401,14 +406,26 @@ export class PaymentsService implements OnModuleInit {
 
       switch (payload.event) {
         case 'payment.captured': {
-          const existing = await tx.payment.findFirst({
+          // First, try to find the payment by razorpayPaymentId (set during verifyPayment modal flow)
+          let existing = await tx.payment.findFirst({
             where: { razorpayPaymentId: paymentEntity.id as string },
           });
+
+          // If not found by payment ID, fall back to razorpayOrderId (redirect flow never calls verifyPayment)
+          if (!existing) {
+            existing = await tx.payment.findFirst({
+              where: { razorpayOrderId: paymentEntity.order_id as string },
+            });
+          }
 
           if (existing) {
             await tx.payment.update({
               where: { id: existing.id },
-              data: { status: 'PAID', razorpayEventId: resolvedEventId },
+              data: {
+                status: 'PAID',
+                razorpayPaymentId: paymentEntity.id as string, // Set it if it was missing
+                razorpayEventId: resolvedEventId,
+              },
             });
             await tx.order.update({
               where: { id: existing.orderId },
@@ -423,6 +440,12 @@ export class PaymentsService implements OnModuleInit {
             if (order?.storeId) {
               ordersNeedingInvoice.push(existing.orderId);
             }
+          } else {
+            this.logger.warn({
+              eventId: resolvedEventId,
+              razorpayOrderId: paymentEntity.order_id,
+              razorpayPaymentId: paymentEntity.id,
+            }, 'Payment record not found for payment.captured webhook — neither by razorpayPaymentId nor razorpayOrderId');
           }
           break;
         }
@@ -542,12 +565,14 @@ export class PaymentsService implements OnModuleInit {
     paymentStatus: string;
     paidAmount: number;
     paymentMethod: string | null;
+    invoiceGenerated: boolean;
   }> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       select: {
         paymentStatus: true,
         paymentMethod: true,
+        storeId: true,
       },
     });
 
@@ -563,10 +588,35 @@ export class PaymentsService implements OnModuleInit {
 
     const latestPayment = payments[0];
 
+    // Auto-generate invoice if payment is PAID but no invoice exists yet
+    // This handles the redirect flow where verifyPayment was never called
+    let invoiceGenerated = false;
+    if (order.paymentStatus === 'PAID' && order.storeId) {
+      const existingInvoice = await this.prisma.invoice.findFirst({
+        where: { orderId, type: 'INVOICE' },
+      });
+      if (!existingInvoice) {
+        try {
+          await this.invoicesService.generate({
+            orderId,
+            storeId: order.storeId,
+          });
+          invoiceGenerated = true;
+        } catch (error) {
+          this.logger.warn(
+            `Failed to auto-generate invoice in getPaymentStatus for order ${orderId}: ${(error as Error).message}`,
+          );
+        }
+      } else {
+        invoiceGenerated = true;
+      }
+    }
+
     return {
       paymentStatus: order.paymentStatus,
       paidAmount: latestPayment?.status === 'PAID' ? Number(latestPayment.amount) : 0,
       paymentMethod: order.paymentMethod,
+      invoiceGenerated,
     };
   }
 

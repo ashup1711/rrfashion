@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useMyOrder, useRepurchase, useDownloadInvoice, useInitiateReturn, useOrderTracking } from '../../hooks/useMyOrders';
-import { getPaymentStatus } from '../../api/payments';
+import { getPaymentStatus, verifyPayment } from '../../api/payments';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
 import Badge from '../../components/ui/Badge';
@@ -22,6 +22,14 @@ const statusVariant: Record<string, 'warning' | 'info' | 'success' | 'danger'> =
   CANCELLED: 'danger',
   PARTIALLY_CANCELLED: 'danger',
   RETURNED: 'warning',
+};
+
+const paymentStatusVariant: Record<string, 'warning' | 'info' | 'success' | 'danger'> = {
+  PENDING: 'warning',
+  PAID: 'success',
+  FAILED: 'danger',
+  REFUNDED: 'info',
+  PARTIALLY_REFUNDED: 'info',
 };
 
 const RETURN_REASONS = [
@@ -53,26 +61,61 @@ const OrderDetail = () => {
   const paymentCheckedRef = useRef(false);
 
   useEffect(() => {
+    // Check for Razorpay redirect params first
+    const rpOrderId = searchParams.get('razorpay_order_id');
+    const rpPaymentId = searchParams.get('razorpay_payment_id');
+    const rpSignature = searchParams.get('razorpay_signature');
+
     const paymentParam = searchParams.get('payment');
-    if ((paymentParam === 'verifying' || paymentParam === 'checking') && id && !paymentCheckedRef.current) {
+    const isVerifying = paymentParam === 'verifying' || paymentParam === 'checking';
+
+    if ((isVerifying || (rpOrderId && rpPaymentId)) && id && !paymentCheckedRef.current) {
       paymentCheckedRef.current = true;
-      getPaymentStatus(id)
-        .then((res) => {
+
+      const checkPayment = async () => {
+        // If we have Razorpay redirect params, verify the payment
+        if (rpOrderId && rpPaymentId && rpSignature) {
+          try {
+            const verifyResult = await verifyPayment({
+              razorpayOrderId: rpOrderId,
+              razorpayPaymentId: rpPaymentId,
+              razorpaySignature: rpSignature,
+            });
+            if (verifyResult.verified) {
+              toast.success('Payment confirmed!');
+            }
+          } catch (err) {
+            // Verification failed — the webhook may have already processed it
+            // Fall through to check status
+          }
+        }
+
+        // Always check payment status to get current state
+        try {
+          const res = await getPaymentStatus(id);
           if (res.paymentStatus === 'PAID') {
-            toast.success('Payment confirmed!');
+            if (res.invoiceGenerated) {
+              toast.success('Invoice generated successfully!');
+            }
+            if (!(rpOrderId && rpPaymentId && rpSignature)) {
+              toast.success('Payment confirmed!');
+            }
           } else if (res.paymentStatus === 'PENDING') {
-            toast.info('Payment processing...');
+            toast.info('Payment processing... Your order will be updated shortly.');
           } else if (res.paymentStatus === 'FAILED') {
             toast.error('Payment failed. Please try again.');
           }
-        })
-        .catch(() => {
+        } catch {
           toast.info('Payment status check in progress...');
-        })
-        .finally(() => {
-          searchParams.delete('payment');
-          setSearchParams(searchParams, { replace: true });
-        });
+        }
+      };
+
+      checkPayment().finally(() => {
+        // Clean up URL params
+        const paramsToRemove = ['payment', 'razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature'];
+        paramsToRemove.forEach(param => searchParams.delete(param));
+        setSearchParams(searchParams, { replace: true });
+      });
     }
   }, [id, searchParams, setSearchParams]);
 
@@ -183,7 +226,19 @@ const OrderDetail = () => {
             Placed on {new Date(order.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <Badge variant={statusVariant[order.status] || 'default'}>{order.status}</Badge>
+        <div className="flex items-center gap-2">
+            <Badge variant={statusVariant[order.status] || 'default'}>{order.status}</Badge>
+            {order.paymentStatus && (
+              <Badge variant={paymentStatusVariant[order.paymentStatus] || 'default'}>
+                {order.paymentStatus === 'PAID' ? 'Paid' :
+                 order.paymentStatus === 'PENDING' ? 'Payment Pending' :
+                 order.paymentStatus === 'FAILED' ? 'Payment Failed' :
+                 order.paymentStatus === 'REFUNDED' ? 'Refunded' :
+                 order.paymentStatus === 'PARTIALLY_REFUNDED' ? 'Partially Refunded' :
+                 order.paymentStatus}
+              </Badge>
+            )}
+          </div>
       </div>
 
       {/* Order Tracking Section (Item D) */}

@@ -6,8 +6,17 @@ import LoadingSpinner from '../../../components/common/LoadingSpinner';
 import EmptyState from '../../../components/common/EmptyState';
 import ErrorBoundary from '../../../components/common/ErrorBoundary';
 import Button from '../../../components/ui/Button';
+import Badge from '../../../components/ui/Badge';
 import { ROUTES } from '../../../utils/constants';
 import { useState } from 'react';
+
+const paymentStatusVariant: Record<string, 'success' | 'warning' | 'danger' | 'info'> = {
+  PAID: 'success',
+  PENDING: 'warning',
+  FAILED: 'danger',
+  REFUNDED: 'info',
+  PARTIALLY_REFUNDED: 'info',
+};
 
 const OrderDetailContent = () => {
   const { id } = useParams<{ id: string }>();
@@ -139,16 +148,29 @@ const OrderDetailContent = () => {
           <div className="bg-white border border-gray-200 rounded-lg p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Payment Info</h2>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Method</span>
-                <span className="font-medium text-gray-900">
-                  {order.payments?.[0]?.method || order.payment?.method || '—'}
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Status</span>
+                <span>
+                  {order.paymentStatus ? (
+                    <Badge
+                      variant={paymentStatusVariant[order.paymentStatus] || 'default'}
+                    >
+                      {order.paymentStatus === 'PAID' ? 'Paid' :
+                       order.paymentStatus === 'PENDING' ? 'Pending' :
+                       order.paymentStatus === 'FAILED' ? 'Failed' :
+                       order.paymentStatus === 'REFUNDED' ? 'Refunded' :
+                       order.paymentStatus === 'PARTIALLY_REFUNDED' ? 'Partially Refunded' :
+                       order.paymentStatus}
+                    </Badge>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Status</span>
+                <span className="text-gray-600">Method</span>
                 <span className="font-medium text-gray-900">
-                  {order.paymentStatus || order.payments?.[0]?.status || order.payment?.status || '—'}
+                  {order.payments?.[0]?.method || '—'}
                 </span>
               </div>
               <hr className="my-2" />
