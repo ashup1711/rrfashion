@@ -14,6 +14,7 @@ import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationChannel } from '../notifications/dto/create-notification.dto';
 import { PaymentsService } from '../payments/payments.service';
+import { InvoicesService } from '../invoices/invoices.service';
 import { OrderHistoryQueryDto } from './dto/order-history-query.dto';
 import { GuestCheckoutDto } from './dto/guest-checkout.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -84,6 +85,7 @@ export class OrdersService {
     private readonly notificationsGateway: NotificationsGateway,
     private readonly notificationsService: NotificationsService,
     private readonly paymentsService: PaymentsService,
+    private readonly invoicesService: InvoicesService,
     private readonly config: ConfigService,
   ) {}
 
@@ -1407,7 +1409,30 @@ export class OrdersService {
       }
     }
 
-    const invoice = order.invoices[0];
+    // If payment is PAID but no invoice exists, try to generate one on the fly
+    let invoice = order.invoices[0];
+    if (!invoice && order.paymentStatus === 'PAID') {
+      let storeId = order.storeId;
+      if (!storeId) {
+        const defaultStore = await this.prisma.storeLocation.findFirst({
+          where: { isActive: true },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (defaultStore) {
+          storeId = defaultStore.id;
+        }
+      }
+      if (storeId) {
+        try {
+          invoice = await this.invoicesService.generate({ orderId, storeId });
+        } catch (error) {
+          this.logger.warn(
+            `Failed to auto-generate invoice for order ${orderId} during download: ${(error as Error).message}`,
+          );
+        }
+      }
+    }
+
     if (!invoice) {
       throw new NotFoundException('No invoice found for this order');
     }
