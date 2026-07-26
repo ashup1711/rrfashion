@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ROUTES, CATEGORY_SLUGS } from '../../utils/constants';
@@ -87,6 +87,7 @@ const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [openMegaMenu, setOpenMegaMenu] = useState<string | null>(null);
   const [openMobileSubmenu, setOpenMobileSubmenu] = useState<string | null>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
 
   const isActive = (href: string) => {
     if (href === ROUTES.HOME) return location.pathname === '/';
@@ -127,9 +128,24 @@ const Header = () => {
     closeMobileMenu();
   }, [location.pathname]);
 
+  // Set CSS variable for header height (for mega menu positioning)
+  useEffect(() => {
+    const updateHeaderHeight = () => {
+      if (headerRef.current) {
+        const rect = headerRef.current.getBoundingClientRect();
+        document.documentElement.style.setProperty('--header-bottom', `${rect.bottom}px`);
+      }
+    };
+
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
+    return () => window.removeEventListener('resize', updateHeaderHeight);
+  }, [isScrolled]);
+
   return (
     <>
-      <header 
+      <header
+        ref={headerRef}
         className={`bg-white sticky top-0 z-50 transition-all duration-300 ${
           isScrolled ? 'shadow-md header-shadow-scrolled' : 'shadow-sm header-shadow-transition'
         } ${isScrolled ? 'h-[64px]' : 'h-topbar'}`}
@@ -157,53 +173,170 @@ const Header = () => {
             {/* Desktop Navigation - Center aligned */}
             <nav className="hidden lg:flex items-center gap-8">
               {NAV_ITEMS.map((item) => (
-                <div key={item.label} className="mega-menu-wrapper relative">
-                  <button
-                    className={`text-[15px] font-medium transition-colors px-3 py-2 hover:bg-neutral-light rounded-md ${
+                <div
+                  key={item.label}
+                  className="mega-menu-wrapper relative"
+                  onMouseEnter={() => item.megaMenu ? setOpenMegaMenu(item.label) : null}
+                  onMouseLeave={() => item.megaMenu ? setOpenMegaMenu(null) : null}
+                >
+                  <Link
+                    to={item.href}
+                    className={`text-[15px] font-medium transition-colors px-3 py-2 hover:bg-neutral-light rounded-md flex items-center gap-1 ${
                       isActive(item.href)
                         ? 'text-primary-500'
                         : 'text-neutral-nearBlack hover:text-primary-500'
                     }`}
-                    onClick={() => item.megaMenu ? setOpenMegaMenu(openMegaMenu === item.label ? null : item.label) : null}
-                    onMouseEnter={() => item.megaMenu ? setOpenMegaMenu(item.label) : null}
                   >
-                    <Link to={item.href} className="flex items-center gap-1">
-                      {item.label}
-                      {item.megaMenu && (
-                        <motion.svg
-                          animate={{ rotate: openMegaMenu === item.label ? 180 : 0 }}
-                          className="w-4 h-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </motion.svg>
-                      )}
-                    </Link>
-                  </button>
+                    {item.label}
+                    {item.megaMenu && (
+                      <motion.svg
+                        animate={{ rotate: openMegaMenu === item.label ? 180 : 0 }}
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </motion.svg>
+                    )}
+                  </Link>
                   
-                  {/* Mega Menu Dropdown with Animation */}
+                  {/* Full-Width Mega Menu Dropdown with Backdrop */}
                   <AnimatePresence>
                     {item.megaMenu && openMegaMenu === item.label && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.2 }}
-                        className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-100 py-2 min-w-[200px] z-50"
-                        onMouseLeave={() => setOpenMegaMenu(null)}
-                      >
-                        {item.subItems?.map((subItem) => (
-                          <Link
-                            key={subItem.label}
-                            to={subItem.href}
-                            className="block px-4 py-2 text-sm text-neutral-nearBlack hover:bg-neutral-light hover:text-primary-500 transition-colors"
-                          >
-                            {subItem.label}
-                          </Link>
-                        ))}
-                      </motion.div>
+                      <>
+                        {/* Backdrop overlay */}
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.15 }}
+                          className="fixed inset-0 bg-black/20 z-40"
+                          aria-hidden="true"
+                          style={{ top: 'var(--header-bottom, 80px)' }}
+                        />
+                        
+                        {/* Full-width mega menu */}
+                        <motion.div
+                          initial={{ opacity: 0, y: -8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          transition={{ duration: 0.2 }}
+                          className="fixed left-1/2 -translate-x-1/2 w-screen max-w-screen-xl bg-white shadow-xl border-t border-neutral-medium/20 z-50"
+                          style={{ 
+                            top: 'var(--header-bottom, 80px)',
+                            maxHeight: 'calc(100vh - var(--header-bottom, 80px))',
+                            overflowY: 'auto',
+                          }}
+                        >
+                          <div className="container-page py-8">
+                            <div className="grid grid-cols-3 gap-12">
+                              {/* Category Links */}
+                              <div className="col-span-2">
+                                <div className="grid grid-cols-3 gap-6">
+                                  <div>
+                                    <h4 className="text-xs font-semibold text-neutral-dark/60 uppercase tracking-widest mb-4">
+                                      {item.label}
+                                    </h4>
+                                    <ul className="space-y-3">
+                                      {item.subItems?.map((subItem) => (
+                                        <li key={subItem.label}>
+                                          <Link
+                                            to={subItem.href}
+                                            className="text-sm text-neutral-nearBlack hover:text-primary-500 transition-colors"
+                                          >
+                                            {subItem.label}
+                                          </Link>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h4 className="text-xs font-semibold text-neutral-dark/60 uppercase tracking-widest mb-4">
+                                      Collections
+                                    </h4>
+                                    <ul className="space-y-3">
+                                      <li>
+                                        <Link
+                                          to={item.href}
+                                          className="text-sm text-neutral-nearBlack hover:text-primary-500 transition-colors"
+                                        >
+                                          New Arrivals
+                                        </Link>
+                                      </li>
+                                      <li>
+                                        <Link
+                                          to={item.href}
+                                          className="text-sm text-neutral-nearBlack hover:text-primary-500 transition-colors"
+                                        >
+                                          Best Sellers
+                                        </Link>
+                                      </li>
+                                      <li>
+                                        <Link
+                                          to={item.href}
+                                          className="text-sm text-neutral-nearBlack hover:text-primary-500 transition-colors"
+                                        >
+                                          On Sale
+                                        </Link>
+                                      </li>
+                                    </ul>
+                                  </div>
+                                  <div>
+                                    <h4 className="text-xs font-semibold text-neutral-dark/60 uppercase tracking-widest mb-4">
+                                      Top Brands
+                                    </h4>
+                                    <ul className="space-y-3">
+                                      <li>
+                                        <Link
+                                          to={item.href}
+                                          className="text-sm text-neutral-nearBlack hover:text-primary-500 transition-colors"
+                                        >
+                                          Biba
+                                        </Link>
+                                      </li>
+                                      <li>
+                                        <Link
+                                          to={item.href}
+                                          className="text-sm text-neutral-nearBlack hover:text-primary-500 transition-colors"
+                                        >
+                                          Libas
+                                        </Link>
+                                      </li>
+                                      <li>
+                                        <Link
+                                          to={item.href}
+                                          className="text-sm text-neutral-nearBlack hover:text-primary-500 transition-colors"
+                                        >
+                                          Soch
+                                        </Link>
+                                      </li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Featured Image / CTA */}
+                              <div className="col-span-1">
+                                <Link
+                                  to={item.href}
+                                  className="block relative rounded-xl overflow-hidden group h-full min-h-[200px] bg-primary-100"
+                                >
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent z-10" />
+                                  <div className="absolute bottom-0 left-0 right-0 p-6 z-20">
+                                    <h4 className="text-white font-display text-lg font-semibold mb-1">
+                                      Explore {item.label}
+                                    </h4>
+                                    <p className="text-white/80 text-sm">
+                                      Shop the latest collection →
+                                    </p>
+                                  </div>
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      </>
                     )}
                   </AnimatePresence>
                 </div>
@@ -324,49 +457,6 @@ const Header = () => {
                 </div>
               )}
 
-              {/* Currency Selector - INR only */}
-              <div className="flex items-center gap-1 text-sm font-medium text-neutral-nearBlack px-2 py-2" aria-label="Currency">
-                <span>INR ₹</span>
-              </div>
-
-              {/* Language Selector */}
-              <div className="relative mega-menu-wrapper">
-                <button
-                  onClick={() => setOpenMegaMenu(openMegaMenu === 'language' ? null : 'language')}
-                  className="flex items-center gap-1 text-sm font-medium text-neutral-nearBlack hover:text-primary-500 transition-colors p-2 hover:bg-neutral-light rounded-md"
-                  aria-label="Select language"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-                  </svg>
-                  <span>EN</span>
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                
-                {/* Language Dropdown */}
-                <AnimatePresence>
-                  {openMegaMenu === 'language' && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-100 py-2 min-w-[120px] z-50"
-                    >
-                      <button className="block w-full text-left px-4 py-2 text-sm text-neutral-nearBlack hover:bg-neutral-light hover:text-primary-500 transition-colors">
-                        English
-                      </button>
-                      <button className="block w-full text-left px-4 py-2 text-sm text-neutral-nearBlack hover:bg-neutral-light hover:text-primary-500 transition-colors">
-                        Hindi
-                      </button>
-                      <button className="block w-full text-left px-4 py-2 text-sm text-neutral-nearBlack hover:bg-neutral-light hover:text-primary-500 transition-colors">
-                        Gujarati
-                      </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
             </div>
 
             {/* Mobile Menu Button with animated hamburger */}

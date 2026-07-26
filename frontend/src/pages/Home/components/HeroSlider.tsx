@@ -42,11 +42,7 @@ const HeroSlider = ({ slides, autoplayDelay = 6000 }: HeroSliderProps) => {
   const swiperRef = useRef<SwiperType | null>(null);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  if (!slides || slides.length === 0) {
-    return null;
-  }
-
-  const startProgressTimer = () => {
+  const startProgressTimer = useCallback(() => {
     if (progressInterval.current) clearInterval(progressInterval.current);
     setProgress(0);
     const startTime = Date.now();
@@ -54,7 +50,7 @@ const HeroSlider = ({ slides, autoplayDelay = 6000 }: HeroSliderProps) => {
       const elapsed = Date.now() - startTime;
       setProgress(Math.min((elapsed / autoplayDelay) * 100, 100));
     }, 50);
-  };
+  }, [autoplayDelay]);
 
   const handleScroll = useCallback(() => {
     setScrollY(window.scrollY);
@@ -70,13 +66,17 @@ const HeroSlider = ({ slides, autoplayDelay = 6000 }: HeroSliderProps) => {
     return () => {
       if (progressInterval.current) clearInterval(progressInterval.current);
     };
-  }, [autoplayDelay]);
+  }, [startProgressTimer]);
 
   const handleSlideChange = (swiper: SwiperType) => {
     setActiveIndex(swiper.realIndex);
     setKey(prev => prev + 1);
     startProgressTimer();
   };
+
+  if (!slides || slides.length === 0) {
+    return null;
+  }
 
   const getPositionClasses = (position?: 'left' | 'center' | 'right') => {
     switch (position) {
@@ -193,21 +193,21 @@ const HeroSlider = ({ slides, autoplayDelay = 6000 }: HeroSliderProps) => {
           </SwiperSlide>
         ))}
 
-        {/* Navigation Arrows - Enhanced */}
+        {/* Navigation Arrows - Larger, more prominent */}
         <button 
-          className="hero-prev absolute left-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-white/20 hover:bg-white/40 text-white rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-md border border-white/30 hover:scale-110"
+          className="hero-prev absolute left-4 top-1/2 -translate-y-1/2 z-10 w-14 h-14 bg-white/30 hover:bg-white/50 text-white rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-md border border-white/40 hover:scale-110 shadow-lg"
           aria-label="Previous slide"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-7 h-7">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
           </svg>
         </button>
         
         <button 
-          className="hero-next absolute right-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-white/20 hover:bg-white/40 text-white rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-md border border-white/30 hover:scale-110"
+          className="hero-next absolute right-4 top-1/2 -translate-y-1/2 z-10 w-14 h-14 bg-white/30 hover:bg-white/50 text-white rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-md border border-white/40 hover:scale-110 shadow-lg"
           aria-label="Next slide"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-7 h-7">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
           </svg>
         </button>

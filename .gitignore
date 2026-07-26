@@ -15,3 +15,4 @@ backend/prisma/migrations/*/migration_lock.toml
 *.tsbuildinfo
 backend/uploads/
 frontend/test-design-system.html
+.opencode.zip

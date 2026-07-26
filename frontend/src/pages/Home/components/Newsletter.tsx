@@ -38,7 +38,7 @@ const Newsletter: React.FC = () => {
       </div>
 
       <div className="container mx-auto px-4 relative z-10 text-center">
-        <div className="max-w-2xl mx-auto bg-white/10 backdrop-blur-md p-8 md:p-12 rounded-2xl border border-white/20 shadow-xl">
+        <div className="max-w-2xl mx-auto bg-white/15 backdrop-blur-sm p-8 md:p-12 rounded-2xl border border-white/20 shadow-xl">
           {/* 10% OFF Badge */}
           <motion.div
             initial={{ scale: 0, rotate: -10 }}
@@ -61,7 +61,7 @@ const Newsletter: React.FC = () => {
 
           <form
             onSubmit={handleSubmit}
-            className="flex flex-col md:flex-row gap-4 max-w-lg mx-auto"
+            className="flex flex-col md:flex-row gap-3 max-w-lg mx-auto"
             aria-describedby={status !== 'idle' ? statusId : undefined}
           >
             <div className="relative flex-1">
@@ -72,7 +72,7 @@ const Newsletter: React.FC = () => {
                 placeholder="Enter your email address"
                 required
                 aria-label="Email address"
-                className="w-full px-6 py-4 rounded-full bg-white/95 text-neutral-nearBlack placeholder:text-neutral-dark/50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:shadow-lg transition-all shadow-md"
+                className="w-full px-6 py-4 rounded-full bg-white text-neutral-nearBlack placeholder:text-neutral-dark/40 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all shadow-sm"
               />
             </div>
             <button

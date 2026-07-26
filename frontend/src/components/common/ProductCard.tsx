@@ -187,8 +187,8 @@ const ProductCard = ({ product, className = '', style, variant = 'standard' }: P
       ref={cardRef}
       className={`
         w-full bg-white rounded-xl overflow-hidden
-        border border-neutral-medium/30 shadow-md
-        hover:shadow-lg hover:border-primary-200
+        border border-neutral-medium/30 shadow-sm
+        hover:shadow-lg hover:border-primary-200 hover:-translate-y-1
         transition-all duration-300 relative group
         focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2
         ${className}
@@ -288,12 +288,12 @@ const ProductCard = ({ product, className = '', style, variant = 'standard' }: P
       )}
 
       {/* Product Info Section - restructured: Brand → Title → Price → Color Swatches → Rating → CTA */}
-      <div className="px-card-padding py-4 flex flex-col items-start text-left">
+      <div className="px-card-padding py-4 flex flex-col items-start text-left min-h-[220px]">
         {/* Brand Name */}
         {brandName && (
           <Link
             to={ROUTES.PRODUCT_DETAIL(product.id)}
-            className="text-caption text-neutral-dark tracking-wider mb-1 hover:text-primary-600 transition-colors"
+            className="text-neutral-dark/60 tracking-wider uppercase text-[10px] mb-1 hover:text-primary-600 transition-colors"
           >
             {brandName}
           </Link>

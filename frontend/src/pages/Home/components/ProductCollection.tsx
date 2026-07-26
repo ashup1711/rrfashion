@@ -215,24 +215,33 @@ const ProductCollectionTabs = () => {
             Our Products
           </h2>
           
-          {/* Tab Navigation */}
-          <div className="flex justify-center gap-2 md:gap-4 flex-wrap" role="tablist">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                role="tab"
-                aria-selected={activeTab === tab.key}
-                aria-controls={`tabpanel-${tab.key}`}
-                className={`px-4 py-2 md:px-6 md:py-3 text-sm md:text-base font-medium rounded-full transition-all duration-300 ${
-                  activeTab === tab.key
-                    ? 'bg-primary-500 text-white shadow-md'
-                    : 'bg-neutral-light text-neutral-dark hover:bg-primary-100 hover:text-primary-600'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          {/* Tab Navigation - Underline style */}
+          <div className="border-b border-neutral-medium/30" role="tablist">
+            <div className="flex justify-center gap-0 -mb-px">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  role="tab"
+                  aria-selected={activeTab === tab.key}
+                  aria-controls={`tabpanel-${tab.key}`}
+                  className={`relative px-5 md:px-8 py-3 text-sm md:text-base font-medium transition-colors duration-200 ${
+                    activeTab === tab.key
+                      ? 'text-primary-500'
+                      : 'text-neutral-dark hover:text-neutral-nearBlack'
+                  }`}
+                >
+                  {tab.label}
+                  {activeTab === tab.key && (
+                    <motion.div
+                      layoutId="activeTabIndicator"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-500"
+                      transition={{ duration: 0.2 }}
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

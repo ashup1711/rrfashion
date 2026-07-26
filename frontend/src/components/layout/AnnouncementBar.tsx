@@ -35,8 +35,6 @@ const AnnouncementBar = () => {
   const [visible, setVisible] = useState(false);
   const [messageIndex, setMessageIndex] = useState(0);
 
-  if (isHiddenPath(location.pathname)) return null;
-
   useEffect(() => {
     setVisible(!isDismissedRecently());
   }, []);
@@ -58,6 +56,7 @@ const AnnouncementBar = () => {
     setVisible(false);
   };
 
+  if (isHiddenPath(location.pathname)) return null;
   if (!visible) return null;
 
   return (
