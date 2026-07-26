@@ -1,80 +1,47 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import type { Product, ProductVariant } from '../../types/product';
+import type { Product } from '../../types/product';
 import { formatCurrencyCompact } from '../../utils/formatCurrency';
-import { imageUrl } from '../../utils/imageUrl';
+import { imageUrl, placeholderUrl } from '../../utils/imageUrl';
 import { useWishlist } from '../../hooks/useWishlist';
 import { useUIStore } from '../../store/uiStore';
 import { useCompareStore } from '../../store/compareStore';
 import { ROUTES } from '../../utils/constants';
+import {
+  extractColorsFromVariants,
+  extractSizesFromVariants,
+  getDiscountPercent,
+  hasActiveSale,
+  getProductRating,
+  type ProductColor,
+} from '../../utils/productHelpers';
 import ProductBadge from './ProductBadge';
 import ColorSwatches from './ColorSwatches';
+import { HeartIcon, HeartFilledIcon } from './Icons';
 import QuickActions from './QuickActions';
 import RateStars from './RateStars';
 import DealTimer from './DealTimer';
-import type { ProductSize } from './SizeSelector';
+import AddToCartButton from './AddToCartButton';
 
-// Additional interfaces for enhanced features
-interface ProductColor {
-  color: string;
-  hex?: string;
-  imageUrl?: string;
+export interface ProductCardProps {
+  product: Product;
+  className?: string;
+  style?: React.CSSProperties;
+  variant?: 'standard' | 'compact' | 'minimal';
 }
 
-// Extract color data from product variants
-const extractColorsFromVariants = (variants?: any[]): ProductColor[] => {
-  if (!variants || variants.length === 0) return [];
-  
-  const colorMap = new Map<string, ProductColor>();
-  
-  variants.forEach(variant => {
-    if (variant.color && !colorMap.has(variant.color)) {
-      colorMap.set(variant.color, {
-        color: variant.color,
-        hex: variant.colorHex || undefined,
-        imageUrl: variant.images?.[0]?.url || undefined,
-      });
-    }
-  });
-  
-  return Array.from(colorMap.values());
-};
-
-// Extract sizes from product variants with stock info
-const extractSizesFromVariants = (variants?: ProductVariant[]): ProductSize[] => {
-  if (!variants || variants.length === 0) return [];
-  
-  return variants
-    .filter(variant => variant.isActive && variant.size && (variant.stock ?? 0) > 0)
-    .map(variant => ({
-      size: variant.size,
-      variantId: variant.id,
-      stock: variant.stock ?? 0,
-    }));
-};
-
-// Helper function to get rating from product metadata
-const getProductRating = (product: Product): number => {
-  // Placeholder - in a real app, this would come from reviews
-  // Randomly assign ratings to some products for demo
-  if (product.id.length % 4 === 0) return 4.5;
-  if (product.id.length % 3 === 0) return 4.0;
-  if (product.id.length % 2 === 0) return 3.5;
-  return 0;
-};
-
-const ProductCard = ({ product }: { product: Product }) => {
+const ProductCard = ({ product, className = '', style, variant = 'standard' }: ProductCardProps) => {
   const navigate = useNavigate();
   const openQuickView = useUIStore((state) => state.openQuickView);
   const { addItem: addToWishlist, items: wishlistItems, removeItem: removeFromWishlist } = useWishlist();
   const [isHovered, setIsHovered] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
-  const [_selectedSize, setSelectedSize] = useState<ProductSize | null>(null);
-  const [_selectedVariant, setSelectedVariant] = useState<ProductVariant | undefined>(undefined);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
-  // Extract variants data
+  // Extract variants data using shared helpers
   const colors = useMemo(() => {
     return extractColorsFromVariants(product.variants);
   }, [product.variants]);
@@ -88,19 +55,25 @@ const ProductCard = ({ product }: { product: Product }) => {
     ? wishlistItems.some((item) => item.variantId === firstVariant.id)
     : false;
 
-  const hasSalePrice = product.salePrice !== undefined && product.salePrice < product.basePrice;
+  const saleActive = hasActiveSale(product);
 
   // Get all available images
   const primaryImage = imageUrl(product.images?.[0], product.version);
+  const placeholderSrc = product.images?.[0] ? placeholderUrl(product.images[0]) : undefined;
   const hasMultipleImages = (product.images?.length ?? 0) > 1;
   const secondaryImage = hasMultipleImages ? imageUrl(product.images![1], product.version) : null;
   const hasAlternateImage = secondaryImage !== null && secondaryImage !== primaryImage;
 
-  const rating = getProductRating(product);
-  const reviewCount = rating > 0 ? Math.floor(Math.random() * 50) + 10 : 0; // Demo data
-  
+  const rating = useMemo(() => getProductRating(product), [product]);
+  const reviewCount = useMemo(() => rating > 0 ? Math.floor(Math.random() * 50) + 10 : 0, [rating]);
+
   // Brand name from product
   const brandName = product.brand?.name || product.category?.name || '';
+
+  const discountPercent = useMemo(
+    () => getDiscountPercent(product.basePrice, product.salePrice),
+    [product.basePrice, product.salePrice]
+  );
 
   const handleWishlistToggle = useCallback(
     (e: React.MouseEvent) => {
@@ -133,19 +106,17 @@ const ProductCard = ({ product }: { product: Product }) => {
 
   const handleColorChange = useCallback((index: number, _color: ProductColor) => {
     setCurrentImageIndex(index);
-    // If color has associated image, we could update the displayed image here
-    // For now, this is a placeholder for the color selection action
   }, []);
 
-  const handleSizeQuickAdd = useCallback((size: string, variantId: string) => {
+  const handleAddToCart = useCallback(async (variantId: string) => {
     const variant = product.variants.find(v => v.id === variantId);
     if (!variant || (variant.stock ?? 0) <= 0) {
-      toast.error('This size is out of stock');
+      toast.error('This item is out of stock');
       return;
     }
-    setSelectedSize({ size, variantId, stock: variant.stock ?? 0 });
-    setSelectedVariant(variant);
-    toast.success(`Size ${size} selected. Click Add to Cart to confirm.`);
+    // In a real app, this would call the cart API
+    // For now, simulate a short delay
+    await new Promise(resolve => setTimeout(resolve, 800));
   }, [product.variants]);
 
   // Touch handlers for mobile
@@ -159,19 +130,81 @@ const ProductCard = ({ product }: { product: Product }) => {
     }
   };
 
+  // Keyboard navigation
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      navigate(ROUTES.PRODUCT_DETAIL(product.id));
+    }
+  }, [navigate, product.id]);
+
   // Mobile touch fallback for image swap
   const shouldShowSecondaryImage = isHovered && currentImageIndex > 0;
 
+  // Reset image loaded state when primary image changes
+  useEffect(() => {
+    setImageLoaded(false);
+  }, [primaryImage]);
+
+  const getCTA = () => {
+    if (variant === 'minimal') {
+      return (
+        <Link
+          to={ROUTES.PRODUCT_DETAIL(product.id)}
+          className="text-caption text-primary-600 hover:text-primary-700 font-medium transition-colors"
+        >
+          View Details →
+        </Link>
+      );
+    }
+
+    if (sizes.length === 1) {
+      return (
+        <AddToCartButton
+          variantId={sizes[0].variantId}
+          onAddToCart={handleAddToCart}
+          size={variant === 'compact' ? 'sm' : 'md'}
+          variant="accent"
+        />
+      );
+    }
+
+    return (
+      <button
+        onClick={() => navigate(ROUTES.PRODUCT_DETAIL(product.id))}
+        className={`w-full border border-primary-200 text-primary-700 hover:bg-primary-50 font-medium rounded-lg transition-colors duration-200 text-sm ${
+          variant === 'compact' ? 'py-1.5 px-3' : 'py-2.5'
+        }`}
+        aria-label={`View options for ${product.name}`}
+      >
+        View Options
+      </button>
+    );
+  };
+
   return (
     <div
-      className="w-full bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 relative group"
+      ref={cardRef}
+      className={`
+        w-full bg-white rounded-xl overflow-hidden
+        border border-neutral-medium/30 shadow-md
+        hover:shadow-lg hover:border-primary-200
+        transition-all duration-300 relative group
+        focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2
+        ${className}
+      `}
+      style={{ containerType: 'inline-size', ...style }}
       onMouseEnter={() => !isTouchDevice && setIsHovered(true)}
       onMouseLeave={() => !isTouchDevice && setIsHovered(false)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      role="article"
+      aria-label={`Product: ${product.name}`}
     >
       {/* Image Container with Enhanced Hover Effects */}
-      <div className="relative overflow-hidden bg-gray-50 aspect-[3/4]">
+      <div className="relative overflow-hidden bg-primary-50 aspect-[3/4]">
         {/* Badges */}
         <ProductBadge product={product} />
 
@@ -183,32 +216,39 @@ const ProductCard = ({ product }: { product: Product }) => {
           }`}
           aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
         >
-          <svg
-            className={`w-5 h-5 ${isWishlisted ? 'text-red-500' : 'text-gray-600'}`}
-            viewBox="0 0 24 24"
-            fill={isWishlisted ? 'currentColor' : 'none'}
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
-            />
-          </svg>
+          {isWishlisted ? (
+            <HeartFilledIcon className="text-red-500" size={20} />
+          ) : (
+            <HeartIcon className="text-neutral-dark" size={20} />
+          )}
         </button>
 
-        {/* Product Images with Hover Swap */}
+        {/* Product Images with Hover Swap and Blur-up */}
         <Link
           to={ROUTES.PRODUCT_DETAIL(product.id)}
           className="block w-full h-full relative"
+          aria-hidden="true"
         >
+          {/* Blur-up placeholder */}
+          {placeholderSrc && !imageLoaded && (
+            <img
+              src={placeholderSrc}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover blur-sm scale-105"
+              aria-hidden="true"
+            />
+          )}
+
+          {/* Primary image */}
           <img
             src={primaryImage}
             alt={product.name}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-105 ${
+              imageLoaded ? 'opacity-100' : 'opacity-0'
+            }`}
             loading="lazy"
             decoding="async"
+            onLoad={() => setImageLoaded(true)}
             sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
           />
 
@@ -235,79 +275,84 @@ const ProductCard = ({ product }: { product: Product }) => {
           onToggleWishlist={handleWishlistToggle}
           onQuickView={handleQuickView}
           onCompare={handleCompare}
-          sizes={sizes.length > 0 ? sizes : undefined}
-          onAddToCartWithSize={handleSizeQuickAdd}
           isVisible={isHovered || isTouchDevice}
+          variant={variant === 'compact' ? 'compact' : 'standard'}
         />
-
-        {/* Deal Timer */}
-        {product.saleEndDate && hasSalePrice && (
-          <div className="absolute bottom-2 left-2 right-2 z-20">
-            <DealTimer endDate={product.saleEndDate} variant="compact" />
-          </div>
-        )}
       </div>
 
-      {/* Product Info */}
-      <div className="px-3 py-4 flex flex-col items-center text-center">
+      {/* Deal Timer bar - sits between image and info section */}
+      {product.saleEndDate && saleActive && (
+        <div className="w-full">
+          <DealTimer endDate={product.saleEndDate} variant="compact" />
+        </div>
+      )}
+
+      {/* Product Info Section - restructured: Brand → Title → Price → Color Swatches → Rating → CTA */}
+      <div className="px-card-padding py-4 flex flex-col items-start text-left">
         {/* Brand Name */}
         {brandName && (
           <Link
             to={ROUTES.PRODUCT_DETAIL(product.id)}
-            className="text-[10px] text-neutral-dark uppercase tracking-widest mb-1 hover:text-primary-600 transition-colors"
+            className="text-caption text-neutral-dark tracking-wider mb-1 hover:text-primary-600 transition-colors"
           >
             {brandName}
           </Link>
         )}
-        
-        {/* Color Swatches */}
-        <ColorSwatches
-          colors={colors}
-          onColorSelect={handleColorChange}
-          className="mb-2"
-        />
 
         {/* Product Title */}
         <Link
           to={ROUTES.PRODUCT_DETAIL(product.id)}
-          className="block w-full mb-1"
+          className="block w-full mb-2"
         >
-          <h3 className="text-sm md:text-product-title text-primary-900 font-bold line-clamp-2 min-h-[2.5rem] group-hover:text-primary-600 transition-colors">
+          <h3 className="text-product-title font-semibold text-primary-900 line-clamp-2 min-h-[2.5rem] group-hover:text-primary-600 transition-colors">
             {product.name}
           </h3>
         </Link>
 
+        {/* Price — more prominent */}
+        <div className="flex items-baseline gap-2 mb-3">
+          <span className="text-product-price font-bold text-primary-900">
+            {formatCurrencyCompact(product.salePrice ?? product.basePrice)}
+          </span>
+          {saleActive && (
+            <>
+              <span className="text-caption text-neutral-dark line-through opacity-60">
+                {formatCurrencyCompact(product.basePrice)}
+              </span>
+              <span className="text-caption font-semibold text-error ml-1">
+                {discountPercent}% OFF
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Color Swatches — moved after price */}
+        {colors.length > 0 && (
+          <ColorSwatches
+            colors={colors}
+            onColorSelect={handleColorChange}
+            className="mb-2"
+          />
+        )}
+
         {/* Rating */}
         {rating > 0 && (
-          <div className="mb-2">
-            <RateStars 
-              rating={rating} 
-              reviewCount={reviewCount} 
-              size="sm" 
+          <div className="mb-3">
+            <RateStars
+              rating={rating}
+              reviewCount={reviewCount}
+              size="sm"
+              isDemo={true}
             />
           </div>
         )}
 
-        {/* Price with strikethrough for sale items */}
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-sm md:text-product-price font-bold text-primary-900">
-            {formatCurrencyCompact(product.salePrice ?? product.basePrice)}
-          </span>
-          {hasSalePrice && (
-            <span className="text-xs text-neutral-dark line-through opacity-60">
-              {formatCurrencyCompact(product.basePrice)}
-            </span>
-          )}
-        </div>
-
-        {/* View Details Button - Simplified for Homepage Cards */}
-        <button
-          onClick={() => navigate(ROUTES.PRODUCT_DETAIL(product.id))}
-          className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-lg transition-colors duration-200"
-          aria-label={`View details for ${product.name}`}
-        >
-          View Details
-        </button>
+        {/* Quick Add / CTA section */}
+        {variant !== 'compact' && (
+          <div className="w-full mt-auto pt-2">
+            {getCTA()}
+          </div>
+        )}
       </div>
     </div>
   );

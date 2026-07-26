@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { useInfiniteProducts } from '../../../hooks/useProducts';
 import ProductCard from '../../../components/common/ProductCard';
 import LoadingSpinner from '../../../components/common/LoadingSpinner';
@@ -16,6 +17,23 @@ const SORT_OPTIONS = [
   { value: 'salePrice_desc', label: 'Price: High to Low' },
   { value: 'name_asc', label: 'Name A-Z' },
 ];
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.05 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4, ease: 'easeOut' as const },
+  },
+};
 
 const ProductGrid = ({ filters }: ProductGridProps) => {
   const [sort, setSort] = useState('createdAt_desc');
@@ -69,11 +87,18 @@ const ProductGrid = ({ filters }: ProductGridProps) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card-gap">
+      <motion.div
+        className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card-gap"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
         {products.map((product) => (
-          <ProductCard key={product.id} product={product} />
+          <motion.div key={product.id} variants={itemVariants}>
+            <ProductCard product={product} />
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       {hasNextPage && (
         <div className="mt-12 flex justify-center">

@@ -9,7 +9,7 @@ interface SkeletonProps {
   children?: ReactNode;
 }
 
-const baseClass = 'bg-gray-200 animate-pulse rounded';
+const baseClass = 'bg-primary-100 animate-pulse rounded';
 
 const Skeleton = ({
   className = '',
@@ -45,11 +45,19 @@ const Skeleton = ({
 // Pre-composed skeleton layouts
 
 const ProductCardSkeleton = () => (
-  <div className="space-y-3">
-    <Skeleton variant="card" />
-    <Skeleton variant="text" width="70%" />
-    <Skeleton variant="text" width="50%" />
-    <Skeleton variant="text" width="30%" />
+  <div className="rounded-xl border border-neutral-medium/30 shadow-md overflow-hidden bg-white">
+    <div className="aspect-[3/4] bg-primary-50 animate-pulse" />
+    <div className="px-card-padding py-4 space-y-3">
+      <div className="h-3 w-1/3 bg-primary-100 rounded animate-pulse" />
+      <div className="h-4 w-4/5 bg-primary-100 rounded animate-pulse" />
+      <div className="h-5 w-1/2 bg-primary-100 rounded animate-pulse" />
+      <div className="flex gap-1">
+        <div className="w-6 h-6 rounded-full bg-primary-100 animate-pulse" />
+        <div className="w-6 h-6 rounded-full bg-primary-100 animate-pulse" />
+        <div className="w-6 h-6 rounded-full bg-primary-100 animate-pulse" />
+      </div>
+      <div className="h-10 w-full bg-primary-100 rounded-lg animate-pulse" />
+    </div>
   </div>
 );
 

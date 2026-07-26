@@ -19,30 +19,30 @@ const ColorSwatches = ({
 }: ColorSwatchesProps) => {
   if (!colors || colors.length === 0) return null;
 
-  const displayColors = colors.slice(0, 4);
-  const remainingCount = Math.max(0, colors.length - 4);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const displayColors = colors.slice(0, 5);
+  const remainingCount = Math.max(0, colors.length - 5);
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
 
   const handleColorClick = (index: number, color: ColorSwatch) => {
-    setSelectedIndex(index);
+    setSelectedIndex(index === selectedIndex ? -1 : index);
     onColorSelect?.(index, color);
   };
 
   return (
-    <div className={`flex items-center gap-1 ${className}`}>
+    <div className={`flex items-center gap-1.5 ${className}`}>
       {displayColors.map((color, index) => (
         <button
           key={`${color.color}-${index}`}
           type="button"
           onClick={() => handleColorClick(index, color)}
           className={`
-            relative w-5 h-5 rounded-full border-2 transition-all
+            relative w-10 h-10 md:w-6 md:h-6 rounded-full border-2 transition-all
             ${color.hex
               ? ''
-              : 'bg-gray-200 border-gray-300'
+              : 'bg-neutral-medium border-neutral-medium'
             }
             ${index === selectedIndex
-              ? 'border-neutral-nearBlack scale-110'
+              ? 'border-neutral-nearBlack scale-110 ring-2 ring-white'
               : 'border-transparent hover:scale-105'
             }
             ${color.hex ? 'shadow-sm' : ''}
@@ -59,7 +59,10 @@ const ColorSwatches = ({
         </button>
       ))}
       {remainingCount > 0 && (
-        <span className="text-xs text-gray-600 font-medium">
+        <span
+          className="text-xs text-neutral-dark font-medium cursor-default"
+          title={`+${remainingCount} more colors`}
+        >
           +{remainingCount}
         </span>
       )}
