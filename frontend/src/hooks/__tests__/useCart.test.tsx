@@ -48,8 +48,8 @@ describe('useCart', () => {
         variantId: 'var-1',
         quantity: 2,
         type: 'sale',
-        product: { name: 'Test Product', basePrice: 1000, images: ['img.jpg'] },
-        variant: { salePrice: 900 },
+        product: { id: 'prod-1', name: 'Test Product', slug: 'test', basePrice: 1000, images: ['img.jpg'], stock: 10, isFeatured: false, isActive: true, isRentable: false, isSellable: true, sortPriority: 0, categoryId: 'cat-1', variants: [], createdAt: '', updatedAt: '' },
+        variant: { id: 'var-1', productId: 'prod-1', size: 'M', color: 'Black', sku: 'SKU-1', isActive: true, images: [], salePrice: 900 },
       },
     ];
     vi.mocked(cartApi.getCart).mockResolvedValue({ id: 'cart-1', items: mockItems, total: 1800 });

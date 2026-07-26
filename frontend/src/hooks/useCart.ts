@@ -84,7 +84,7 @@ export const useCart = () => {
   const addItemMutation = useMutation({
     mutationFn: ({ variantId, quantity, type }: { variantId: string; quantity: number; type?: string }) =>
       addCartItem(variantId, quantity, type),
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.cart] });
       toast.success('Item added to cart', {
         action: {

@@ -95,7 +95,7 @@ const ProductForm = () => {
     addImages: addTempImages,
     removeImage: removeTempImage,
     clearAll: clearTempImages,
-    isLoading: tempImagesLoading,
+    isLoading: _tempImagesLoading,
   } = useTempImages();
 
   // Populate form when editing

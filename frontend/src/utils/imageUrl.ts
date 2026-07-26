@@ -1,5 +1,3 @@
-import { resolveImageUrl } from './constants';
-
 /**
  * Get the API base URL for constructing image proxy paths.
  */
@@ -10,7 +8,7 @@ function getApiBase(): string {
   return '/api';
 }
 
-export function imageUrl(src: string | null | undefined, defaultSize?: string): string {
+export function imageUrl(src: string | null | undefined, _defaultSize?: string | number): string {
   if (!src) return '/images/placeholder.svg';
 
   // If it's already an absolute URL or data URI, return as-is

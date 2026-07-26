@@ -24,6 +24,7 @@ export interface ProductVariant {
   rentPricePerDay?: number;
   securityDeposit?: number;
   weightGrams?: number;
+  stock?: number;
   isActive: boolean;
   images: ProductImage[];
   createdAt?: string;
@@ -56,6 +57,7 @@ export interface Product {
   brandId?: string;
   brand?: Brand;
   variants: ProductVariant[];
+  version?: number;
   createdAt: string;
   updatedAt: string;
 }

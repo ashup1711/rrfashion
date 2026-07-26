@@ -20,6 +20,11 @@ export interface AdminOrderItem {
   totalPrice: number;
   type: 'sale' | 'rent';
   status?: string;
+  hsnCode?: string;
+  taxRate?: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
 }
 
 export interface AdminOrder {

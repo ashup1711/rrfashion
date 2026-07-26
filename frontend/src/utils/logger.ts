@@ -1,5 +1,5 @@
 class Logger {
-  private isDev = process.env.NODE_ENV === 'development';
+  private isDev = import.meta.env.DEV;
 
   debug(...args: unknown[]) {
     if (this.isDev) {

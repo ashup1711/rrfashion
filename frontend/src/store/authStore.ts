@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { User } from '../types/user';
 import type { AdminUser } from '../types/admin';
-import { clearGuestSessionId, clearGuestToken, getGuestToken } from '../utils/guestSession';
+import { clearGuestSessionId, clearGuestToken } from '../utils/guestSession';
 import { mergeCart } from '../api/cart';
 import { mergeWishlist } from '../api/wishlist';
 

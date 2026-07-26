@@ -13,14 +13,9 @@ import ColorSwatches from './ColorSwatches';
 import QuickActions from './QuickActions';
 import RateStars from './RateStars';
 import DealTimer from './DealTimer';
-import SizeSelector, { ProductSize } from './SizeSelector';
+import type { ProductSize } from './SizeSelector';
 
 // Additional interfaces for enhanced features
-interface ProductSize {
-  size: string;
-  variantId: string;
-}
-
 interface ProductColor {
   color: string;
   hex?: string;
@@ -51,22 +46,12 @@ const extractSizesFromVariants = (variants?: ProductVariant[]): ProductSize[] =>
   if (!variants || variants.length === 0) return [];
   
   return variants
-    .filter(variant => variant.isActive && variant.size && variant.stock > 0)
+    .filter(variant => variant.isActive && variant.size && (variant.stock ?? 0) > 0)
     .map(variant => ({
       size: variant.size,
       variantId: variant.id,
-      stock: variant.stock,
+      stock: variant.stock ?? 0,
     }));
-};
-
-// Find variant by size selection
-const findVariantBySize = (variants: ProductVariant[], size: string): ProductVariant | undefined => {
-  return variants.find(v => v.isActive && v.size === size);
-};
-
-// Get stock for default variant
-const getVariantStock = (variant?: ProductVariant): number => {
-  return variant?.stock ?? 0;
 };
 
 // Helper function to get rating from product metadata
@@ -86,7 +71,8 @@ const ProductCard = ({ product }: { product: Product }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
-  const [selectedSize, setSelectedSize] = useState<ProductSize | null>(null);
+  const [_selectedSize, setSelectedSize] = useState<ProductSize | null>(null);
+  const [_selectedVariant, setSelectedVariant] = useState<ProductVariant | undefined>(undefined);
 
   // Extract variants data
   const colors = useMemo(() => {
@@ -151,19 +137,13 @@ const ProductCard = ({ product }: { product: Product }) => {
     // For now, this is a placeholder for the color selection action
   }, []);
 
-  const handleSizeSelect = useCallback((size: ProductSize) => {
-    const variant = findVariantBySize(product.variants, size.size);
-    setSelectedSize(size);
-    setSelectedVariant(variant);
-  }, [product.variants]);
-
   const handleSizeQuickAdd = useCallback((size: string, variantId: string) => {
     const variant = product.variants.find(v => v.id === variantId);
-    if (!variant || variant.stock <= 0) {
+    if (!variant || (variant.stock ?? 0) <= 0) {
       toast.error('This size is out of stock');
       return;
     }
-    setSelectedSize({ size, variantId, stock: variant.stock });
+    setSelectedSize({ size, variantId, stock: variant.stock ?? 0 });
     setSelectedVariant(variant);
     toast.success(`Size ${size} selected. Click Add to Cart to confirm.`);
   }, [product.variants]);

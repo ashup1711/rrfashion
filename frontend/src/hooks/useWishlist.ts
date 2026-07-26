@@ -44,11 +44,11 @@ export const useWishlist = () => {
   const addMutation = useMutation({
     mutationFn: ({ variantId, notifyOnPriceDrop }: { variantId: string; notifyOnPriceDrop?: boolean }) =>
       addToWishlist(variantId, notifyOnPriceDrop),
-    onMutate: async ({ variantId }) => {
+    onMutate: async (_variantId) => {
       // Cancel ongoing queries so they don't overwrite optimistic update
       await queryClient.cancelQueries({ queryKey: [QUERY_KEYS.wishlist] });
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.wishlist] });
       toast.success('Added to wishlist!');
     },

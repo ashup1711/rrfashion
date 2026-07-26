@@ -6,6 +6,7 @@ import CheckoutForm from '../CheckoutForm';
 import * as useAddressesModule from '../../../../hooks/useAddresses';
 import * as useCartModule from '../../../../hooks/useCart';
 import * as useOrdersModule from '../../../../hooks/useOrders';
+import { toast } from 'sonner';
 import type { ReactNode } from 'react';
 
 // Mock hooks
