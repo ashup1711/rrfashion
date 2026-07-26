@@ -1054,6 +1054,7 @@ export class OrdersService {
           shippingAddress: dto.shippingAddress as unknown as Prisma.InputJsonValue,
           paymentMethod: dto.paymentMethod,
           channel: 'online',
+          storeId,
           items: {
             create: orderItemsData,
           },

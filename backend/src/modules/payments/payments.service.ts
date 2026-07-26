@@ -332,6 +332,10 @@ export class PaymentsService implements OnModuleInit {
           orderId: payment.orderId,
           storeId: order.storeId,
         });
+      } else {
+        this.logger.warn(
+          `Invoice not generated for order ${payment.orderId}: order.storeId is null`,
+        );
       }
     } catch (error) {
       this.logger.warn(
@@ -498,8 +502,25 @@ export class PaymentsService implements OnModuleInit {
           where: { id: orderId },
           select: { storeId: true },
         });
-        if (order?.storeId) {
-          await this.invoicesService.generate({ orderId, storeId: order.storeId });
+        let storeId = order?.storeId ?? null;
+        if (!storeId) {
+          const defaultStore = await this.prisma.storeLocation.findFirst({
+            where: { isActive: true },
+            orderBy: { createdAt: 'asc' },
+          });
+          if (defaultStore) {
+            storeId = defaultStore.id;
+            this.logger.warn(
+              `Order ${orderId} has no storeId in webhook — recovered using default store ${defaultStore.id}`,
+            );
+          } else {
+            this.logger.warn(
+              `Invoice not generated for order ${orderId} via webhook: no storeId and no active store found`,
+            );
+          }
+        }
+        if (storeId) {
+          await this.invoicesService.generate({ orderId, storeId });
         }
       } catch (error) {
         this.logger.warn(
@@ -591,24 +612,43 @@ export class PaymentsService implements OnModuleInit {
     // Auto-generate invoice if payment is PAID but no invoice exists yet
     // This handles the redirect flow where verifyPayment was never called
     let invoiceGenerated = false;
-    if (order.paymentStatus === 'PAID' && order.storeId) {
-      const existingInvoice = await this.prisma.invoice.findFirst({
-        where: { orderId, type: 'INVOICE' },
-      });
-      if (!existingInvoice) {
-        try {
-          await this.invoicesService.generate({
-            orderId,
-            storeId: order.storeId,
-          });
-          invoiceGenerated = true;
-        } catch (error) {
+    if (order.paymentStatus === 'PAID') {
+      let resolvedStoreId = order.storeId;
+      if (!resolvedStoreId) {
+        const defaultStore = await this.prisma.storeLocation.findFirst({
+          where: { isActive: true },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (defaultStore) {
+          resolvedStoreId = defaultStore.id;
           this.logger.warn(
-            `Failed to auto-generate invoice in getPaymentStatus for order ${orderId}: ${(error as Error).message}`,
+            `Order ${orderId} has no storeId — recovered using default store ${defaultStore.id}`,
+          );
+        } else {
+          this.logger.warn(
+            `Invoice not generated for order ${orderId}: no storeId and no active store found`,
           );
         }
-      } else {
-        invoiceGenerated = true;
+      }
+      if (resolvedStoreId) {
+        const existingInvoice = await this.prisma.invoice.findFirst({
+          where: { orderId, type: 'INVOICE' },
+        });
+        if (!existingInvoice) {
+          try {
+            await this.invoicesService.generate({
+              orderId,
+              storeId: resolvedStoreId,
+            });
+            invoiceGenerated = true;
+          } catch (error) {
+            this.logger.warn(
+              `Failed to auto-generate invoice in getPaymentStatus for order ${orderId}: ${(error as Error).message}`,
+            );
+          }
+        } else {
+          invoiceGenerated = true;
+        }
       }
     }
 
