@@ -38,7 +38,7 @@ export default defineConfig({
             handler: 'NetworkFirst',
             options: {
               cacheName: 'app-shell',
-              expiration: { maxEntries: 1, maxAgeSeconds: 7 * 24 * 60 * 60 },
+              expiration: { maxEntries: 1, maxAgeSeconds: 2 * 60 * 60 },
               networkTimeoutSeconds: 5,
             },
           },

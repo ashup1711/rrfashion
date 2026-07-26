@@ -1,6 +1,18 @@
 import { Component } from 'react';
 import type { ReactNode, ErrorInfo } from 'react';
 
+const CHUNK_LOAD_PATTERNS = [
+  /Loading chunk/,
+  /Failed to fetch dynamically imported module/,
+  /dynamically imported/,
+  /Importing a module script failed/,
+  /error loading dynamically/,
+];
+
+function isChunkLoadError(error: Error): boolean {
+  return CHUNK_LOAD_PATTERNS.some((p) => p.test(error.message));
+}
+
 interface ErrorBoundaryProps {
   children: ReactNode;
   fallback?: ReactNode;
@@ -11,16 +23,21 @@ interface ErrorBoundaryProps {
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
+  isChunkError: boolean;
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, isChunkError: false };
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
+    return {
+      hasError: true,
+      error,
+      isChunkError: isChunkLoadError(error),
+    };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
@@ -28,10 +45,14 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   handleRetry = () => {
+    if (this.state.isChunkError) {
+      window.location.reload();
+      return;
+    }
     if (this.props.onRetry) {
       this.props.onRetry();
     }
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, isChunkError: false });
   };
 
   handleRefresh = () => {
@@ -42,6 +63,31 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;
+      }
+
+      if (this.state.isChunkError) {
+        return (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="text-amber-500 mb-4" aria-hidden="true">
+              <svg className="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">New version available</h2>
+            <p className="text-gray-600 mb-6 text-center max-w-md">
+              A new version of RR Fashion has been deployed. Please refresh your browser to get the latest update.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={this.handleRefresh}
+                className="px-6 py-2.5 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 font-medium"
+                aria-label="Refresh the page to load the latest version"
+              >
+                Refresh Now
+              </button>
+            </div>
+          </div>
+        );
       }
 
       return (
