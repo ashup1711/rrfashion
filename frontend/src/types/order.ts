@@ -64,6 +64,8 @@ export interface Order {
   shippingAddress?: ShippingAddress;
   /** Payment method used */
   paymentMethod?: string;
+  /** Whether an invoice has been generated for this order */
+  invoiceGenerated?: boolean;
 }
 
 export interface ShippingAddress {

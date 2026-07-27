@@ -279,7 +279,18 @@ export class OrdersService {
           },
           data: {
             quantityAvailable: { decrement: qty },
-            quantitySold: { increment: qty },
+            quantityReserved: { increment: qty },
+          },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            variantId,
+            storeId,
+            quantityChange: -qty,
+            type: 'RESERVATION',
+            reference: `order:${created.id}`,
+            notes: `Reserved ${qty} item(s) for order ${created.orderNumber}`,
           },
         });
       }
@@ -564,6 +575,10 @@ export class OrdersService {
 
           const summary = locked[0];
           if (summary) {
+            const decrementField =
+              summary.quantitySold >= item.quantity
+                ? { quantitySold: { decrement: item.quantity } }
+                : { quantityReserved: { decrement: item.quantity } };
             await tx.inventorySummary.update({
               where: {
                 variantId_storeId: {
@@ -573,7 +588,7 @@ export class OrdersService {
               },
               data: {
                 quantityAvailable: { increment: item.quantity },
-                quantitySold: { decrement: item.quantity },
+                ...decrementField,
               },
             });
           }
@@ -715,7 +730,14 @@ export class OrdersService {
   async findMyOrder(userId: string, orderId: string, guestSessionId?: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      include: ORDER_INCLUDE,
+      include: {
+        ...ORDER_INCLUDE,
+        invoices: {
+          where: { type: 'INVOICE' },
+          select: { id: true },
+          take: 1,
+        },
+      },
     });
 
     if (!order) {
@@ -743,6 +765,7 @@ export class OrdersService {
       taxAmount: Number(order.taxAmount),
       paymentMethod: order.paymentMethod,
       paymentStatus: order.paymentStatus,
+      invoiceGenerated: order.invoices.length > 0,
       shippingAddress: order.shippingAddress,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
@@ -1096,7 +1119,18 @@ export class OrdersService {
           },
           data: {
             quantityAvailable: { decrement: qty },
-            quantitySold: { increment: qty },
+            quantityReserved: { increment: qty },
+          },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            variantId,
+            storeId,
+            quantityChange: -qty,
+            type: 'RESERVATION',
+            reference: `order:${created.id}`,
+            notes: `Reserved ${qty} item(s) for guest order ${created.orderNumber}`,
           },
         });
       }
@@ -1409,27 +1443,29 @@ export class OrdersService {
       }
     }
 
-    // If payment is PAID but no invoice exists, try to generate one on the fly
-    let invoice = order.invoices[0];
+    // If payment is PAID but no invoice exists, try to finalize sale + generate on the fly
+    const existingInvoice = order.invoices[0];
+    let invoice = existingInvoice;
     if (!invoice && order.paymentStatus === 'PAID') {
-      let storeId = order.storeId;
-      if (!storeId) {
-        const defaultStore = await this.prisma.storeLocation.findFirst({
-          where: { isActive: true },
-          orderBy: { createdAt: 'asc' },
+      try {
+        await this.paymentsService.finalizeSaleAfterPayment(orderId);
+        const refreshedOrder = await this.prisma.order.findUnique({
+          where: { id: orderId },
+          include: {
+            invoices: {
+              where: { type: 'INVOICE' },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            },
+          },
         });
-        if (defaultStore) {
-          storeId = defaultStore.id;
+        if (refreshedOrder?.invoices[0]) {
+          invoice = refreshedOrder.invoices[0];
         }
-      }
-      if (storeId) {
-        try {
-          invoice = await this.invoicesService.generate({ orderId, storeId });
-        } catch (error) {
-          this.logger.warn(
-            `Failed to auto-generate invoice for order ${orderId} during download: ${(error as Error).message}`,
-          );
-        }
+      } catch (error) {
+        this.logger.warn(
+          `Failed to auto-generate invoice for order ${orderId} during download: ${(error as Error).message}`,
+        );
       }
     }
 

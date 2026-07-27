@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useMyOrder, useRepurchase, useDownloadInvoice, useInitiateReturn, useOrderTracking } from '../../hooks/useMyOrders';
@@ -47,18 +47,86 @@ const trackingSteps = [
   { key: 'DELIVERED', label: 'Delivered' },
 ];
 
+const POLL_INTERVAL_MS = 3000;
+const MAX_POLL_ATTEMPTS = 20;
+
 const OrderDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: order, isLoading, error } = useMyOrder(id || '');
+  const { data: order, isLoading, error, refetch: refetchOrder } = useMyOrder(id || '');
   const repurchaseMutation = useRepurchase();
   const downloadMutation = useDownloadInvoice();
   const initiateReturnMutation = useInitiateReturn();
   const { data: tracking, isLoading: isTrackingLoading } = useOrderTracking(id || '');
 
+  // Invoice state
+  const [invoiceGenerated, setInvoiceGenerated] = useState(false);
+  const [isInvoiceGenerating, setIsInvoiceGenerating] = useState(false);
+  const [invoiceJustReady, setInvoiceJustReady] = useState(false);
+  const invoiceCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollAttemptsRef = useRef(0);
+
   // Handle payment=verifying query param from Razorpay redirect
   const [searchParams, setSearchParams] = useSearchParams();
   const paymentCheckedRef = useRef(false);
+
+  // Update local invoiceGenerated from order data
+  useEffect(() => {
+    if (order) {
+      setInvoiceGenerated(!!order.invoiceGenerated);
+    }
+  }, [order]);
+
+  // Start polling if order is PAID but invoice not yet generated (page reload scenario)
+  useEffect(() => {
+    if (order && order.paymentStatus === 'PAID' && !order.invoiceGenerated && !paymentCheckedRef.current) {
+      startInvoicePolling();
+    }
+  }, [order, startInvoicePolling]);
+
+  const clearInvoicePolling = useCallback(() => {
+    if (invoiceCheckIntervalRef.current) {
+      clearInterval(invoiceCheckIntervalRef.current);
+      invoiceCheckIntervalRef.current = null;
+    }
+    pollAttemptsRef.current = 0;
+  }, []);
+
+  const startInvoicePolling = useCallback(() => {
+    if (!id) return;
+    clearInvoicePolling();
+    setIsInvoiceGenerating(true);
+    pollAttemptsRef.current = 0;
+
+    invoiceCheckIntervalRef.current = setInterval(async () => {
+      pollAttemptsRef.current += 1;
+      if (pollAttemptsRef.current > MAX_POLL_ATTEMPTS) {
+        clearInvoicePolling();
+        setIsInvoiceGenerating(false);
+        return;
+      }
+      try {
+        const res = await getPaymentStatus(id);
+        if (res.invoiceGenerated) {
+          clearInvoicePolling();
+          setInvoiceGenerated(true);
+          setIsInvoiceGenerating(false);
+          setInvoiceJustReady(true);
+          toast.success('Invoice generated successfully!');
+          setTimeout(() => setInvoiceJustReady(false), 4000);
+          refetchOrder();
+        }
+      } catch {
+        // keep polling
+      }
+    }, POLL_INTERVAL_MS);
+  }, [id, clearInvoicePolling, refetchOrder]);
+
+  useEffect(() => {
+    return () => {
+      clearInvoicePolling();
+    };
+  }, [clearInvoicePolling]);
 
   useEffect(() => {
     // Check for Razorpay redirect params first
@@ -95,7 +163,11 @@ const OrderDetail = () => {
           const res = await getPaymentStatus(id);
           if (res.paymentStatus === 'PAID') {
             if (res.invoiceGenerated) {
+              setInvoiceGenerated(true);
               toast.success('Invoice generated successfully!');
+            } else {
+              startInvoicePolling();
+              toast.success('Payment confirmed! Generating invoice...');
             }
             if (!(rpOrderId && rpPaymentId && rpSignature)) {
               toast.success('Payment confirmed!');
@@ -117,7 +189,7 @@ const OrderDetail = () => {
         setSearchParams(searchParams, { replace: true });
       });
     }
-  }, [id, searchParams, setSearchParams]);
+  }, [id, searchParams, setSearchParams, startInvoicePolling]);
 
   // Return form state
   const [showReturnForm, setShowReturnForm] = useState(false);
@@ -496,17 +568,51 @@ const OrderDetail = () => {
         </Card>
       )}
 
+      {/* Invoice Section */}
+      <Card className={`mb-6 ${invoiceJustReady ? 'ring-2 ring-primary-500' : ''} transition-all duration-500`}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Invoice</h3>
+        {invoiceGenerated ? (
+          <div className="flex items-center gap-3">
+            <div className={`flex-shrink-0 w-5 h-5 rounded-full ${invoiceJustReady ? 'bg-green-500 animate-bounce' : 'bg-green-500'} flex items-center justify-center`}>
+              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <span className={`text-sm ${invoiceJustReady ? 'text-green-700 font-medium' : 'text-gray-700'}`}>
+              Invoice ready
+            </span>
+            <Button
+              variant="outline"
+              onClick={handleDownloadInvoice}
+              isLoading={downloadMutation.isPending}
+              className="ml-auto"
+            >
+              Download Invoice
+            </Button>
+          </div>
+        ) : isInvoiceGenerating ? (
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-primary-500 animate-spin flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span className="text-sm text-gray-500">Generating invoice...</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span className="text-sm text-gray-500">
+              {order.paymentStatus === 'PAID' ? 'Invoice pending generation' : 'Invoice will be available after payment'}
+            </span>
+          </div>
+        )}
+      </Card>
+
       {/* Actions */}
       <div className="flex flex-wrap gap-3">
         <Button onClick={handleRepurchase} isLoading={repurchaseMutation.isPending}>
           Buy Again
-        </Button>
-        <Button
-          variant="outline"
-          onClick={handleDownloadInvoice}
-          isLoading={downloadMutation.isPending}
-        >
-          Download Invoice
         </Button>
       </div>
     </div>

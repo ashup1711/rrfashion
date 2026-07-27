@@ -321,27 +321,8 @@ export class PaymentsService implements OnModuleInit {
       data: { paymentStatus: 'PAID' },
     });
 
-    // Auto-generate invoice after successful payment verification
-    try {
-      const order = await this.prisma.order.findUnique({
-        where: { id: payment.orderId },
-        select: { storeId: true },
-      });
-      if (order?.storeId) {
-        await this.invoicesService.generate({
-          orderId: payment.orderId,
-          storeId: order.storeId,
-        });
-      } else {
-        this.logger.warn(
-          `Invoice not generated for order ${payment.orderId}: order.storeId is null`,
-        );
-      }
-    } catch (error) {
-      this.logger.warn(
-        `Failed to auto-generate invoice for order ${payment.orderId}: ${(error as Error).message}`,
-      );
-    }
+    // Finalize inventory (reserved → sold) and generate invoice
+    await this.finalizeSaleAfterPayment(payment.orderId);
 
     return { verified: true, paymentId: payment.id };
   }
@@ -445,11 +426,14 @@ export class PaymentsService implements OnModuleInit {
               ordersNeedingInvoice.push(existing.orderId);
             }
           } else {
-            this.logger.warn({
-              eventId: resolvedEventId,
-              razorpayOrderId: paymentEntity.order_id,
-              razorpayPaymentId: paymentEntity.id,
-            }, 'Payment record not found for payment.captured webhook — neither by razorpayPaymentId nor razorpayOrderId');
+            this.logger.warn(
+              {
+                eventId: resolvedEventId,
+                razorpayOrderId: paymentEntity.order_id,
+                razorpayPaymentId: paymentEntity.id,
+              },
+              'Payment record not found for payment.captured webhook — neither by razorpayPaymentId nor razorpayOrderId',
+            );
           }
           break;
         }
@@ -495,38 +479,9 @@ export class PaymentsService implements OnModuleInit {
       return { received: true };
     });
 
-    // Generate invoices outside the DB transaction (involves file upload)
+    // Finalize inventory and generate invoices outside the DB transaction
     for (const orderId of ordersNeedingInvoice) {
-      try {
-        const order = await this.prisma.order.findUnique({
-          where: { id: orderId },
-          select: { storeId: true },
-        });
-        let storeId = order?.storeId ?? null;
-        if (!storeId) {
-          const defaultStore = await this.prisma.storeLocation.findFirst({
-            where: { isActive: true },
-            orderBy: { createdAt: 'asc' },
-          });
-          if (defaultStore) {
-            storeId = defaultStore.id;
-            this.logger.warn(
-              `Order ${orderId} has no storeId in webhook — recovered using default store ${defaultStore.id}`,
-            );
-          } else {
-            this.logger.warn(
-              `Invoice not generated for order ${orderId} via webhook: no storeId and no active store found`,
-            );
-          }
-        }
-        if (storeId) {
-          await this.invoicesService.generate({ orderId, storeId });
-        }
-      } catch (error) {
-        this.logger.warn(
-          `Failed to auto-generate invoice for order ${orderId}: ${(error as Error).message}`,
-        );
-      }
+      await this.finalizeSaleAfterPayment(orderId);
     }
 
     return result;
@@ -611,45 +566,16 @@ export class PaymentsService implements OnModuleInit {
 
     // Auto-generate invoice if payment is PAID but no invoice exists yet
     // This handles the redirect flow where verifyPayment was never called
-    let invoiceGenerated = false;
-    if (order.paymentStatus === 'PAID') {
-      let resolvedStoreId = order.storeId;
-      if (!resolvedStoreId) {
-        const defaultStore = await this.prisma.storeLocation.findFirst({
-          where: { isActive: true },
-          orderBy: { createdAt: 'asc' },
-        });
-        if (defaultStore) {
-          resolvedStoreId = defaultStore.id;
-          this.logger.warn(
-            `Order ${orderId} has no storeId — recovered using default store ${defaultStore.id}`,
-          );
-        } else {
-          this.logger.warn(
-            `Invoice not generated for order ${orderId}: no storeId and no active store found`,
-          );
-        }
-      }
-      if (resolvedStoreId) {
-        const existingInvoice = await this.prisma.invoice.findFirst({
-          where: { orderId, type: 'INVOICE' },
-        });
-        if (!existingInvoice) {
-          try {
-            await this.invoicesService.generate({
-              orderId,
-              storeId: resolvedStoreId,
-            });
-            invoiceGenerated = true;
-          } catch (error) {
-            this.logger.warn(
-              `Failed to auto-generate invoice in getPaymentStatus for order ${orderId}: ${(error as Error).message}`,
-            );
-          }
-        } else {
-          invoiceGenerated = true;
-        }
-      }
+    const existingInvoice = await this.prisma.invoice.findFirst({
+      where: { orderId, type: 'INVOICE' },
+    });
+    let invoiceGenerated = !!existingInvoice;
+    if (order.paymentStatus === 'PAID' && !existingInvoice) {
+      await this.finalizeSaleAfterPayment(orderId);
+      const checkAgain = await this.prisma.invoice.findFirst({
+        where: { orderId, type: 'INVOICE' },
+      });
+      invoiceGenerated = !!checkAgain;
     }
 
     return {
@@ -658,6 +584,127 @@ export class PaymentsService implements OnModuleInit {
       paymentMethod: order.paymentMethod,
       invoiceGenerated,
     };
+  }
+
+  /**
+   * Finalizes inventory (reserved → sold) and generates invoice after successful payment.
+   * Called from verifyPayment, webhook, getPaymentStatus, and getInvoicePdf.
+   * Idempotent: skips if invoice already exists for this order.
+   */
+  async finalizeSaleAfterPayment(orderId: string): Promise<void> {
+    // Check if invoice already exists (idempotency)
+    const existingInvoice = await this.prisma.invoice.findFirst({
+      where: { orderId, type: 'INVOICE' },
+    });
+    if (existingInvoice) {
+      return;
+    }
+
+    // Verify order is paid
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: { paymentStatus: true, storeId: true },
+    });
+    if (!order || order.paymentStatus !== 'PAID') {
+      this.logger.warn(
+        `finalizeSaleAfterPayment: order ${orderId} paymentStatus is ${order?.paymentStatus ?? 'null'}, skipping`,
+      );
+      return;
+    }
+
+    const resolvedStoreId = order.storeId;
+    if (!resolvedStoreId) {
+      this.logger.warn(
+        `finalizeSaleAfterPayment: order ${orderId} has no storeId, cannot finalize inventory`,
+      );
+      return;
+    }
+
+    // Move inventory from reserved → sold
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const orderItems = await tx.orderItem.findMany({
+          where: { orderId },
+          select: { variantId: true, quantity: true },
+        });
+
+        for (const item of orderItems) {
+          if (!item.variantId) continue;
+
+          const locked = await tx.$queryRaw<Array<{ quantityReserved: number }>>`
+            SELECT * FROM inventory_summary
+            WHERE "variantId" = ${item.variantId} AND "storeId" = ${resolvedStoreId}
+            FOR UPDATE;
+          `;
+
+          const summary = locked[0];
+          if (summary && summary.quantityReserved >= item.quantity) {
+            await tx.inventorySummary.update({
+              where: {
+                variantId_storeId: {
+                  variantId: item.variantId,
+                  storeId: resolvedStoreId,
+                },
+              },
+              data: {
+                quantityReserved: { decrement: item.quantity },
+                quantitySold: { increment: item.quantity },
+              },
+            });
+
+            await tx.stockMovement.create({
+              data: {
+                variantId: item.variantId,
+                storeId: resolvedStoreId,
+                quantityChange: -item.quantity,
+                type: 'SALE_FINAL',
+                reference: `order:${orderId}`,
+                notes: `Sale finalized for ${item.quantity} item(s) after payment`,
+              },
+            });
+          }
+        }
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to finalize inventory for order ${orderId}: ${(error as Error).message}`,
+      );
+    }
+
+    // Generate invoice
+    try {
+      const orderWithStore = await this.prisma.order.findUnique({
+        where: { id: orderId },
+        select: { storeId: true },
+      });
+      let invoiceStoreId = orderWithStore?.storeId ?? null;
+      if (!invoiceStoreId) {
+        const defaultStore = await this.prisma.storeLocation.findFirst({
+          where: { isActive: true },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (defaultStore) {
+          invoiceStoreId = defaultStore.id;
+          this.logger.warn(
+            `Order ${orderId} has no storeId — recovered using default store ${defaultStore.id}`,
+          );
+        } else {
+          this.logger.error(
+            `Invoice not generated for order ${orderId}: no storeId and no active store found`,
+          );
+          return;
+        }
+      }
+      await this.invoicesService.generate({
+        orderId,
+        storeId: invoiceStoreId,
+      });
+      this.logger.log(`Invoice auto-generated for order ${orderId}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to generate invoice for order ${orderId}: ${(error as Error).message}`,
+      );
+    }
   }
 
   // ──────────────────────────────────────────────
