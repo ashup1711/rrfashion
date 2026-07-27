@@ -612,63 +612,60 @@ export class PaymentsService implements OnModuleInit {
       return;
     }
 
-    const resolvedStoreId = order.storeId;
-    if (!resolvedStoreId) {
-      this.logger.warn(
-        `finalizeSaleAfterPayment: order ${orderId} has no storeId, cannot finalize inventory`,
-      );
-      return;
-    }
+    // Move inventory from reserved → sold (only if storeId is available)
+    const inventoryStoreId = order.storeId;
+    if (inventoryStoreId) {
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          const orderItems = await tx.orderItem.findMany({
+            where: { orderId },
+            select: { variantId: true, quantity: true },
+          });
 
-    // Move inventory from reserved → sold
-    try {
-      await this.prisma.$transaction(async (tx) => {
-        const orderItems = await tx.orderItem.findMany({
-          where: { orderId },
-          select: { variantId: true, quantity: true },
-        });
+          for (const item of orderItems) {
+            if (!item.variantId) continue;
 
-        for (const item of orderItems) {
-          if (!item.variantId) continue;
+            const locked = await tx.$queryRaw<Array<{ quantityReserved: number }>>`
+              SELECT * FROM inventory_summary
+              WHERE "variantId" = ${item.variantId} AND "storeId" = ${inventoryStoreId}
+              FOR UPDATE;
+            `;
 
-          const locked = await tx.$queryRaw<Array<{ quantityReserved: number }>>`
-            SELECT * FROM inventory_summary
-            WHERE "variantId" = ${item.variantId} AND "storeId" = ${resolvedStoreId}
-            FOR UPDATE;
-          `;
-
-          const summary = locked[0];
-          if (summary && summary.quantityReserved >= item.quantity) {
-            await tx.inventorySummary.update({
-              where: {
-                variantId_storeId: {
-                  variantId: item.variantId,
-                  storeId: resolvedStoreId,
+            const summary = locked[0];
+            if (summary && summary.quantityReserved >= item.quantity) {
+              await tx.inventorySummary.update({
+                where: {
+                  variantId_storeId: {
+                    variantId: item.variantId,
+                    storeId: inventoryStoreId,
+                  },
                 },
-              },
-              data: {
-                quantityReserved: { decrement: item.quantity },
-                quantitySold: { increment: item.quantity },
-              },
-            });
+                data: {
+                  quantityReserved: { decrement: item.quantity },
+                  quantitySold: { increment: item.quantity },
+                },
+              });
 
-            await tx.stockMovement.create({
-              data: {
-                variantId: item.variantId,
-                storeId: resolvedStoreId,
-                quantityChange: -item.quantity,
-                type: 'SALE_FINAL',
-                reference: `order:${orderId}`,
-                notes: `Sale finalized for ${item.quantity} item(s) after payment`,
-              },
-            });
+              await tx.stockMovement.create({
+                data: {
+                  variantId: item.variantId,
+                  storeId: inventoryStoreId,
+                  quantityChange: -item.quantity,
+                  type: 'SALE_FINAL',
+                  reference: `order:${orderId}`,
+                  notes: `Sale finalized for ${item.quantity} item(s) after payment`,
+                },
+              });
+            }
           }
-        }
-      });
-    } catch (error) {
-      this.logger.error(
-        `Failed to finalize inventory for order ${orderId}: ${(error as Error).message}`,
-      );
+        });
+      } catch (error) {
+        this.logger.error(
+          `Failed to finalize inventory for order ${orderId}: ${(error as Error).message}`,
+        );
+      }
+    } else {
+      this.logger.warn(`Order ${orderId} has no storeId, skipping inventory finalization`);
     }
 
     // Generate invoice

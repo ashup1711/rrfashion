@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import PDFDocument from 'pdfkit';
 import { PrismaService } from '../../prisma/prisma.service';
+import { randomUUID } from 'crypto';
 import { StorageService } from '../../storage/storage.service';
 import { numberToWordsInr } from '../../common/utils/number-to-words.util';
 import { GenerateInvoiceDto } from './dto/generate-invoice.dto';
@@ -397,12 +398,20 @@ export class InvoicesService {
   }
 
   private async nextInvoiceNumber(storeId: string, financialYear: string): Promise<string> {
-    const result = await this.prisma.$queryRaw<Array<{ last_number: number }>>`
-      SELECT next_invoice_number(${storeId}::text, ${financialYear}::text) AS last_number
-    `;
+    try {
+      const result = await this.prisma.$queryRaw<Array<{ last_number: number }>>`
+        SELECT next_invoice_number(${storeId}::text, ${financialYear}::text) AS last_number
+      `;
 
-    const seq = Number(result[0]?.last_number || 1);
-    return `${financialYear}/${storeId.slice(0, 8)}/${String(seq).padStart(6, '0')}`;
+      const seq = Number(result[0]?.last_number || 1);
+      return `${financialYear}/${storeId.slice(0, 8)}/${String(seq).padStart(6, '0')}`;
+    } catch (error) {
+      this.logger.warn(
+        `next_invoice_number function failed, using fallback: ${(error as Error).message}`,
+      );
+      const fallbackSeq = Math.floor(Math.random() * 900000) + 100000;
+      return `${financialYear}/${storeId.slice(0, 8)}/${String(fallbackSeq).padStart(6, '0')}-${randomUUID().slice(0, 4)}`;
+    }
   }
 
   private getFinancialYear(): string {
