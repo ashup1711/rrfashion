@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { getPersistentItem, setPersistentItem, removePersistentItem } from '../utils/persistentStorage';
-import { GUEST_SESSION_KEY } from '../utils/guestSession';
+import { GUEST_SESSION_KEY } from '../utils/guestConstants';
 
 interface GuestState {
   guestSessionId: string;

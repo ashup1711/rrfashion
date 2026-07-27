@@ -1,5 +1,4 @@
-export const GUEST_SESSION_KEY = 'guest_session_id';
-export const GUEST_TOKEN_KEY = 'guest_token';
+import { GUEST_SESSION_KEY, GUEST_TOKEN_KEY } from './guestConstants';
 
 export function getGuestToken(): string | null {
   return localStorage.getItem(GUEST_TOKEN_KEY);

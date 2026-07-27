@@ -1,4 +1,5 @@
-import { setGuestToken, GUEST_SESSION_KEY } from './guestSession';
+import { setGuestToken } from './guestSession';
+import { GUEST_SESSION_KEY } from './guestConstants';
 import apiClient from '../api/client';
 
 // Cache the initialization promise to prevent duplicate requests
