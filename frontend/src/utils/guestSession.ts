@@ -57,11 +57,14 @@ export function clearGuestSessionId(): void {
 }
 
 import { apiClient } from '../api/client';
+import { useGuestStore } from '../store/guestStore';
+import { useCartStore } from '../store/cartStore';
 
 /**
  * Initialize guest session on first load.
  * If a guest_token already exists, returns it. Otherwise calls POST /guest/start
  * to create a new backend guest session and stores the returned token + session ID.
+ * Updates both localStorage AND Zustand reactive stores so cart queries fire correctly.
  */
 export async function initializeGuestSession(): Promise<string> {
   const existingToken = getGuestToken();
@@ -70,6 +73,9 @@ export async function initializeGuestSession(): Promise<string> {
   const { data } = await apiClient.post('/guest/start');
   setGuestToken(data.guestToken);
   setGuestSessionId(data.guestSessionId);
+  // Also update the reactive Zustand store so subscribers (like useCart) react immediately
+  useGuestStore.getState().setGuestSessionId(data.guestSessionId);
+  useCartStore.getState().setGuestCart(true);
   return data.guestToken;
 }
 
@@ -88,6 +94,8 @@ export async function refreshGuestSession(): Promise<string | null> {
     }
     if (data.guestSessionId) {
       setGuestSessionId(data.guestSessionId);
+      // Also update the reactive Zustand store
+      useGuestStore.getState().setGuestSessionId(data.guestSessionId);
     }
     return data.guestToken || null;
   } catch (error) {

@@ -66,7 +66,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   items: initialItems,
   itemCount: initialItems.reduce((sum, i) => sum + i.quantity, 0),
   total: initialItems.reduce((sum, i) => sum + (i.salePrice ?? i.basePrice) * i.quantity, 0),
-  isGuest: !!getPersistentItem('guest_session_id'),
+  isGuest: getIsGuest(), // Reactive — reads from persistent storage each time
   isSynced: false,
   isSyncing: false,
 
@@ -241,7 +241,13 @@ export const useCartStore = create<CartState>((set, get) => ({
       total: calculateTotal(items),
     }),
 
-  setGuestCart: (isGuest) => set({ isGuest }),
+  setGuestCart: (isGuest) => {
+    set({ isGuest });
+    // Also reset sync flags when transitioning to non-guest
+    if (!isGuest) {
+      set({ isSynced: false, isSyncing: false });
+    }
+  },
 
   syncWithBackend: async () => {
     const state = get();
@@ -277,3 +283,21 @@ export const useCartStore = create<CartState>((set, get) => ({
     }
   },
 }));
+
+// Helper function that reads the current guest status from persistent storage
+function getIsGuest(): boolean {
+  return !!getPersistentItem('guest_session_id');
+}
+
+// Subscribe to guest_session_id changes in localStorage for cross-tab consistency
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'guest_session_id' || e.key === null) {
+      const currentState = useCartStore.getState();
+      const newIsGuest = getIsGuest();
+      if (currentState.isGuest !== newIsGuest) {
+        useCartStore.setState({ isGuest: newIsGuest });
+      }
+    }
+  });
+}

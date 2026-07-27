@@ -28,9 +28,22 @@ const App = () => {
 
   // Admin routes get the admin layout with sidebar
   if (isAdminRoute) {
-    if (!isAdminAuthenticated || !isAdminAuthValidated) {
+    // Three-state auth check:
+    // 1. No token at all → redirect to login
+    if (!isAdminAuthenticated) {
       return <Navigate to="/admin/login" state={{ from: location }} replace />;
     }
+    // 2. Token exists but not yet validated → show loading spinner, let AuthInitializer handle it
+    if (!isAdminAuthValidated) {
+      return (
+        <Suspense fallback={<LoadingSpinner />}>
+          <div className="min-h-screen flex items-center justify-center">
+            <LoadingSpinner label="Verifying your session..." />
+          </div>
+        </Suspense>
+      );
+    }
+    // 3. Token validated and authenticated → show admin layout
     return (
       <Suspense fallback={<LoadingSpinner />}>
         <AdminLayout>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getCart, addCartItem, updateCartItem, removeFromCart } from '../api/cart';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { getPersistentItem } from '../utils/persistentStorage';
+import { useGuestStore } from '../store/guestStore';
 import { QUERY_KEYS, ROUTES } from '../utils/constants';
 import { useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
@@ -19,8 +19,9 @@ export const useCart = () => {
   // Interceptor always provides the best available token (admin_token > auth_token > guest_token)
   // via Authorization: Bearer header, so the request is always credentials-ready.
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const hasGuestSession = !!getPersistentItem('guest_session_id');
-  const hasCredentials = isAuthenticated || hasGuestSession;
+  // Use reactive guest session ID from guestStore instead of static getPersistentItem snapshot
+  const guestSessionId = useGuestStore((s) => s.guestSessionId);
+  const hasCredentials = isAuthenticated || !!guestSessionId;
 
   const cartQuery = useQuery({
     queryKey: [QUERY_KEYS.cart],
@@ -146,7 +147,7 @@ export const useCart = () => {
       }
 
       // For guest users, optimistically update local store + localStorage immediately
-      if (!isAuthenticated && hasGuestSession) {
+      if (!isAuthenticated && !!guestSessionId) {
         const newItem: CartItemState = {
           productId: variantId,
           variantId,
@@ -164,31 +165,31 @@ export const useCart = () => {
 
       addItemMutation.mutate({ variantId, quantity, type: normalizedType });
     },
-    [items, addItemMutation, isAuthenticated, hasGuestSession, addItemToStore],
+    [items, addItemMutation, isAuthenticated, guestSessionId, addItemToStore],
   );
 
   const handleRemoveItem = useCallback(
     (itemId: string) => {
       // For guest users, optimistically remove from local store
-      if (!isAuthenticated && hasGuestSession) {
+      if (!isAuthenticated && !!guestSessionId) {
         removeItemFromStore(itemId);
         toast.success('Item removed from cart');
         return;
       }
       removeItemMutation.mutate(itemId);
     },
-    [isAuthenticated, hasGuestSession, removeItemMutation, removeItemFromStore],
+    [isAuthenticated, guestSessionId, removeItemMutation, removeItemFromStore],
   );
 
   const handleUpdateQuantity = useCallback(
     (itemId: string, quantity: number) => {
-      if (!isAuthenticated && hasGuestSession) {
+      if (!isAuthenticated && !!guestSessionId) {
         updateQuantityInStore(itemId, quantity);
         return;
       }
       updateItemMutation.mutate({ itemId, quantity });
     },
-    [isAuthenticated, hasGuestSession, updateItemMutation, updateQuantityInStore],
+    [isAuthenticated, guestSessionId, updateItemMutation, updateQuantityInStore],
   );
 
   return {

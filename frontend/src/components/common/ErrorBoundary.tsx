@@ -13,6 +13,19 @@ function isChunkLoadError(error: Error): boolean {
   return CHUNK_LOAD_PATTERNS.some((p) => p.test(error.message));
 }
 
+// Auth-related error patterns — occurs when auth state is stale or race-conditioned
+const AUTH_ERROR_PATTERNS = [
+  /Authentication required/,
+  /Unauthorized/,
+  /isAdminAuthValidated/,
+  /Cannot read properties of undefined.*user/,
+  /Cannot read properties of null.*user/,
+];
+
+function isAuthError(error: Error): boolean {
+  return AUTH_ERROR_PATTERNS.some((p) => p.test(error.message));
+}
+
 interface ErrorBoundaryProps {
   children: ReactNode;
   fallback?: ReactNode;
@@ -24,12 +37,13 @@ interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
   isChunkError: boolean;
+  isAuthError: boolean;
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null, isChunkError: false };
+    this.state = { hasError: false, error: null, isChunkError: false, isAuthError: false };
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -37,6 +51,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
       hasError: true,
       error,
       isChunkError: isChunkLoadError(error),
+      isAuthError: isAuthError(error),
     };
   }
 
@@ -49,10 +64,15 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
       window.location.reload();
       return;
     }
+    if (this.state.isAuthError) {
+      // For auth errors, redirect to login which forces full re-initialization
+      window.location.href = '/rrfashion/#/auth/login';
+      return;
+    }
     if (this.props.onRetry) {
       this.props.onRetry();
     }
-    this.setState({ hasError: false, error: null, isChunkError: false });
+    this.setState({ hasError: false, error: null, isChunkError: false, isAuthError: false });
   };
 
   handleRefresh = () => {

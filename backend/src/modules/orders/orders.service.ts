@@ -265,9 +265,11 @@ export class OrdersService {
         const summary = locked[0];
 
         if (!summary || summary.quantityAvailable < qty) {
-          throw new ConflictException(
-            `Item is no longer available in the requested quantity. variantId=${variantId}`,
-          );
+          throw new ConflictException({
+            message:
+              'This item is no longer available in the requested quantity. Please remove it from your cart and try again.',
+            itemUnavailable: true,
+          });
         }
 
         await tx.inventorySummary.update({
@@ -1105,9 +1107,11 @@ export class OrdersService {
         const summary = locked[0];
 
         if (!summary || summary.quantityAvailable < qty) {
-          throw new ConflictException(
-            `Item is no longer available in the requested quantity. variantId=${variantId}`,
-          );
+          throw new ConflictException({
+            message:
+              'This item is no longer available in the requested quantity. Please remove it from your cart and try again.',
+            itemUnavailable: true,
+          });
         }
 
         await tx.inventorySummary.update({

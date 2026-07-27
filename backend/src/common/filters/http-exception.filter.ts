@@ -32,6 +32,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
       } else if (typeof resp.message === 'string') {
         message = resp.message;
       }
+
+      if (resp.itemUnavailable === true) {
+        details = [{ itemUnavailable: true }];
+      }
     }
 
     // Build error code from status
@@ -64,6 +68,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       if (message.toLowerCase().includes('lock')) return 'ITEM_LOCKED';
       if (message.toLowerCase().includes('signature')) return 'INVALID_SIGNATURE';
       if (message.toLowerCase().includes('payment')) return 'PAYMENT_ERROR';
+      if (message.toLowerCase().includes('unavailable')) return 'ITEM_UNAVAILABLE';
       return 'CONFLICT';
     }
     if (status === 429) return 'RATE_LIMIT_EXCEEDED';
