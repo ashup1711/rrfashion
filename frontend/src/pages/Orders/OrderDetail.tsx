@@ -70,20 +70,6 @@ const OrderDetail = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const paymentCheckedRef = useRef(false);
 
-  // Update local invoiceGenerated from order data
-  useEffect(() => {
-    if (order) {
-      setInvoiceGenerated(!!order.invoiceGenerated);
-    }
-  }, [order]);
-
-  // Start polling if order is PAID but invoice not yet generated (page reload scenario)
-  useEffect(() => {
-    if (order && order.paymentStatus === 'PAID' && !order.invoiceGenerated && !paymentCheckedRef.current) {
-      startInvoicePolling();
-    }
-  }, [order, startInvoicePolling]);
-
   const clearInvoicePolling = useCallback(() => {
     if (invoiceCheckIntervalRef.current) {
       clearInterval(invoiceCheckIntervalRef.current);
@@ -121,6 +107,20 @@ const OrderDetail = () => {
       }
     }, POLL_INTERVAL_MS);
   }, [id, clearInvoicePolling, refetchOrder]);
+
+  // Update local invoiceGenerated from order data
+  useEffect(() => {
+    if (order) {
+      setInvoiceGenerated(!!order.invoiceGenerated);
+    }
+  }, [order]);
+
+  // Start polling if order is PAID but invoice not yet generated (page reload scenario)
+  useEffect(() => {
+    if (order && order.paymentStatus === 'PAID' && !order.invoiceGenerated && !paymentCheckedRef.current) {
+      startInvoicePolling();
+    }
+  }, [order, startInvoicePolling]);
 
   useEffect(() => {
     return () => {
