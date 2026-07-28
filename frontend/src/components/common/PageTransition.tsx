@@ -46,7 +46,7 @@ const PageTransition = ({ children }: PageTransitionProps) => {
   const isInitial = isFirstRender;
 
   return (
-    <AnimatePresence initial={isInitial}>
+    <AnimatePresence mode="wait" initial={isInitial}>
       <motion.div
         key={location.pathname + (isFirstRender ? '-initial' : '')}
         variants={pageVariants}

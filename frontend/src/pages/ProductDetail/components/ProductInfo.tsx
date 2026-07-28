@@ -18,7 +18,7 @@ interface ProductInfoProps {
   product: Product;
 }
 
-const Accordion = ({ 
+export const Accordion = ({ 
   title, 
   children, 
   isOpen: defaultOpen = false 
@@ -167,6 +167,9 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
     setQuantity((q) => Math.min(MAX_CART_QUANTITY, q + 1));
   };
 
+  // Loading state for Buy Now specifically (separate from Add to Cart's isAdding)
+  const [isBuyingNow, setIsBuyingNow] = useState(false);
+
   // Handle Add to Cart
   const handleAddToCart = async () => {
     if (!selectedVariant) {
@@ -183,9 +186,25 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
       toast.error('Please select a size and color');
       return;
     }
-    // Add to cart first, then redirect to checkout
-    await addToCart(selectedVariant.id, quantity, purchaseType);
-    navigate(isAuthenticated ? ROUTES.CHECKOUT : ROUTES.GUEST_CHECKOUT);
+
+    setIsBuyingNow(true);
+
+    try {
+      // TRULY await the cart add — handleAddItem now returns a Promise
+      // that resolves only after the mutation completes (auth) or
+      // after the local store is updated (guest)
+      await addToCart(selectedVariant.id, quantity, purchaseType);
+
+      // Only navigate AFTER the cart add has completed successfully
+      navigate(isAuthenticated ? ROUTES.CHECKOUT : ROUTES.GUEST_CHECKOUT);
+    } catch (error) {
+      // If the cart add failed, don't navigate — stay on the product page
+      // and let the user retry. The error toast is already shown by useCart's onError.
+      console.error('[BuyNow] Failed to add item to cart, staying on product page:', error);
+      // Navigation is intentionally NOT called here
+    } finally {
+      setIsBuyingNow(false);
+    }
   }
 
   // Handle Wishlist
@@ -428,7 +447,8 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
           size="lg"
           className="w-full h-14 border-neutral-nearBlack text-neutral-nearBlack hover:bg-neutral-nearBlack hover:text-white rounded-xl font-bold uppercase tracking-wider transition-all"
           onClick={handleBuyNow}
-          disabled={isOutOfStock || !canAddToCart}
+          disabled={isOutOfStock || !canAddToCart || isBuyingNow}
+          isLoading={isBuyingNow}
         >
           Buy Now
         </Button>

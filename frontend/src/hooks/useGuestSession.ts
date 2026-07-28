@@ -31,5 +31,5 @@ export function useGuestSession() {
   // Check if guest token exists (initialized or previously stored)
   const hasGuestToken = !!getGuestToken();
 
-  return { initialized, error, refresh, hasGuestToken };
+  return { initialized, error, refresh, hasGuestToken, isReady: initialized || hasGuestToken };
 }

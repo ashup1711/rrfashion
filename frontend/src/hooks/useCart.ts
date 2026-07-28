@@ -5,7 +5,7 @@ import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useGuestStore } from '../store/guestStore';
 import { QUERY_KEYS, ROUTES } from '../utils/constants';
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import type { CartItemState } from '../store/cartStore';
 
@@ -136,7 +136,7 @@ export const useCart = () => {
   });
 
   const handleAddItem = useCallback(
-    (variantId: string, quantity: number, type?: string) => {
+    async (variantId: string, quantity: number, type?: string): Promise<void> => {
       const normalizedType = type || 'sale';
       const alreadyInCart = items.some(
         (i) => i.variantId === variantId && (i.type ?? 'sale') === normalizedType,
@@ -146,8 +146,9 @@ export const useCart = () => {
         return;
       }
 
-      // For guest users, optimistically update local store + localStorage immediately
-      if (!isAuthenticated && !!guestSessionId) {
+      // Guest user path — handle BOTH initialized and non-initialized sessions
+      // The local store add is independent of backend auth, so we can always add optimistically
+      if (!isAuthenticated) {
         const newItem: CartItemState = {
           productId: variantId,
           variantId,
@@ -163,9 +164,16 @@ export const useCart = () => {
         return;
       }
 
-      addItemMutation.mutate({ variantId, quantity, type: normalizedType });
+      // For authenticated users, WAIT for the mutation to complete before resolving
+      try {
+        await addItemMutation.mutateAsync({ variantId, quantity, type: normalizedType });
+      } catch (error) {
+        // Error is already handled by onError in the mutation definition
+        // Re-throw so the caller (handleBuyNow) knows the add failed
+        throw error;
+      }
     },
-    [items, addItemMutation, isAuthenticated, guestSessionId, addItemToStore],
+    [items, addItemMutation, isAuthenticated, addItemToStore],
   );
 
   const handleRemoveItem = useCallback(

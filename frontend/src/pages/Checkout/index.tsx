@@ -33,6 +33,11 @@ const Checkout = () => {
     }
   }, [isAuthenticated]);
 
+  // Track whether serverItems has resolved at least once (even if empty)
+  // This prevents the state machine from flip-flopping between redirecting and ready
+  // when the cart query resolves multiple times during navigation
+  const hasResolvedOnce = useRef(false);
+
   // Drive page state transitions based on cart loading status and items
   useEffect(() => {
     // Skip until the cart query has resolved (serverItems is defined)
@@ -42,14 +47,17 @@ const Checkout = () => {
 
     const hasItems = items.length > 0 || serverItems.length > 0;
     if (hasItems) {
-      // Cart has items — show checkout
+      // Cart has items — show checkout (stable state)
+      hasResolvedOnce.current = true;
       setPageState('ready');
-    } else if (!hasTriggeredRedirect.current) {
-      // Cart is empty — schedule a redirect AFTER rendering the loading UI
-      // so the user never sees a blank flash
+    } else if (!hasResolvedOnce.current && !hasTriggeredRedirect.current) {
+      // ONLY redirect on the first resolution with empty items
+      // If items arrive later (via mutation callback), don't cycle back to redirecting
       hasTriggeredRedirect.current = true;
       setPageState('redirecting');
     }
+    // If hasResolvedOnce is true but items are empty now (e.g., after mutation),
+    // stay in the current state instead of cycling
   }, [serverItems, items]);
 
   // Perform the actual navigation in a separate effect so the loading spinner

@@ -4,11 +4,31 @@ import { useLocation } from 'react-router-dom';
 
 const STORAGE_KEY = 'pwa_install_dismissed';
 const DISMISS_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
-const DWELL_TIME_MS = 30 * 1000;
+const DWELL_TIME_MS = 5 * 1000; // Reduced from 30s to 5s
+const HIDE_PREFIXES = ['/checkout', '/pos', '/admin'];
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+// Module-level storage to survive component unmount/remount
+let globalDeferredPrompt: BeforeInstallPromptEvent | null = null;
+let promptListeners: Array<(e: BeforeInstallPromptEvent) => void> = [];
+
+// Register module-level listener once
+if (typeof window !== 'undefined' && !(window as any).__pwaListenerRegistered) {
+  (window as any).__pwaListenerRegistered = true;
+  window.addEventListener('beforeinstallprompt', (e: Event) => {
+    e.preventDefault();
+    globalDeferredPrompt = e as BeforeInstallPromptEvent;
+    // Notify all mounted PWAInstallPrompt instances
+    promptListeners.forEach(fn => fn(globalDeferredPrompt!));
+  });
+
+  window.addEventListener('appinstalled', () => {
+    globalDeferredPrompt = null;
+  });
 }
 
 const isDismissedRecently = (): boolean => {
@@ -23,55 +43,51 @@ const isDismissedRecently = (): boolean => {
   }
 };
 
-const HIDE_PREFIXES = ['/checkout', '/pos', '/admin'];
-
 const isHiddenPath = (pathname: string): boolean =>
   HIDE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
 const PWAInstallPrompt = () => {
   const location = useLocation();
-  const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
 
   if (isHiddenPath(location.pathname)) return null;
 
   useEffect(() => {
     if (isDismissedRecently()) return;
+    if (globalDeferredPrompt) {
+      setVisible(true);
+      return;
+    }
 
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      deferredPrompt.current = e as BeforeInstallPromptEvent;
+    // Listen for beforeinstallprompt event
+    const handler = () => {
+      if (globalDeferredPrompt) {
+        setVisible(true);
+      }
     };
+    promptListeners.push(handler);
 
-    const handleAppInstalled = () => {
-      deferredPrompt.current = null;
-      setVisible(false);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
-
+    // Fallback timer (shows after short dwell if event already fired)
     const timer = window.setTimeout(() => {
-      if (deferredPrompt.current) {
+      if (globalDeferredPrompt) {
         setVisible(true);
       }
     }, DWELL_TIME_MS);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
+      promptListeners = promptListeners.filter(fn => fn !== handler);
       window.clearTimeout(timer);
     };
   }, []);
 
   const handleInstall = async () => {
-    const prompt = deferredPrompt.current;
+    const prompt = globalDeferredPrompt;
     if (!prompt) return;
     try {
       await prompt.prompt();
       await prompt.userChoice;
     } finally {
-      deferredPrompt.current = null;
+      globalDeferredPrompt = null;
       setVisible(false);
     }
   };
@@ -80,7 +96,7 @@ const PWAInstallPrompt = () => {
     try {
       localStorage.setItem(STORAGE_KEY, String(Date.now()));
     } catch {
-      return;
+      // localStorage may be full or unavailable
     }
     setVisible(false);
   };
