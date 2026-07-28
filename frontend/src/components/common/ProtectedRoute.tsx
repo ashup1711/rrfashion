@@ -1,4 +1,5 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 
 interface ProtectedRouteProps {
@@ -8,17 +9,23 @@ interface ProtectedRouteProps {
 
 export const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { isAdminAuthenticated, isAuthenticated } = useAuthStore();
+  const hasRedirected = useRef(false);
 
-  if (requireAdmin) {
-    if (!isAdminAuthenticated) {
-      return <Navigate to="/admin/login" state={{ from: location }} replace />;
+  useEffect(() => {
+    if (requireAdmin && !isAdminAuthenticated && !hasRedirected.current) {
+      hasRedirected.current = true;
+      navigate('/admin/login', { state: { from: location }, replace: true });
     }
-    return <>{children}</>;
-  }
+    if (!requireAdmin && !isAuthenticated && !hasRedirected.current) {
+      hasRedirected.current = true;
+      navigate('/auth/login', { state: { from: location }, replace: true });
+    }
+    return () => { hasRedirected.current = false; };
+  }, [requireAdmin, isAdminAuthenticated, isAuthenticated, location, navigate]);
 
-  if (!isAuthenticated) {
-    return <Navigate to="/auth/login" state={{ from: location }} replace />;
-  }
+  if (requireAdmin && !isAdminAuthenticated) return null;
+  if (!requireAdmin && !isAuthenticated) return null;
   return <>{children}</>;
 };
