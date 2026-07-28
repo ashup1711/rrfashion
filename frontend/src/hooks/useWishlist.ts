@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { getWishlist, addToWishlist, removeFromWishlist, addAllWishlistToCart, type WishlistItem as ApiWishlistItem } from '../api/wishlist';
 import { useWishlistStore, type WishlistItem as GuestWishlistItem } from '../store/wishlistStore';
 import { useAuthStore } from '../store/authStore';
+import { useGuestSession } from './useGuestSession';
 import { QUERY_KEYS } from '../utils/constants';
 import { useCallback, useEffect, useMemo } from 'react';
 
@@ -15,10 +16,8 @@ export const useWishlist = () => {
   const queryClient = useQueryClient();
   const { setGuestItems, guestItems, addGuestItem, removeGuestItem } = useWishlistStore();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-
-  // Interceptor always provides the best available token (admin_token > auth_token > guest_token)
-  // via Authorization: Bearer header, so the request is always credentials-ready.
-  const hasCredentials = true;
+  const { hasGuestToken } = useGuestSession();
+  const hasCredentials = hasGuestToken || isAuthenticated;
 
   const wishlistQuery = useQuery({
     queryKey: [QUERY_KEYS.wishlist],
