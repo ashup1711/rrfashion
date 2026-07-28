@@ -8,8 +8,13 @@ import { AuthInitializer } from './components/auth/AuthInitializer';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import './styles/globals.css';
 
-// ensureGuestSession() is REMOVED from here — now called inside AuthInitializer useEffect.
-// This eliminates the race condition between guest session init and React hydration.
+// Suppress workbox message channel closed error (race condition on navigation)
+window.addEventListener('unhandledrejection', (event) => {
+  const message = event.reason?.message ?? '';
+  if (message.includes('message channel closed before a response was received')) {
+    event.preventDefault();
+  }
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -65,6 +65,7 @@ async function bootstrap() {
       frameguard: { action: 'deny' },
       noSniff: true, // X-Content-Type-Options: nosniff
       referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
       xssFilter: true,
       hidePoweredBy: true, // Remove X-Powered-By
       permittedCrossDomainPolicies: { permittedPolicies: 'none' },

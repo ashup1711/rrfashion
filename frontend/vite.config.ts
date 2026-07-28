@@ -8,14 +8,14 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico'],
+      includeAssets: ['favicon.svg'],
       manifest: {
         name: 'RR Fashion POS',
         short_name: 'RR Fashion',
         description: 'RR Fashion Point of Sale',
         theme_color: '#000000',
         icons: [
-          { src: '/favicon.ico', sizes: '192x192', type: 'image/x-icon' },
+          { src: '/rrfashion/favicon.svg', sizes: '192x192', type: 'image/svg+xml' },
         ],
         display: 'standalone',
       },
