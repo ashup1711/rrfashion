@@ -6,6 +6,7 @@ import Badge from '../../../components/ui/Badge';
 import { formatCurrency } from '../../../utils/formatCurrency';
 import { useCart } from '../../../hooks/useCart';
 import { useWishlist } from '../../../hooks/useWishlist';
+import { useAuthStore } from '../../../store/authStore';
 import type { Product, ProductVariant } from '../../../types/product';
 import SizeGuide from '../../../components/common/SizeGuide';
 import { ROUTES } from '../../../utils/constants';
@@ -63,6 +64,7 @@ const Accordion = ({
 
 const ProductInfo = ({ product }: ProductInfoProps) => {
   const navigate = useNavigate();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   
   // Local state for variant selection and quantity
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -183,7 +185,7 @@ const ProductInfo = ({ product }: ProductInfoProps) => {
     }
     // Add to cart first, then redirect to checkout
     await addToCart(selectedVariant.id, quantity, purchaseType);
-    navigate(ROUTES.CHECKOUT);
+    navigate(isAuthenticated ? ROUTES.CHECKOUT : ROUTES.GUEST_CHECKOUT);
   }
 
   // Handle Wishlist

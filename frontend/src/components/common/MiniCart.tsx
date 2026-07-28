@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUIStore } from '../../store/uiStore';
 import { useCartStore } from '../../store/cartStore';
+import { useAuthStore } from '../../store/authStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { ROUTES } from '../../utils/constants';
@@ -14,6 +15,7 @@ const MiniCart = () => {
   const isOpen = useUIStore((state) => state.isMiniCartOpen);
   const closeMiniCart = useUIStore((state) => state.closeMiniCart);
   const { items, total, removeItem, updateQuantity } = useCartStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const panelRef = useFocusTrap<HTMLDivElement>(isOpen, { onEscape: closeMiniCart });
 
@@ -237,7 +239,7 @@ const MiniCart = () => {
                       View Cart
                     </Link>
                     <Link
-                      to={ROUTES.CHECKOUT}
+                      to={isAuthenticated ? ROUTES.CHECKOUT : ROUTES.GUEST_CHECKOUT}
                       onClick={closeMiniCart}
                       className="text-center py-3 rounded bg-primary-900 text-white font-semibold hover:bg-primary-800 transition-colors uppercase tracking-wider text-caption"
                     >

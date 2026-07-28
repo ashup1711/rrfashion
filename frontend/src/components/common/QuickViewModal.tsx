@@ -6,6 +6,7 @@ import type { Swiper as SwiperType } from 'swiper';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUIStore } from '../../store/uiStore';
 import { useCartStore } from '../../store/cartStore';
+import { useAuthStore } from '../../store/authStore';
 import { formatCurrencyCompact } from '../../utils/formatCurrency';
 import { ROUTES } from '../../utils/constants';
 import { toast } from 'sonner';
@@ -21,6 +22,7 @@ const QuickViewModal = () => {
   const { isQuickViewOpen, quickViewProduct: product, closeQuickView, openMiniCart } = useUIStore();
   const addItem = useCartStore((state) => state.addItem);
   const navigate = useNavigate();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   
   const [thumbsSwiper, setThumbsSwiper] = useState<SwiperType | null>(null);
   const [selectedSize, setSelectedSize] = useState<string>('');
@@ -145,7 +147,7 @@ const QuickViewModal = () => {
     });
 
     closeQuickView();
-    navigate(ROUTES.CHECKOUT);
+    navigate(isAuthenticated ? ROUTES.CHECKOUT : ROUTES.GUEST_CHECKOUT);
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
