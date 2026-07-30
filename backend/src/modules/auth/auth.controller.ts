@@ -142,10 +142,11 @@ export class AuthController {
   }
 
   private setAuthCookies(res: Response, accessToken: string, refreshToken: string): void {
-    const isSecure = process.env.NODE_ENV === 'production';
-    // SameSite=None required for cross-origin (GitHub Pages → ngrok) in production
-    // SameSite=Strict works for same-origin (localhost) in development
-    const sameSite = isSecure ? 'none' as const : 'strict' as const;
+    // SameSite=None required for cross-origin (GitHub Pages → ngrok)
+    // Can be overridden via COOKIE_SAMESITE env var (none/strict/lax)
+    const sameSite = (process.env.COOKIE_SAMESITE || (process.env.NODE_ENV === 'production' ? 'none' : 'strict')) as 'none' | 'strict' | 'lax';
+    // Secure is REQUIRED when SameSite=None (browser spec)
+    const isSecure = sameSite === 'none' || process.env.NODE_ENV === 'production';
     res.cookie('access_token', accessToken, {
       httpOnly: true,
       secure: isSecure,

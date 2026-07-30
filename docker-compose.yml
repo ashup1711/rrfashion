@@ -55,6 +55,7 @@ services:
       - "${BACKEND_HOST_PORT:-3000}:3000"
     environment:
       NODE_ENV: development
+      COOKIE_SAMESITE: "none"
       PORT: "3000"
       DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/rr_fashion?schema=public"
       REDIS_HOST: redis
