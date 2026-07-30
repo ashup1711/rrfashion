@@ -71,7 +71,7 @@ const OrderDetailContent = () => {
     order.status !== 'DELIVERED' && order.status !== 'CANCELLED' && order.status !== 'RETURNED';
 
   const canUpdatePaymentStatus =
-    order.paymentMethod === 'CASH' &&
+    ['cash', 'cod'].includes((order.paymentMethod || '').toLowerCase()) &&
     order.paymentStatus === 'PENDING' &&
     order.status !== 'CANCELLED' &&
     order.status !== 'RETURNED';

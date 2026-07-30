@@ -186,7 +186,7 @@ const AdminOrdersList = () => {
               Update
             </Button>
           )}
-          {order.paymentMethod === 'CASH' && order.paymentStatus === 'PENDING' && (
+          {['cash', 'cod'].includes((order.paymentMethod || '').toLowerCase()) && order.paymentStatus === 'PENDING' && (
             <Button
               variant="ghost"
               size="sm"

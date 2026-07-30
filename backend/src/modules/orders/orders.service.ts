@@ -679,8 +679,9 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    // Only CASH payment method orders can be manually updated by admin
-    if (order.paymentMethod !== 'CASH') {
+    // Only CASH/COD payment method orders can be manually updated by admin
+    const cashMethods = ['cash', 'cod'];
+    if (!order.paymentMethod || !cashMethods.includes(order.paymentMethod.toLowerCase())) {
       throw new BadRequestException('Only cash delivery orders can have payment status updated');
     }
 

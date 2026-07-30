@@ -49,7 +49,7 @@ const PaymentStatusUpdateModal = ({
     [currentPaymentStatus],
   );
 
-  const isNonCash = paymentMethod !== 'CASH';
+  const isNonCash = !['cash', 'cod'].includes(paymentMethod.toLowerCase());
 
   const handleConfirm = () => {
     if (!selectedStatus) return;
