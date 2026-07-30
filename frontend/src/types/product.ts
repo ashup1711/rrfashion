@@ -100,6 +100,7 @@ export type ProductCountMap = Record<string, number>;
 export interface ProductCountsResponse {
   categories: ProductCountMap;
   brands: ProductCountMap;
+  colors?: ProductCountMap;
   inStock: number;
   outOfStock: number;
 }

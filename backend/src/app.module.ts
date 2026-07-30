@@ -16,6 +16,8 @@ import { BrandsModule } from './modules/brands/brands.module';
 import { VariantsModule } from './modules/variants/variants.module';
 import { ProductsModule } from './modules/products/products.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { ColorsModule } from './modules/colors/colors.module';
+import { SizesModule } from './modules/sizes/sizes.module';
 import { StoresModule } from './modules/stores/stores.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
@@ -129,6 +131,8 @@ import { StorageModule } from './storage/storage.module';
     VariantsModule,
     ProductsModule,
     CategoriesModule,
+    ColorsModule,
+    SizesModule,
     StoresModule,
     InventoryModule,
     AuditLogsModule,

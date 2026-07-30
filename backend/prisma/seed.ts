@@ -229,7 +229,55 @@ async function main() {
   }
   console.log(`  ✔  ${brands.size} brands created`);
 
-  // ── 5. Categories (with hierarchy) ────────────────
+  // ── 5. Colors ─────────────────────────────────────
+  console.log('  Creating colors …');
+  const colorData = [
+    { name: 'Black', hexCode: '#000000', sortOrder: 1 },
+    { name: 'White', hexCode: '#FFFFFF', sortOrder: 2 },
+    { name: 'Red', hexCode: '#EF4444', sortOrder: 3 },
+    { name: 'Blue', hexCode: '#3B82F6', sortOrder: 4 },
+    { name: 'Green', hexCode: '#22C55E', sortOrder: 5 },
+    { name: 'Yellow', hexCode: '#EAB308', sortOrder: 6 },
+    { name: 'Pink', hexCode: '#EC4899', sortOrder: 7 },
+    { name: 'Purple', hexCode: '#A855F7', sortOrder: 8 },
+    { name: 'Beige', hexCode: '#F5F5DC', sortOrder: 9 },
+    { name: 'Gold', hexCode: '#D4AF37', sortOrder: 10 },
+  ];
+
+  for (const c of colorData) {
+    const existing = await prisma.color.findFirst({ where: { name: c.name } });
+    if (!existing) {
+      await prisma.color.create({
+        data: { name: c.name, hexCode: c.hexCode, sortOrder: c.sortOrder, isActive: true },
+      });
+    }
+  }
+  console.log(`  ✔  ${colorData.length} colors created`);
+
+  // ── 6. Sizes ────────────────────────────────────────
+  console.log('  Creating sizes …');
+  const sizeData = [
+    { name: 'XS', sortOrder: 10 },
+    { name: 'S', sortOrder: 20 },
+    { name: 'M', sortOrder: 30 },
+    { name: 'L', sortOrder: 40 },
+    { name: 'XL', sortOrder: 50 },
+    { name: 'XXL', sortOrder: 60 },
+    { name: '3XL', sortOrder: 70 },
+    { name: '4XL', sortOrder: 80 },
+  ];
+
+  for (const s of sizeData) {
+    const existing = await prisma.size.findFirst({ where: { name: s.name } });
+    if (!existing) {
+      await prisma.size.create({
+        data: { name: s.name, sortOrder: s.sortOrder, isActive: true },
+      });
+    }
+  }
+  console.log(`  ✔  ${sizeData.length} sizes created`);
+
+  // ── 7. Categories (with hierarchy) ────────────────
   console.log('  Creating categories …');
 
   // Top-level categories
@@ -326,7 +374,7 @@ async function main() {
   }
   console.log(`  ✔  ${3 + allChildCategories.length} categories created (${allChildCategories.length} sub-categories)`);
 
-  // ── 6. Super Admin User ───────────────────────────
+  // ── 8. Super Admin User ───────────────────────────
   console.log('  Creating Super Admin user …');
   const adminPassword = await hashPassword('Admin@123');
   const superAdmin = await prisma.adminUser.upsert({
@@ -348,7 +396,7 @@ async function main() {
   });
   console.log(`  ✔  Admin: ${superAdmin.email} (password: Admin\@123)`);
 
-  // ── 7. Sample Customer ────────────────────────────
+  // ── 9. Sample Customer ────────────────────────────
   console.log('  Creating sample customer …');
   const customerPassword = await hashPassword('Password123!');
   const sampleCustomer = await prisma.user.upsert({
@@ -380,7 +428,7 @@ async function main() {
   });
   console.log(`  ✔  Customer: ${sampleCustomer.email} (password: Password123\!)`);
 
-  // ── 8. Sample Products with Variants & Inventory ──
+  // ── 10. Sample Products with Variants & Inventory ──
   console.log('  Creating sample products …');
 
   // Helper: create product with variants
@@ -690,7 +738,7 @@ async function main() {
     ],
   );
 
-  // ── 9. Sample Orders ───────────────────────────────────
+  // ── 11. Sample Orders ──────────────────────────────────
   console.log('  Creating sample orders …');
 
   // Get a variant for the order
@@ -813,12 +861,14 @@ async function main() {
     console.log(`  ✔  2 sample orders created for ${sampleCustomer.email}`);
   }
 
-  // ── 10. Summary ────────────────────────────────────
+  // ── 12. Summary ────────────────────────────────────
   console.log('\n  ── Seed Summary ──────────────────────');
   console.log(`  🏪  Store:             ${mainStore.name}`);
   console.log(`  👤  Admin:             ${superAdmin.email}`);
   console.log(`  👤  Customer:          ${sampleCustomer.email}`);
   console.log(`  🏷️   Brands:            ${brands.size}`);
+  console.log(`  🎨  Colors:            ${colorData.length}`);
+  console.log(`  📏  Sizes:             ${sizeData.length}`);
   console.log(`  📂  Categories:        ${2 + allChildCategories.length}`);
   console.log(`  👑  Roles:             3 (Super Admin, Store Manager, Inventory Staff)`);
   console.log(`  🔐  Permissions:       ${createdPermissions.length}`);

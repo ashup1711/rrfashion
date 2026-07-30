@@ -22,6 +22,16 @@ vi.mock('../../../../hooks/useBrands', () => ({
   }),
 }));
 
+vi.mock('../../../../hooks/useColors', () => ({
+  useColors: () => ({
+    data: [
+      { id: 'col1', name: 'Black', hexCode: '#000000', isActive: true, sortOrder: 0 },
+      { id: 'col2', name: 'White', hexCode: '#FFFFFF', isActive: true, sortOrder: 1 },
+    ],
+    isLoading: false,
+  }),
+}));
+
 const renderFilters = (
   filters: FilterType = {},
   productCounts?: ProductCountsResponse,

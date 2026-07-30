@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useCategories } from '../../../hooks/useCategories';
 import { useBrands } from '../../../hooks/useBrands';
+import { useColors } from '../../../hooks/useColors';
+import { useSizes } from '../../../hooks/useSizes';
 import type { ProductFilters as FilterType, ProductCountsResponse } from '../../../types/product';
 
 interface ProductFiltersProps {
@@ -8,21 +10,6 @@ interface ProductFiltersProps {
   onFilterChange: (filters: FilterType) => void;
   productCounts?: ProductCountsResponse;
 }
-
-const COLORS = [
-  { name: 'Black', hex: '#000000' },
-  { name: 'White', hex: '#FFFFFF' },
-  { name: 'Red', hex: '#EF4444' },
-  { name: 'Blue', hex: '#3B82F6' },
-  { name: 'Green', hex: '#10B981' },
-  { name: 'Yellow', hex: '#F59E0B' },
-  { name: 'Pink', hex: '#EC4899' },
-  { name: 'Purple', hex: '#8B5CF6' },
-  { name: 'Beige', hex: '#F5F5DC' },
-  { name: 'Gold', hex: '#D4AF37' },
-];
-
-const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
 
 const Accordion = ({ 
   title, 
@@ -141,6 +128,8 @@ const PriceSlider = ({
 const ProductFilters = ({ filters, onFilterChange, productCounts }: ProductFiltersProps) => {
   const { data: categories } = useCategories();
   const { data: brands } = useBrands();
+  const { data: colors, isLoading: isColorsLoading } = useColors();
+  const { data: sizes, isLoading: isSizesLoading } = useSizes();
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
   const setFilter = (key: keyof FilterType, value: unknown) => {
@@ -268,54 +257,62 @@ const ProductFilters = ({ filters, onFilterChange, productCounts }: ProductFilte
       </Accordion>
 
       <Accordion title="Colors">
-        <div className="grid grid-cols-5 gap-3 py-2">
-          {COLORS.map((color) => (
-            <button
-              key={color.name}
-              onClick={() => toggleArrayFilter('colors', color.name)}
-              title={color.name}
-              className={`group relative flex flex-col items-center gap-1`}
-            >
-              <div
-                className={`w-8 h-8 rounded-full border-2 transition-all duration-200 flex items-center justify-center ${
+        {isColorsLoading ? (
+          <div className="grid grid-cols-5 gap-3 py-2">
+            {Array.from({length: 10}).map((_, i) => (
+              <div key={i} className="w-8 h-8 rounded-full bg-gray-200 animate-pulse mx-auto" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-5 gap-3 py-2">
+            {colors?.filter(c => c.isActive).sort((a,b) => a.sortOrder - b.sortOrder).map(color => (
+              <button key={color.id} onClick={() => toggleArrayFilter('colors', color.name)} title={color.name}
+                className="group relative flex flex-col items-center gap-1"
+              >
+                <div className={`w-8 h-8 rounded-full border-2 transition-all duration-200 flex items-center justify-center ${
                   filters.colors?.includes(color.name)
                     ? 'border-primary-500 scale-110 shadow-md'
                     : 'border-transparent hover:border-neutral-medium'
-                }`}
-              >
-                <span
-                  className="w-6 h-6 rounded-full border border-black/5"
-                  style={{ backgroundColor: color.hex }}
-                />
-                {filters.colors?.includes(color.name) && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <svg className={`w-4 h-4 ${color.name === 'White' ? 'text-black' : 'text-white'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                )}
-              </div>
-            </button>
-          ))}
-        </div>
+                }`}>
+                  <span className="w-6 h-6 rounded-full border border-black/5" style={{ backgroundColor: color.hexCode }} />
+                  {filters.colors?.includes(color.name) && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <svg className={`w-4 h-4 ${color.name === 'White' || color.hexCode === '#FFFFFF' ? 'text-black' : 'text-white'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </Accordion>
 
       <Accordion title="Size">
-        <div className="flex flex-wrap gap-2 py-2">
-          {SIZES.map((size) => (
-            <button
-              key={size}
-              onClick={() => toggleArrayFilter('sizes', size)}
-              className={`min-w-[40px] h-10 px-3 rounded-md text-sm font-medium border transition-all duration-200 ${
-                filters.sizes?.includes(size)
-                  ? 'bg-primary-900 border-primary-900 text-white shadow-sm'
-                  : 'bg-white border-neutral-medium text-neutral-dark hover:border-primary-500 hover:text-primary-500'
-              }`}
-            >
-              {size}
-            </button>
-          ))}
-        </div>
+        {isSizesLoading ? (
+          <div className="flex flex-wrap gap-2 py-2">
+            {Array.from({length: 6}).map((_, i) => (
+              <div key={i} className="w-12 h-10 rounded-md bg-gray-200 animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2 py-2">
+            {sizes?.filter(s => s.isActive).sort((a,b) => a.sortOrder - b.sortOrder).map(size => (
+              <button
+                key={size.id}
+                onClick={() => toggleArrayFilter('sizes', size.name)}
+                className={`min-w-[40px] h-10 px-3 rounded-md text-sm font-medium border transition-all duration-200 ${
+                  filters.sizes?.includes(size.name)
+                    ? 'bg-primary-900 border-primary-900 text-white shadow-sm'
+                    : 'bg-white border-neutral-medium text-neutral-dark hover:border-primary-500 hover:text-primary-500'
+                }`}
+              >
+                {size.name}
+              </button>
+            ))}
+          </div>
+        )}
       </Accordion>
 
       <Accordion title="Availability" isOpen={false}>

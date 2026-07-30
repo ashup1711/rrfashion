@@ -49,6 +49,8 @@ export class ProductsController {
     @Query('onSale') onSale?: string,
     @Query('inStock') inStock?: string,
     @Query('outOfStock') outOfStock?: string,
+    @Query('colors') colors?: string,
+    @Query('sizes') sizes?: string,
   ) {
     const filters: ProductFilters = {
       page: page ? parseInt(page, 10) : undefined,
@@ -64,6 +66,8 @@ export class ProductsController {
       onSale: onSale !== undefined ? onSale === 'true' : undefined,
       inStock: inStock !== undefined ? inStock === 'true' : undefined,
       outOfStock: outOfStock !== undefined ? outOfStock === 'true' : undefined,
+      colors: colors ? colors.split(',') : undefined,
+      sizes: sizes ? sizes.split(',') : undefined,
     };
 
     return this.productsService.findAll(filters);

@@ -30,6 +30,8 @@ const AdminProductList = lazy(() => import('../pages/Admin/Products/ProductList'
 const AdminProductForm = lazy(() => import('../pages/Admin/Products/ProductForm'));
 const AdminCategoryList = lazy(() => import('../pages/Admin/Categories/CategoryList'));
 const AdminBrandList = lazy(() => import('../pages/Admin/Brands/BrandList'));
+const AdminColorList = lazy(() => import('../pages/Admin/Colors/ColorList'));
+const AdminSizeList = lazy(() => import('../pages/Admin/Sizes/SizeList'));
 const AdminRoleList = lazy(() => import('../pages/Admin/Roles/RoleList'));
 const AdminUserList = lazy(() => import('../pages/Admin/Users/UserList'));
 const AdminStoreList = lazy(() => import('../pages/Admin/Stores/StoreList'));
@@ -87,6 +89,8 @@ export const AppRoutes = () => {
           <Route path="/admin/products/:id/edit" element={<ProtectedRoute requireAdmin><AdminProductForm /></ProtectedRoute>} />
           <Route path="/admin/categories" element={<ProtectedRoute requireAdmin><AdminCategoryList /></ProtectedRoute>} />
           <Route path="/admin/brands" element={<ProtectedRoute requireAdmin><AdminBrandList /></ProtectedRoute>} />
+          <Route path="/admin/colors" element={<ProtectedRoute requireAdmin><AdminColorList /></ProtectedRoute>} />
+          <Route path="/admin/sizes" element={<ProtectedRoute requireAdmin><AdminSizeList /></ProtectedRoute>} />
           <Route path="/admin/roles" element={<ProtectedRoute requireAdmin><AdminRoleList /></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute requireAdmin><AdminUserList /></ProtectedRoute>} />
           <Route path="/admin/stores" element={<ProtectedRoute requireAdmin><AdminStoreList /></ProtectedRoute>} />

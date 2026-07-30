@@ -22,6 +22,8 @@ export interface ProductFilters {
   onSale?: boolean;
   inStock?: boolean;
   outOfStock?: boolean;
+  colors?: string[];
+  sizes?: string[];
 }
 
 @Injectable()
@@ -92,6 +94,31 @@ export class ProductsService {
         where.stock = { equals: 0 };
       }
       // If both true or both false/undefined: no stock filter
+    }
+
+    // Color filter — product must have at least one active variant matching the color name
+    if (filters.colors && filters.colors.length > 0) {
+      where.variants = {
+        some: {
+          color: { in: filters.colors },
+          deletedAt: null,
+          isActive: true,
+        },
+      };
+    }
+
+    // Size filter — combine with any existing variants filter
+    if (filters.sizes && filters.sizes.length > 0) {
+      const existingVariantsFilter = (where.variants as Prisma.ProductVariantListRelationFilter) || {};
+      where.variants = {
+        ...existingVariantsFilter,
+        some: {
+          ...(existingVariantsFilter.some || {}),
+          size: { in: filters.sizes },
+          deletedAt: null,
+          isActive: true,
+        },
+      };
     }
 
     // Build orderBy
@@ -184,6 +211,7 @@ export class ProductsService {
   async getProductCounts(): Promise<{
     categories: Record<string, number>;
     brands: Record<string, number>;
+    colors: Record<string, number>;
     inStock: number;
     outOfStock: number;
   }> {
@@ -221,6 +249,22 @@ export class ProductsService {
       }
     }
 
+    // Color counts — sum by variant color name
+    const colorVariants = await this.prisma.productVariant.groupBy({
+      by: ['color'],
+      where: {
+        deletedAt: null,
+        isActive: true,
+        product: { deletedAt: null, isActive: true },
+      },
+      _count: { _all: true },
+    });
+
+    const colorCounts: Record<string, number> = {};
+    for (const item of colorVariants) {
+      colorCounts[item.color] = item._count._all;
+    }
+
     // In stock / out of stock counts
     const inStockCount = await this.prisma.product.count({
       where: { deletedAt: null, isActive: true, stock: { gt: 0 } },
@@ -232,6 +276,7 @@ export class ProductsService {
     return {
       categories: categoryCounts,
       brands: brandCounts,
+      colors: colorCounts,
       inStock: inStockCount,
       outOfStock: outOfStockCount,
     };
