@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 38 24" width="38" height="24" fill="none">
+  <rect width="38" height="24" rx="4" fill="#1A1F71"/>
+  <path d="M14.5 15.5L15.5 9.5H17.5L16.5 15.5H14.5Z" fill="white"/>
+  <path d="M21.5 9.5L19.5 14.5L18.5 9.5H16.5L18.5 15.5H20.5L23.5 9.5H21.5Z" fill="white"/>
+  <text x="4" y="16" fill="white" font-size="6" font-weight="bold" font-family="Arial, sans-serif">VISA</text>
+</svg>
