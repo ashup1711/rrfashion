@@ -43,3 +43,20 @@ export const useUpdateOrderStatus = () => {
     },
   });
 };
+
+export const useUpdateOrderPaymentStatus = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...payload }: { id: string; paymentStatus: string; note?: string }) =>
+      adminOrdersApi.updateOrderPaymentStatus(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.adminOrders] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.adminOrder] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.orderStatusLogs] });
+      toast.success('Payment status updated successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to update payment status');
+    },
+  });
+};

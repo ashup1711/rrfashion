@@ -32,6 +32,7 @@ export interface AdminOrder {
   orderNumber: string;
   status: string;
   paymentStatus: string;
+  paymentMethod?: string;
   subtotal: number;
   discountAmount: number;
   shippingCharge: number;
@@ -116,5 +117,13 @@ export const getOrderStatusLogs = async (id: string): Promise<OrderStatusLog[]> 
 
 export const updateOrderStatus = async (id: string, payload: { status: string; note?: string }): Promise<AdminOrder> => {
   const { data } = await adminClient.patch<AdminOrder>(`/admin/orders/${id}/status`, payload);
+  return data;
+};
+
+export const updateOrderPaymentStatus = async (
+  id: string,
+  payload: { paymentStatus: string; note?: string },
+): Promise<AdminOrder> => {
+  const { data } = await adminClient.patch<AdminOrder>(`/admin/orders/${id}/payment-status`, payload);
   return data;
 };

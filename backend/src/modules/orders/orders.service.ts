@@ -21,8 +21,9 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { InitiateReturnDto } from './dto/initiate-return.dto';
 import { ApplyCouponDto } from './dto/apply-coupon.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { UpdateOrderPaymentStatusDto } from './dto/update-order-payment-status.dto';
 import { AdminOrderQueryDto } from './dto/admin-order-query.dto';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { Prisma } from '@prisma/client';
 import { calculateTax, isInterStateShipping } from '../../common/utils/tax.util';
@@ -452,6 +453,9 @@ export class OrdersService {
     if (query.status) {
       where.status = query.status;
     }
+    if (query.paymentStatus) {
+      where.paymentStatus = query.paymentStatus;
+    }
     if (query.dateFrom || query.dateTo) {
       where.createdAt = {};
       if (query.dateFrom) where.createdAt.gte = new Date(query.dateFrom);
@@ -665,6 +669,79 @@ export class OrdersService {
     });
 
     await this.sendOrderNotifications(order.userId, orderId, dto.status, updated.orderNumber);
+
+    return updated;
+  }
+
+  async updateOrderPaymentStatus(orderId: string, dto: UpdateOrderPaymentStatusDto, changedBy?: string) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    // Only CASH payment method orders can be manually updated by admin
+    if (order.paymentMethod !== 'CASH') {
+      throw new BadRequestException('Only cash delivery orders can have payment status updated');
+    }
+
+    // Enforce allowed transitions: PENDING → PAID or PENDING → FAILED only
+    const allowedPaymentTransitions: Record<string, string[]> = {
+      PENDING: ['PAID', 'FAILED'],
+    };
+    const allowed = allowedPaymentTransitions[order.paymentStatus];
+    if (!allowed || !allowed.includes(dto.paymentStatus)) {
+      throw new BadRequestException(
+        `Cannot transition payment status from ${order.paymentStatus} to ${dto.paymentStatus}`,
+      );
+    }
+
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        paymentStatus: dto.paymentStatus as PaymentStatus,
+        notes: dto.note ? `${order.notes || ''}\nPayment: ${dto.note}`.trim() : order.notes,
+      },
+      include: ORDER_INCLUDE,
+    });
+
+    // Create audit log entry following the same pattern as updateOrderStatus
+    await this.prisma.orderStatusLog.create({
+      data: {
+        orderId,
+        fromStatus: `PAYMENT:${order.paymentStatus}`,
+        toStatus: `PAYMENT:${dto.paymentStatus}`,
+        changedBy: changedBy || null,
+        note: dto.note || null,
+      },
+    });
+
+    // P-001: Finalize sale if payment marked as PAID (cash-on-delivery)
+    if (dto.paymentStatus === 'PAID') {
+      try {
+        await this.paymentsService.finalizeSaleAfterPayment(orderId);
+      } catch (error) {
+        this.logger.error(
+          `finalizeSaleAfterPayment failed for order ${orderId}: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    // P-002: Notify user on payment status change
+    await this.sendPaymentNotification(
+      order.userId,
+      orderId,
+      order.orderNumber,
+      order.paymentStatus as PaymentStatus,
+      dto.paymentStatus as PaymentStatus,
+    );
+
+    this.logger.log({
+      orderId,
+      from: order.paymentStatus,
+      to: dto.paymentStatus,
+      changedBy,
+      action: 'order.payment-status.updated',
+    });
 
     return updated;
   }
@@ -1502,6 +1579,50 @@ export class OrdersService {
     const filename = `invoice-${invoice.invoiceNumber}.pdf`;
 
     return { buffer, filename };
+  }
+
+  private async sendPaymentNotification(
+    userId: string | null,
+    orderId: string,
+    orderNumber: string,
+    fromStatus: PaymentStatus,
+    toStatus: PaymentStatus,
+  ): Promise<void> {
+    if (!userId || fromStatus === toStatus) return;
+
+    const paymentMessages: Record<string, string> = {
+      PAID: `Payment for order #${orderNumber} has been received!`,
+      FAILED: `Payment for order #${orderNumber} has failed. Please contact support.`,
+    };
+
+    const message = paymentMessages[toStatus];
+    if (!message) return;
+
+    try {
+      this.notificationsGateway.sendOrderUpdate(userId, {
+        orderId,
+        status: `PAYMENT:${toStatus}`,
+        message,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `WebSocket payment notification failed for order ${orderId}: ${(error as Error).message}`,
+      );
+    }
+
+    try {
+      await this.notificationsService.create({
+        userId,
+        channel: NotificationChannel.IN_APP,
+        title: 'Payment Update',
+        body: message,
+        dataJson: { orderId, paymentStatus: toStatus, orderNumber },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Payment notification creation failed for order ${orderId}: ${(error as Error).message}`,
+      );
+    }
   }
 
   private async sendOrderNotifications(

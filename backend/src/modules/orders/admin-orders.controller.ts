@@ -8,6 +8,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { OrdersService } from './orders.service';
 import { AdminOrderQueryDto } from './dto/admin-order-query.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { UpdateOrderPaymentStatusDto } from './dto/update-order-payment-status.dto';
 
 @ApiTags('Admin Orders')
 @Controller('admin/orders')
@@ -46,5 +47,16 @@ export class AdminOrdersController {
     @CurrentUser('id') adminId: string,
   ) {
     return this.ordersService.updateOrderStatus(id, dto, adminId);
+  }
+
+  @Patch(':id/payment-status')
+  @ApiOperation({ summary: 'Update order payment status (cash delivery only)' })
+  @ApiCommonResponse({ summary: 'Update order payment status' })
+  async updatePaymentStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateOrderPaymentStatusDto,
+    @CurrentUser('id') adminId: string,
+  ) {
+    return this.ordersService.updateOrderPaymentStatus(id, dto, adminId);
   }
 }

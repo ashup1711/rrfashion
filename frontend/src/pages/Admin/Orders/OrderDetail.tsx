@@ -1,14 +1,15 @@
 import { useParams, Link } from 'react-router-dom';
-import { useAdminOrder, useOrderStatusLogs, useUpdateOrderStatus } from '../../../hooks/useAdminOrders';
+import { useAdminOrder, useOrderStatusLogs, useUpdateOrderStatus, useUpdateOrderPaymentStatus } from '../../../hooks/useAdminOrders';
 import StatusBadge from './components/StatusBadge';
 import StatusUpdateModal from './components/StatusUpdateModal';
+import PaymentStatusUpdateModal from './components/PaymentStatusUpdateModal';
 import LoadingSpinner from '../../../components/common/LoadingSpinner';
 import EmptyState from '../../../components/common/EmptyState';
 import ErrorBoundary from '../../../components/common/ErrorBoundary';
 import Button from '../../../components/ui/Button';
 import Badge from '../../../components/ui/Badge';
 import { ROUTES } from '../../../utils/constants';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 const paymentStatusVariant: Record<string, 'success' | 'warning' | 'danger' | 'info'> = {
   PAID: 'success',
@@ -25,6 +26,15 @@ const OrderDetailContent = () => {
   const { data: order, isLoading: orderLoading, error: orderError } = useAdminOrder(id || '');
   const { data: statusLogs, isLoading: logsLoading } = useOrderStatusLogs(id || '');
   const updateStatusMutation = useUpdateOrderStatus();
+  const [showPaymentStatusModal, setShowPaymentStatusModal] = useState(false);
+  const updatePaymentStatusMutation = useUpdateOrderPaymentStatus();
+
+  const handlePaymentStatusUpdate = useCallback((paymentStatus: string, note?: string) => {
+    updatePaymentStatusMutation.mutate(
+      { id: id!, paymentStatus, note },
+      { onSuccess: () => setShowPaymentStatusModal(false) },
+    );
+  }, [id, updatePaymentStatusMutation]);
 
   if (orderLoading) {
     return (
@@ -59,6 +69,12 @@ const OrderDetailContent = () => {
 
   const canUpdateStatus =
     order.status !== 'DELIVERED' && order.status !== 'CANCELLED' && order.status !== 'RETURNED';
+
+  const canUpdatePaymentStatus =
+    order.paymentMethod === 'CASH' &&
+    order.paymentStatus === 'PENDING' &&
+    order.status !== 'CANCELLED' &&
+    order.status !== 'RETURNED';
 
   return (
     <div className="space-y-6">
@@ -150,18 +166,30 @@ const OrderDetailContent = () => {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Status</span>
-                <span>
+                <span className="flex items-center gap-2">
                   {order.paymentStatus ? (
-                    <Badge
-                      variant={paymentStatusVariant[order.paymentStatus] || 'default'}
-                    >
-                      {order.paymentStatus === 'PAID' ? 'Paid' :
-                       order.paymentStatus === 'PENDING' ? 'Pending' :
-                       order.paymentStatus === 'FAILED' ? 'Failed' :
-                       order.paymentStatus === 'REFUNDED' ? 'Refunded' :
-                       order.paymentStatus === 'PARTIALLY_REFUNDED' ? 'Partially Refunded' :
-                       order.paymentStatus}
-                    </Badge>
+                    <>
+                      <Badge
+                        variant={paymentStatusVariant[order.paymentStatus] || 'default'}
+                      >
+                        {order.paymentStatus === 'PAID' ? 'Paid' :
+                         order.paymentStatus === 'PENDING' ? 'Pending' :
+                         order.paymentStatus === 'FAILED' ? 'Failed' :
+                         order.paymentStatus === 'REFUNDED' ? 'Refunded' :
+                         order.paymentStatus === 'PARTIALLY_REFUNDED' ? 'Partially Refunded' :
+                         order.paymentStatus}
+                      </Badge>
+                      {canUpdatePaymentStatus && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowPaymentStatusModal(true)}
+                          className="text-blue-600 hover:text-blue-700 text-xs"
+                        >
+                          Update
+                        </Button>
+                      )}
+                    </>
                   ) : (
                     <span className="text-gray-400">—</span>
                   )}
@@ -332,12 +360,12 @@ const OrderDetailContent = () => {
                           <div className="flex-1 min-w-0 pt-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-sm font-medium text-gray-900">
-                                {log.fromStatus || '—'}
+                                {(log.fromStatus || '—').replace('PAYMENT:', '')}
                               </span>
                               <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                               </svg>
-                              <StatusBadge status={log.toStatus} />
+                              <StatusBadge status={log.toStatus.replace('PAYMENT:', '')} />
                               <span className="text-xs text-gray-400">
                                 by {log.changedByUser ? `${log.changedByUser.firstName} ${log.changedByUser.lastName}` : log.changedBy || 'System'}
                               </span>
@@ -368,6 +396,18 @@ const OrderDetailContent = () => {
           currentStatus={order.status}
           onConfirm={handleStatusUpdate}
           isUpdating={updateStatusMutation.isPending}
+        />
+      )}
+
+      {/* Payment Status Update Modal */}
+      {showPaymentStatusModal && (
+        <PaymentStatusUpdateModal
+          isOpen={showPaymentStatusModal}
+          onClose={() => setShowPaymentStatusModal(false)}
+          currentPaymentStatus={order.paymentStatus}
+          paymentMethod={order.paymentMethod || ''}
+          onConfirm={handlePaymentStatusUpdate}
+          isUpdating={updatePaymentStatusMutation.isPending}
         />
       )}
     </div>

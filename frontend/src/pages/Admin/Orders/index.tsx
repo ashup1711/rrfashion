@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { useAdminOrders, useUpdateOrderStatus } from '../../../hooks/useAdminOrders';
+import { useAdminOrders, useUpdateOrderStatus, useUpdateOrderPaymentStatus } from '../../../hooks/useAdminOrders';
 import StatusBadge from './components/StatusBadge';
 import StatusUpdateModal from './components/StatusUpdateModal';
+import PaymentStatusUpdateModal from './components/PaymentStatusUpdateModal';
 import DataTable from '../../../components/ui/DataTable';
 import Button from '../../../components/ui/Button';
 import Badge from '../../../components/ui/Badge';
@@ -21,9 +22,18 @@ const statusOptions = [
   { value: 'RETURNED', label: 'Returned' },
 ];
 
+const paymentStatusOptions = [
+  { value: '', label: 'All Payments' },
+  { value: 'PENDING', label: 'Pending' },
+  { value: 'PAID', label: 'Paid' },
+  { value: 'FAILED', label: 'Failed' },
+  { value: 'REFUNDED', label: 'Refunded' },
+];
+
 const AdminOrdersList = () => {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
@@ -31,6 +41,8 @@ const AdminOrdersList = () => {
   const [statusModalOrder, setStatusModalOrder] = useState<AdminOrder | null>(null);
 
   const updateStatusMutation = useUpdateOrderStatus();
+  const [showPaymentStatusModal, setShowPaymentStatusModal] = useState<AdminOrder | null>(null);
+  const updatePaymentStatusMutation = useUpdateOrderPaymentStatus();
 
   // Debounce search input with proper cleanup
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -50,6 +62,7 @@ const AdminOrdersList = () => {
     page,
     limit: 10,
     status: statusFilter || undefined,
+    paymentStatus: paymentStatusFilter || undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     search: debouncedSearch || undefined,
@@ -72,6 +85,13 @@ const AdminOrdersList = () => {
   // Handler to close modal
   const setStatusModalOpen = (order: AdminOrder | null) => {
     setStatusModalOrder(order);
+  };
+
+  const handlePaymentStatusUpdate = (orderId: string, paymentStatus: string, note?: string) => {
+    updatePaymentStatusMutation.mutate(
+      { id: orderId, paymentStatus, note },
+      { onSuccess: () => setShowPaymentStatusModal(null) },
+    );
   };
 
   const columns: Column<AdminOrder>[] = [
@@ -166,6 +186,16 @@ const AdminOrdersList = () => {
               Update
             </Button>
           )}
+          {order.paymentMethod === 'CASH' && order.paymentStatus === 'PENDING' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowPaymentStatusModal(order)}
+              className="text-green-600 hover:text-green-700"
+            >
+              Payment
+            </Button>
+          )}
         </div>
       ),
     },
@@ -191,6 +221,19 @@ const AdminOrdersList = () => {
           aria-label="Filter by status"
         >
           {statusOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={paymentStatusFilter}
+          onChange={handleFilterChange(setPaymentStatusFilter)}
+          className="block w-40 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          aria-label="Filter by payment status"
+        >
+          {paymentStatusOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
@@ -251,7 +294,7 @@ const AdminOrdersList = () => {
         error={error as Error | null}
         emptyTitle="No orders found"
         emptyDescription={
-          statusFilter || debouncedSearch || dateFrom || dateTo
+          statusFilter || paymentStatusFilter || debouncedSearch || dateFrom || dateTo
             ? 'Try adjusting your filters'
             : 'No orders have been placed yet'
         }
@@ -276,6 +319,20 @@ const AdminOrdersList = () => {
           currentStatus={statusModalOrder.status}
           onConfirm={(status, note) => handleStatusUpdate(statusModalOrder.id, status, note)}
           isUpdating={updateStatusMutation.isPending}
+        />
+      )}
+
+      {/* Payment Status Update Modal */}
+      {showPaymentStatusModal && (
+        <PaymentStatusUpdateModal
+          isOpen={!!showPaymentStatusModal}
+          onClose={() => setShowPaymentStatusModal(null)}
+          currentPaymentStatus={showPaymentStatusModal.paymentStatus}
+          paymentMethod={showPaymentStatusModal.paymentMethod || ''}
+          onConfirm={(paymentStatus, note) =>
+            handlePaymentStatusUpdate(showPaymentStatusModal.id, paymentStatus, note)
+          }
+          isUpdating={updatePaymentStatusMutation.isPending}
         />
       )}
     </div>
