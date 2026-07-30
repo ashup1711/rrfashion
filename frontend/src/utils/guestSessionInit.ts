@@ -1,13 +1,15 @@
 import { setGuestToken } from './guestSession';
 import { GUEST_SESSION_KEY } from './guestConstants';
 import apiClient from '../api/client';
+import { useAuthStore } from '../store/authStore';
 
 // Cache the initialization promise to prevent duplicate requests
 let initPromise: Promise<boolean> | null = null;
 
 export async function ensureGuestSession(): Promise<boolean> {
   // If already authenticated, no need for guest session
-  if (localStorage.getItem('auth_token') || localStorage.getItem('admin_token')) {
+  const { isAuthenticated, isAdminAuthenticated } = useAuthStore.getState();
+  if (isAuthenticated || isAdminAuthenticated) {
     return false;
   }
 

@@ -24,8 +24,8 @@ export interface AdminAuthResponse {
     storeIds: string[];
     isActive: boolean;
   };
-  accessToken: string;
-  refreshToken: string;
+  accessToken?: string;
+  refreshToken?: string;
 }
 
 export interface AdminMeResponse {

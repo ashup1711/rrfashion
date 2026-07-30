@@ -1,25 +1,15 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError } from 'axios';
 
 function getAdminApiUrl() {
   return localStorage.getItem('api_url') || window.__RUNTIME_ENV__?.API_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 }
 
 const adminClient = axios.create({
+  baseURL: getAdminApiUrl(),
+  withCredentials: true,
   headers: { 'ngrok-skip-browser-warning': 'true' },
   timeout: 15000,
 });
-
-adminClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    config.baseURL = getAdminApiUrl();
-    const token = localStorage.getItem('admin_token');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error),
-);
 
 adminClient.interceptors.response.use(
   (response) => {
@@ -39,12 +29,7 @@ adminClient.interceptors.response.use(
   },
   async (error: AxiosError) => {
     if (error.response?.status === 401) {
-      const hadToken = !!localStorage.getItem('admin_token');
-      localStorage.removeItem('admin_token');
-      localStorage.removeItem('admin_refresh_token');
-      if (hadToken) {
-        window.location.href = '/rrfashion/#/admin/login';
-      }
+      window.location.href = '/rrfashion/#/admin/login';
     }
     const errorData = error.response?.data as { error?: { message?: string } } | undefined;
     const message = errorData?.error?.message || error.message || 'An unexpected error occurred';

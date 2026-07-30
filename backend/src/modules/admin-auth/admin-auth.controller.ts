@@ -1,4 +1,5 @@
-import { Controller, Post, Get, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiCommonResponse } from '../../common/decorators/api-response.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -16,15 +17,35 @@ export class AdminAuthController {
   @Public()
   @Post('login')
   @ApiCommonResponse({ summary: 'Admin login', auth: false })
-  async login(@Body() loginDto: AdminLoginDto) {
-    return this.adminAuthService.login(loginDto);
+  async login(@Body() loginDto: AdminLoginDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.adminAuthService.login(loginDto);
+    this.setAdminAuthCookies(res, result.accessToken, result.refreshToken);
+    return { admin: result.admin };
   }
 
   @Public()
   @Post('refresh')
   @ApiCommonResponse({ summary: 'Admin refresh access token', auth: false })
-  async refresh(@Body() refreshDto: AdminRefreshDto) {
-    return this.adminAuthService.refresh(refreshDto);
+  async refresh(@Body() refreshDto: AdminRefreshDto, @Res({ passthrough: true }) res: Response) {
+    const tokens = await this.adminAuthService.refresh(refreshDto);
+    this.setAdminAuthCookies(res, tokens.accessToken, tokens.refreshToken);
+    return { message: 'Token refreshed' };
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('logout')
+  @ApiCommonResponse({ summary: 'Admin logout' })
+  async logout(
+    @CurrentUser('id') adminId: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // Revoke all admin sessions server-side before clearing cookies (SEC-01)
+    await this.adminAuthService.revokeAllSessions(adminId);
+
+    // Clear admin cookies
+    res.clearCookie('admin_access_token', { path: '/' });
+    res.clearCookie('admin_refresh_token', { path: '/api/admin/auth' });
+    return { message: 'Logged out successfully' };
   }
 
   @UseGuards(AdminJwtAuthGuard)
@@ -32,5 +53,26 @@ export class AdminAuthController {
   @ApiCommonResponse({ summary: 'Get current admin profile' })
   async getMe(@CurrentUser('id') adminId: string) {
     return this.adminAuthService.getMe(adminId);
+  }
+
+  private setAdminAuthCookies(res: Response, accessToken: string, refreshToken: string): void {
+    const isSecure = process.env.NODE_ENV === 'production';
+    // SameSite=None required for cross-origin (GitHub Pages → ngrok) in production
+    // SameSite=Strict works for same-origin (localhost) in development
+    const sameSite = isSecure ? 'none' as const : 'strict' as const;
+    res.cookie('admin_access_token', accessToken, {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite,
+      path: '/',
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+    res.cookie('admin_refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite,
+      path: '/api/admin/auth',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
   }
 }

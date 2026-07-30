@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useLocation, Navigate } from 'react-router-dom';
 import { AppRoutes } from './routes';
 import Layout from './components/layout/Layout';
@@ -12,10 +12,19 @@ const App = () => {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isAdminLogin = location.pathname === '/admin/login';
-  const { isAdminAuthenticated, isAdminAuthValidated } = useAuthStore();
+  const { isAdminAuthenticated, isAdminAuthValidated, initializeAuth, initializeAdminAuth } = useAuthStore();
 
   // Initialize guest session on app load (fire-and-forget, does not block rendering)
   useGuestSession();
+
+  // On mount, verify auth state from HTTP-only cookies via /auth/me
+  // Only initialize admin auth on admin routes to avoid unnecessary /admin/auth/me calls
+  useEffect(() => {
+    initializeAuth();
+    if (location.pathname.startsWith('/admin')) {
+      initializeAdminAuth();
+    }
+  }, []);
 
   // Admin login page has its own minimal layout
   if (isAdminLogin) {

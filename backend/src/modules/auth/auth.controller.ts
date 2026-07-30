@@ -1,4 +1,5 @@
-import { Controller, Post, Get, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { ApiCommonResponse } from '../../common/decorators/api-response.decorator';
@@ -10,7 +11,6 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RefreshDto } from './dto/refresh.dto';
-import { LogoutDto } from './dto/logout.dto';
 import { MergeGuestDto } from './dto/merge-guest.dto';
 import { GuestResponseDto } from './dto/guest.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
@@ -25,15 +25,19 @@ export class AuthController {
   @Public()
   @Post('login')
   @ApiCommonResponse({ summary: 'User login', auth: false })
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.login(loginDto);
+    this.setAuthCookies(res, result.accessToken, result.refreshToken);
+    return { user: result.user, mergedGuestSession: result.mergedGuestSession };
   }
 
   @Public()
   @Post('register')
   @ApiCommonResponse({ summary: 'User registration', status: 201, auth: false })
-  async register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+  async register(@Body() registerDto: RegisterDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.register(registerDto);
+    this.setAuthCookies(res, result.accessToken, result.refreshToken);
+    return { user: result.user, mergedGuestSession: result.mergedGuestSession };
   }
 
   @Public()
@@ -51,8 +55,11 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @ApiCommonResponse({ summary: 'Refresh access token', auth: false })
-  async refresh(@Body() refreshDto: RefreshDto) {
-    return this.authService.refresh(refreshDto);
+  async refresh(@Body() refreshDto: RefreshDto, @Res({ passthrough: true }) res: Response) {
+    const tokens = await this.authService.refresh(refreshDto);
+    // Cookies carry the old refresh token — we still need it from body for backward compat
+    this.setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
+    return { message: 'Token refreshed' };
   }
 
   @Public()
@@ -88,8 +95,15 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   @ApiCommonResponse({ summary: 'Logout and invalidate refresh token' })
-  async logout(@CurrentUser('id') userId: string, @Body() logoutDto: LogoutDto) {
-    await this.authService.logout(userId, logoutDto.refreshToken);
+  async logout(
+    @CurrentUser('id') userId: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // Revoke all tokens for this user (no refreshToken arg needed — cookies carry it)
+    await this.authService.logout(userId);
+    // Clear auth cookies
+    res.clearCookie('access_token', { path: '/' });
+    res.clearCookie('refresh_token', { path: '/api/auth' });
     return { message: 'Logged out successfully' };
   }
 
@@ -125,5 +139,26 @@ export class AuthController {
       };
     }
     return { message: 'No guest identifier provided' };
+  }
+
+  private setAuthCookies(res: Response, accessToken: string, refreshToken: string): void {
+    const isSecure = process.env.NODE_ENV === 'production';
+    // SameSite=None required for cross-origin (GitHub Pages → ngrok) in production
+    // SameSite=Strict works for same-origin (localhost) in development
+    const sameSite = isSecure ? 'none' as const : 'strict' as const;
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite,
+      path: '/',
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite,
+      path: '/api/auth',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
   }
 }

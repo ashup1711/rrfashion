@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder, SwaggerDocumentOptions } from '@nestjs/swagger';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { join } from 'path';
 import { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
@@ -18,15 +19,42 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
 
+  // Parse cookies from request headers
+  app.use(cookieParser());
+
   app.useStaticAssets(join(__dirname, '..', 'uploads'), {
     prefix: '/uploads',
   });
 
   app.enableCors({
-    origin:
-      process.env.NODE_ENV === 'production'
-        ? ['https://rrfashion.com', 'https://admin.rrfashion.com', 'https://ashup1711.github.io']
-        : true,
+    origin: (origin, callback) => {
+      const allowedOrigins = [
+        'https://rrfashion.com',
+        'https://admin.rrfashion.com',
+        'https://ashup1711.github.io',
+        'http://localhost:5173',
+        'http://localhost:3000',
+      ];
+
+      // Support env-configured origins (e.g., ngrok domain)
+      if (process.env.CORS_ORIGINS) {
+        const envOrigins = process.env.CORS_ORIGINS.split(',').map((o) => o.trim());
+        allowedOrigins.push(...envOrigins);
+      }
+
+      // Allow requests with no origin (server-to-server, mobile apps)
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      // Check if origin is in allowed list, or allow all in development
+      if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
     credentials: true,
   });
 

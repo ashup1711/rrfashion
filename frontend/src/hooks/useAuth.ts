@@ -26,7 +26,7 @@ export const useAuth = () => {
   const loginMutation = useMutation({
     mutationFn: (credentials: Parameters<typeof loginApi>[0]) => loginApi(credentials),
     onSuccess: (data) => {
-      setAuth(data.user, data.accessToken, data.refreshToken);
+      setAuth(data.user);
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.me] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.cart] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.wishlist] });
@@ -37,7 +37,7 @@ export const useAuth = () => {
   const registerMutation = useMutation({
     mutationFn: (data: Parameters<typeof registerApi>[0]) => registerApi(data),
     onSuccess: (data) => {
-      setAuth(data.user, data.accessToken, data.refreshToken);
+      setAuth(data.user);
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.me] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.cart] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.wishlist] });
@@ -47,14 +47,8 @@ export const useAuth = () => {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      const refreshToken = localStorage.getItem('refresh_token');
-      if (refreshToken) {
-        try {
-          await logoutApi(refreshToken);
-        } catch {
-          // Logout even if API call fails
-        }
-      }
+      // Tokens are HTTP-only cookies sent automatically — no body needed
+      await logoutApi();
     },
     onSettled: () => {
       storeLogout();

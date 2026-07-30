@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import { adminGetMe } from '../../api/admin-auth';
-import type { AdminUser } from '../../types/admin';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 interface AuthInitializerProps {
@@ -11,62 +9,32 @@ interface AuthInitializerProps {
 
 export const AuthInitializer = ({ children }: AuthInitializerProps) => {
   const [isValidating, setIsValidating] = useState(true);
-  const navigate = useNavigate();
   const location = useLocation();
-  const { setAdminAuth, adminLogout } = useAuthStore();
+  const initializeAdminAuth = useAuthStore((state) => state.initializeAdminAuth);
 
   useEffect(() => {
-    // NOTE: Guest session initialization is handled by useGuestSession() in App.tsx
-    // Not duplicated here — initializeGuestSession() was removed to prevent double-init.
+    const isAdminRoute = location.pathname.startsWith('/admin');
+    const isAdminLogin = location.pathname === '/admin/login';
 
-    const validateAuth = async () => {
-      const adminToken = localStorage.getItem('admin_token');
-      const isAdminRoute = location.pathname.startsWith('/admin');
-      const isAdminLogin = location.pathname === '/admin/login';
+    // Skip admin auth validation for non-admin routes and the login page itself
+    if (!isAdminRoute || isAdminLogin) {
+      setIsValidating(false);
+      return;
+    }
 
-      if (!isAdminRoute || isAdminLogin) {
-        setIsValidating(false);
-        return;
-      }
+    // If already validated (e.g. by App.tsx's useEffect), skip the call
+    if (useAuthStore.getState().isAdminAuthValidated) {
+      setIsValidating(false);
+      return;
+    }
 
-      if (!adminToken) {
-        setIsValidating(false);
-        return;
-      }
-
-      if (useAuthStore.getState().isAdminAuthValidated) {
-        setIsValidating(false);
-        return;
-      }
-
-      try {
-        const response = await adminGetMe();
-        const adminUser: AdminUser = {
-          id: response.id,
-          name: response.name,
-          email: response.email,
-          roleId: response.role.id,
-          role: response.role,
-          storeIds: response.storeIds ?? [],
-          isActive: response.isActive,
-        };
-        setAdminAuth(
-          adminUser,
-          response.permissions,
-          adminToken,
-          localStorage.getItem('admin_refresh_token') || undefined,
-        );
-      } catch {
-        adminLogout();
-        navigate('/admin/login', { state: { from: location }, replace: true });
-      } finally {
-        setIsValidating(false);
-      }
-    };
-
-    validateAuth();
+    // Use the store's initializeAdminAuth which calls adminGetMe() and handles
+    // both success (setting adminUser) and failure (clearing admin state)
+    initializeAdminAuth().finally(() => {
+      setIsValidating(false);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Changed from [location.pathname] to [] — mount only
+  }, []); // Mount only
 
   if (isValidating && location.pathname.startsWith('/admin') && location.pathname !== '/admin/login') {
     return (

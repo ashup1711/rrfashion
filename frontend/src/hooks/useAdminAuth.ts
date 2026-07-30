@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   adminLogin as adminLoginApi,
   adminGetMe,
+  adminLogout as adminLogoutApi,
 } from '../api/admin-auth';
 import { useAuthStore } from '../store/authStore';
 import { useAdminStore } from '../store/adminStore';
@@ -34,8 +35,6 @@ export const useAdminAuth = () => {
       setAdminAuth(
         adminUser,
         data.admin.permissions,
-        data.accessToken,
-        data.refreshToken,
       );
       setAdminSession(adminUser, data.admin.permissions);
       navigate('/admin');
@@ -50,10 +49,21 @@ export const useAdminAuth = () => {
     staleTime: 1000 * 60 * 2,
   });
 
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      // The admin_access_token cookie is sent automatically — no body needed
+      await adminLogoutApi();
+    },
+    onSettled: () => {
+      // Clear local state regardless of API success
+      adminLogout();
+      clearAdminSession();
+      navigate('/admin/login');
+    },
+  });
+
   const logout = () => {
-    adminLogout();
-    clearAdminSession();
-    navigate('/admin/login');
+    logoutMutation.mutate();
   };
 
   return {

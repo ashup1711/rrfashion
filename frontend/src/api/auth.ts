@@ -1,7 +1,6 @@
 import apiClient from './client';
 import type {
   AuthResponse,
-  RefreshResponse,
   LoginCredentials,
   RegisterData,
   User,
@@ -17,15 +16,14 @@ export const register = async (registerData: RegisterData): Promise<AuthResponse
   return data;
 };
 
-export const refreshToken = async (token: string): Promise<RefreshResponse> => {
-  const { data } = await apiClient.post<RefreshResponse>('/auth/refresh', {
-    refreshToken: token,
-  });
-  return data;
+export const refreshToken = async (): Promise<void> => {
+  // No body needed — the refresh_token cookie is sent automatically
+  await apiClient.post('/auth/refresh');
 };
 
-export const logout = async (refreshTokenValue?: string): Promise<void> => {
-  await apiClient.post('/auth/logout', { refreshToken: refreshTokenValue });
+export const logout = async (): Promise<void> => {
+  // No body needed — cookies are sent automatically
+  await apiClient.post('/auth/logout');
 };
 
 export const getMe = async (): Promise<User> => {

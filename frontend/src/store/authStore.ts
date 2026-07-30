@@ -4,11 +4,11 @@ import type { AdminUser } from '../types/admin';
 import { clearGuestSessionId, clearGuestToken } from '../utils/guestSession';
 import { mergeCart } from '../api/cart';
 import { mergeWishlist } from '../api/wishlist';
+import { getMe } from '../api/auth';
+import { adminGetMe } from '../api/admin-auth';
 
 interface AuthState {
   user: User | null;
-  token: string | null;
-  refreshTokenValue: string | null;
   isAuthenticated: boolean;
 
   // Admin auth
@@ -17,43 +17,34 @@ interface AuthState {
   isAdminAuthenticated: boolean;
   isAdminAuthValidated: boolean;
 
-  setAuth: (user: User, accessToken: string, refreshToken?: string) => void;
+  setAuth: (user: User) => void;
   setAdminAuth: (
     admin: AdminUser,
     permissions: string[],
-    accessToken: string,
-    refreshToken?: string,
   ) => void;
   setAdminAuthValidated: (validated: boolean) => void;
+  initializeAuth: () => Promise<void>;
+  initializeAdminAuth: () => Promise<void>;
   logout: () => void;
   adminLogout: () => void;
   updateUser: (user: User) => void;
   updateAdminUser: (admin: AdminUser) => void;
-  setToken: (token: string) => void;
-  setAdminToken: (token: string) => void;
   hasPermission: (module: string, action: string) => boolean;
   clearAuth: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
-  token: localStorage.getItem('auth_token'),
-  refreshTokenValue: localStorage.getItem('refresh_token'),
-  isAuthenticated: !!localStorage.getItem('auth_token'),
+  isAuthenticated: false,
 
   // Admin auth
   adminUser: null,
   adminPermissions: [],
-  isAdminAuthenticated: !!localStorage.getItem('admin_token'),
+  isAdminAuthenticated: false,
   isAdminAuthValidated: false,
 
-  setAuth: (user, accessToken, refreshToken) => {
-    localStorage.setItem('auth_token', accessToken);
-    if (refreshToken) {
-      localStorage.setItem('refresh_token', refreshToken);
-    }
-
-    // Get guest session ID before clearing it — used for cart/wishlist merge
+  setAuth: (user) => {
+    // Guest session migration still works — tokens are in cookies now
     const guestSessionId = localStorage.getItem('guest_session_id');
 
     // Clear local guest data
@@ -65,8 +56,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     set({
       user,
-      token: accessToken,
-      refreshTokenValue: refreshToken || get().refreshTokenValue,
       isAuthenticated: true,
     });
 
@@ -81,11 +70,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  setAdminAuth: (admin, permissions, accessToken, refreshToken) => {
-    localStorage.setItem('admin_token', accessToken);
-    if (refreshToken) {
-      localStorage.setItem('admin_refresh_token', refreshToken);
-    }
+  setAdminAuth: (admin, permissions) => {
     set({
       adminUser: admin,
       adminPermissions: permissions,
@@ -98,20 +83,51 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isAdminAuthValidated: validated });
   },
 
+  initializeAuth: async () => {
+    try {
+      const user = await getMe();
+      set({ user, isAuthenticated: true });
+    } catch {
+      set({ user: null, isAuthenticated: false });
+    }
+  },
+
+  initializeAdminAuth: async () => {
+    try {
+      const response = await adminGetMe();
+      const adminUser: AdminUser = {
+        id: response.id,
+        name: response.name,
+        email: response.email,
+        roleId: response.role.id,
+        role: response.role,
+        storeIds: response.storeIds ?? [],
+        isActive: response.isActive,
+      };
+      set({
+        adminUser,
+        adminPermissions: response.permissions,
+        isAdminAuthenticated: true,
+        isAdminAuthValidated: true,
+      });
+    } catch {
+      set({
+        adminUser: null,
+        adminPermissions: [],
+        isAdminAuthenticated: false,
+        isAdminAuthValidated: true,
+      });
+    }
+  },
+
   logout: () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('refresh_token');
     set({
       user: null,
-      token: null,
-      refreshTokenValue: null,
       isAuthenticated: false,
     });
   },
 
   adminLogout: () => {
-    localStorage.removeItem('admin_token');
-    localStorage.removeItem('admin_refresh_token');
     set({
       adminUser: null,
       adminPermissions: [],
@@ -128,24 +144,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ adminUser: admin });
   },
 
-  setToken: (token) => {
-    localStorage.setItem('auth_token', token);
-    set({ token });
-  },
-
-  setAdminToken: (token) => {
-    localStorage.setItem('admin_token', token);
-  },
-
   hasPermission: (module, action) => {
     const { adminPermissions } = get();
     return adminPermissions.includes(`${module}:${action}`);
   },
 
   clearAuth: () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('admin_token');
     clearGuestSessionId();
     clearGuestToken();
     localStorage.removeItem('guest_id');
@@ -153,8 +157,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.removeItem('guest_wishlist');
     set({
       user: null,
-      token: null,
-      refreshTokenValue: null,
       isAuthenticated: false,
       adminUser: null,
       adminPermissions: [],
