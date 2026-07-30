@@ -23,7 +23,7 @@
 -- ============================================================================
 -- 1. REQ-DB-001: Composite index on GuestSession for efficient cleanup
 -- ============================================================================
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "guest_sessions_expires_at_last_activity_at_idx"
+CREATE INDEX IF NOT EXISTS "guest_sessions_expires_at_last_activity_at_idx"
   ON "guest_sessions"("expires_at", "last_activity_at");
 
 -- ============================================================================
@@ -47,7 +47,7 @@ ALTER TABLE "product_images" ALTER COLUMN "mime_type" SET NOT NULL;
 -- ============================================================================
 -- 5. REQ-DB-002: Composite index for product image queries by variant + type
 -- ============================================================================
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "product_images_variant_id_variant_type_idx"
+CREATE INDEX IF NOT EXISTS "product_images_variant_id_variant_type_idx"
   ON "product_images"("variant_id", "variant_type");
 
 -- ============================================================================
@@ -65,7 +65,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS "product_images_variant_id_variant_type_
 DROP INDEX IF EXISTS "product_images_storage_key_idx";
 
 -- Create unique index (PG allows multiple NULLs)
-CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "product_images_storage_key_key"
+CREATE UNIQUE INDEX IF NOT EXISTS "product_images_storage_key_key"
   ON "product_images"("storage_key");
 
 -- ============================================================================

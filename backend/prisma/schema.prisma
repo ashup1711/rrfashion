@@ -1317,3 +1317,23 @@ model ReportExport {
 
   @@map("reports_exports")
 }
+
+// ══════════════════════════════════════════════════════════
+//  SITE REMINDERS — Admin-managed promotional/info banners
+// ══════════════════════════════════════════════════════════
+
+model SiteReminder {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  linkUrl   String?  @map("link_url")
+  startDate DateTime @map("start_date")
+  endDate   DateTime @map("end_date")
+  isActive  Boolean  @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, startDate, endDate])
+  @@map("site_reminders")
+}

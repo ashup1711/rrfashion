@@ -39,6 +39,7 @@ import { HealthModule } from './health/health.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { RemindersModule } from './modules/reminders/reminders.module';
+import { SiteRemindersModule } from './modules/site-reminders/site-reminders.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
 import { ImageUploadModule } from './modules/upload/image-upload.module';
 import { ImagesModule } from './modules/images/images.module';
@@ -150,6 +151,7 @@ import { StorageModule } from './storage/storage.module';
     MetricsModule,
     NotificationsModule,
     RemindersModule,
+    SiteRemindersModule,
     AddressesModule,
     GuestModule,
     ImageUploadModule,

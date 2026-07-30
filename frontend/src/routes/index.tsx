@@ -41,6 +41,7 @@ const AdminAnalytics = lazy(() => import('../pages/Admin/Analytics'));
 const AdminWallet = lazy(() => import('../pages/Admin/Wallet'));
 const AdminCoupons = lazy(() => import('../pages/Admin/Coupons'));
 const AdminInquiries = lazy(() => import('../pages/Admin/Inquiries'));
+const AdminReminders = lazy(() => import('../pages/Admin/Reminders'));
 const AdminReports = lazy(() => import('../pages/Admin/Reports'));
 const AdminOrders = lazy(() => import('../pages/Admin/Orders'));
 const AdminOrderDetail = lazy(() => import('../pages/Admin/Orders/OrderDetail'));
@@ -97,6 +98,7 @@ export const AppRoutes = () => {
           <Route path="/admin/wallet" element={<ProtectedRoute requireAdmin><AdminWallet /></ProtectedRoute>} />
           <Route path="/admin/coupons" element={<ProtectedRoute requireAdmin><AdminCoupons /></ProtectedRoute>} />
           <Route path="/admin/inquiries" element={<ProtectedRoute requireAdmin><AdminInquiries /></ProtectedRoute>} />
+          <Route path="/admin/reminders" element={<ProtectedRoute requireAdmin><AdminReminders /></ProtectedRoute>} />
           <Route path="/admin/reports" element={<ProtectedRoute requireAdmin><AdminReports /></ProtectedRoute>} />
           <Route path="/admin/orders" element={<ProtectedRoute requireAdmin><AdminOrders /></ProtectedRoute>} />
           <Route path="/admin/orders/:id" element={<ProtectedRoute requireAdmin><AdminOrderDetail /></ProtectedRoute>} />

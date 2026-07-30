@@ -56,6 +56,7 @@ export const ROUTES = {
   ADMIN_WALLET: '/admin/wallet',
   ADMIN_COUPONS: '/admin/coupons',
   ADMIN_INQUIRIES: '/admin/inquiries',
+  ADMIN_REMINDERS: '/admin/reminders',
   ADMIN_REPORTS: '/admin/reports',
   ADMIN_ORDERS: '/admin/orders',
   ADMIN_ORDER_DETAIL: (id: string) => `/admin/orders/${id}`,
@@ -129,6 +130,11 @@ export const QUERY_KEYS = {
   // Inquiries
   inquiries: 'inquiries',
   inquiry: 'inquiry',
+
+  // Reminders
+  reminders: 'reminders',
+  reminder: 'reminder',
+  activeReminders: 'activeReminders',
 
   // Reports
   reports: 'reports',

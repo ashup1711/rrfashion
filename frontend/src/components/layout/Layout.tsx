@@ -8,6 +8,7 @@ import WhatsAppButton from '../common/WhatsAppButton';
 import MiniCart from '../common/MiniCart';
 import AnnouncementBar from './AnnouncementBar';
 import TopBar from './TopBar';
+import ReminderBanner from '../common/ReminderBanner';
 import PWAInstallPrompt from '../common/PWAInstallPrompt';
 import ExitIntentPopup from '../common/ExitIntentPopup';
 import SaleCountdownBanner from '../common/SaleCountdownBanner';
@@ -19,6 +20,7 @@ interface LayoutProps {
 const Layout = ({ children }: LayoutProps) => {
   return (
     <div className="flex flex-col min-h-screen">
+      <ReminderBanner />
       <TopBar />
       <AnnouncementBar />
       <SaleCountdownBanner />
