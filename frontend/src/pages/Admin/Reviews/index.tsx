@@ -6,6 +6,7 @@ import Modal from '../../../components/ui/Modal';
 import { useAdminReviews, useModerateReview } from '../../../hooks/useReviewAdmin';
 import type { Column } from '../../../components/ui/DataTable';
 import type { AdminReview } from '../../../api/reviews-admin';
+import { CheckCircleIcon, XCircleIcon } from '../../../components/common/Icons';
 
 const statusOptions = [
   { value: '', label: 'All Status' },
@@ -162,24 +163,30 @@ const ReviewList = () => {
           {review.status === 'PENDING' && (
             <>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={() =>
                   setModerateModal({ review, action: 'APPROVED' })
                 }
-                className="text-green-600 hover:text-green-700"
+                className="border-green-300 text-green-700 hover:bg-green-50 focus:ring-green-500"
               >
-                Approve
+                <span className="flex items-center gap-1.5">
+                  <CheckCircleIcon />
+                  Approve
+                </span>
               </Button>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={() =>
                   setModerateModal({ review, action: 'REJECTED' })
                 }
-                className="text-red-600 hover:text-red-700"
+                className="border-red-300 text-red-700 hover:bg-red-50 focus:ring-red-500"
               >
-                Reject
+                <span className="flex items-center gap-1.5">
+                  <XCircleIcon />
+                  Reject
+                </span>
               </Button>
             </>
           )}

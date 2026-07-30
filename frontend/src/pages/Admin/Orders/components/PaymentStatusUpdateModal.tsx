@@ -153,7 +153,7 @@ const PaymentStatusUpdateModal = ({
               isLoading={isUpdating}
               disabled={isSubmitDisabled}
             >
-              Update Payment Status
+              Update Status
             </Button>
           )}
         </div>

@@ -10,6 +10,7 @@ import Button from '../../../components/ui/Button';
 import Badge from '../../../components/ui/Badge';
 import { ROUTES } from '../../../utils/constants';
 import { useState, useCallback } from 'react';
+import { PencilIcon } from '../../../components/common/Icons';
 
 const paymentStatusVariant: Record<string, 'success' | 'warning' | 'danger' | 'info'> = {
   PAID: 'success',
@@ -181,12 +182,15 @@ const OrderDetailContent = () => {
                       </Badge>
                       {canUpdatePaymentStatus && (
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
                           onClick={() => setShowPaymentStatusModal(true)}
-                          className="text-blue-600 hover:text-blue-700 text-xs"
+                          className="border-blue-300 text-blue-700 hover:bg-blue-50 focus:ring-blue-500"
                         >
-                          Update
+                          <span className="flex items-center gap-1.5">
+                            <PencilIcon />
+                            Update
+                          </span>
                         </Button>
                       )}
                     </>

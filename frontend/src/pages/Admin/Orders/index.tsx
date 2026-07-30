@@ -7,6 +7,7 @@ import PaymentStatusUpdateModal from './components/PaymentStatusUpdateModal';
 import DataTable from '../../../components/ui/DataTable';
 import Button from '../../../components/ui/Button';
 import Badge from '../../../components/ui/Badge';
+import { RupeeIcon, ArrowPathIcon } from '../../../components/common/Icons';
 import type { Column } from '../../../components/ui/DataTable';
 import type { AdminOrder } from '../../../api/adminOrders';
 
@@ -183,17 +184,23 @@ const AdminOrdersList = () => {
               onClick={() => setStatusModalOpen(order)}
               className="text-blue-600 hover:text-blue-700"
             >
-              Update
+              <span className="flex items-center gap-1.5">
+                <ArrowPathIcon />
+                Update
+              </span>
             </Button>
           )}
           {['cash', 'cod'].includes((order.paymentMethod || '').toLowerCase()) && order.paymentStatus === 'PENDING' && (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => setShowPaymentStatusModal(order)}
-              className="text-green-600 hover:text-green-700"
+              className="border-green-300 text-green-700 hover:bg-green-50 focus:ring-green-500"
             >
-              Payment
+              <span className="flex items-center gap-1.5">
+                <RupeeIcon />
+                Payment
+              </span>
             </Button>
           )}
         </div>
