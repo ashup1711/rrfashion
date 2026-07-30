@@ -1,1 +1,0 @@
-import{q as s}from"./index-BZif_dTn.js";const n=async t=>{const{data:a}=await s.post("/payments/verify",t);return a},r=async t=>{const{data:a}=await s.get(`/payments/status/${t}`);return a};export{r as g,n as v};
