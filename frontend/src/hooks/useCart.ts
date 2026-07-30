@@ -5,7 +5,7 @@ import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useGuestStore } from '../store/guestStore';
 import { QUERY_KEYS, ROUTES } from '../utils/constants';
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import type { CartItemState } from '../store/cartStore';
 
