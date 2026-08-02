@@ -38,6 +38,12 @@ jobs:
 
       - name: Docker Compose — rebuild and start
         working-directory: ${{ github.workspace }}
+        env:
+          # REQ-SEC-006 / SEC-03: the GitHub Pages frontend calls the backend
+          # cross-site through the ngrok tunnel, so auth cookies MUST be
+          # SameSite=None + Secure. docker-compose defaults to 'strict' for local
+          # dev; the ngrok deploy flow explicitly opts into 'none'.
+          COOKIE_SAMESITE: none
         run: |
           echo "=== Rebuilding and starting services... ==="
           docker compose up -d --build
