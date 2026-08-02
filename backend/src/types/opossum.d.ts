@@ -28,7 +28,10 @@ declare module 'opossum' {
     };
   }
 
-  class CircuitBreaker<TArgs extends unknown[] = unknown[], TReturn = unknown> extends EventEmitter {
+  class CircuitBreaker<
+    TArgs extends unknown[] = unknown[],
+    TReturn = unknown,
+  > extends EventEmitter {
     constructor(action: (...args: TArgs) => Promise<TReturn>, options?: CircuitBreakerOptions);
 
     readonly name: string;

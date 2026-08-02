@@ -311,6 +311,7 @@ After code-review-and-qa completes, read `.opencode/state/project_state.json`:
   - If `pipeline_mode` is `"implement"` → set `status` to `"ready_for_suggestion"` and dispatch `suggestion-agent` post-implementation. Pass `request_id` from `project_state.json` so the agent can tag `suggestion_report.md` with `<!-- request_id: ... -->`.
 - If `qa_report.passed` is `false` and `retry_count` < `max_retries`:
   - Re-dispatch only the agents listed in `loopback_targets` with the `qa_report.errors` (ask which model to use per Step 7 first for each re-dispatched agent — this is a good moment to suggest a stronger model if the same error repeated)
+  - **Security failures route to the owning expert**: when `qa_report` returns `revision_needed` for `code_review/security` errors (or any `security_checklist` entry has `pass: false`), dispatch the security failures to the expert agent whose layer the security error is in — map each failing entry's `location` to its owning layer (e.g. `node-expert` for SEC-06 IDOR in a NestJS controller, `payment-expert` for SEC-19 webhook verification, `react-expert` for SEC-16 token storage). Do not aggregate security failures into the general loopback pool — the owning expert must fix and re-pass the Security Checkpoint.
   - Increment `retry_count`
 - If `retry_count` >= `max_retries` → set status to `"halt"` and report errors to user
 
@@ -345,6 +346,7 @@ Tell the user:
 - **Pre-dispatch coverage check**: Before dispatching any agent, verify that the previous agent's coverage manifest exists and covers all its assigned requirement IDs. If there's a gap, halt with a clear error — don't pass a gap downstream.
 - **In implement mode, always read the existing suggestion_report_pre.md** and pass its priorities to expert agents — the pre-implementation suggestion report contains critical risk warnings and ordering guidance that expert agents must respect.
 - Never dispatch a Task without first asking the user which model to use for that specific agent run (Step 7) — this applies to every dispatch, including QA-loop re-dispatches, with no exceptions for "it's just a quick agent"
+- **Security review is mandatory**: if `qa_report.security_checklist` is absent or contains any failed entry, do not advance to suggestion-agent — loop back to the owning expert and re-run code-review-and-qa until the Security Checkpoint passes
 
 ## Available Subagents
 

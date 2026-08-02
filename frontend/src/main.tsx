@@ -6,7 +6,12 @@ import { Toaster, toast } from 'sonner';
 import App from './App';
 import { AuthInitializer } from './components/auth/AuthInitializer';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import { purgeLegacyGuestCookies } from './utils/persistentStorage';
 import './styles/globals.css';
+
+// REQ-SEC-FE-002: purge legacy guest-token cookie mirrors written by older
+// builds (1-year non-httpOnly SameSite=Lax — unnecessary XSS/CSRF surface).
+purgeLegacyGuestCookies();
 
 // Suppress workbox message channel closed error (race condition on navigation)
 window.addEventListener('unhandledrejection', (event) => {
@@ -16,12 +21,26 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 });
 
+// REQ-FE-BP-001: window-level error + unhandledrejection logging so a runtime
+// crash is visible in the console instead of a silent blank page. Do NOT
+// auto-reload — ErrorBoundary + toasts handle user-visible recovery.
+window.addEventListener('error', (event) => {
+  console.error('window error:', event.error ?? event.message);
+});
+
+// REQ-FE-RC-001: refetch on route change without a page refresh.
+// `refetchOnMount: 'always'` means a page remount on route change always
+// issues fresh API calls; 60s staleTime reuses the cache for back-and-forth
+// visits within a minute. Per-query overrides remain (categories 30min,
+// cart 1min, wishlist 1min).
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5,
+      staleTime: 1000 * 60,          // 60s — route visits within a minute use cache
       retry: 1,
-      refetchOnWindowFocus: false,
+      refetchOnMount: 'always',      // REQ-FE-RC-001: page remount on route change always refetches
+      refetchOnWindowFocus: true,    // visible again → fresh
+      refetchOnReconnect: true,      // network return → fresh
     },
   },
   queryCache: new QueryCache({

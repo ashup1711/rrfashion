@@ -1061,6 +1061,7 @@ model GuestSession {
   id              String   @id @default(uuid())
   expiresAt       DateTime
   lastActivityAt  DateTime @default(now())
+  tokenVersion    Int      @default(0) // REQ-SEC-007 / SEC-05: incremented on every refresh; embedded as `ver` claim in guest JWT
   createdAt       DateTime @default(now())
 
   cartItems       GuestCartItem[]

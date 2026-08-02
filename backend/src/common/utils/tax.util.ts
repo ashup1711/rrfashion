@@ -54,10 +54,7 @@ export function calculateTax(
  * Simplified: defaults to intra-state (same state) since we don't yet have
  * a store state configuration. Can be enhanced when store addresses are available.
  */
-export function isInterStateShipping(
-  _storeState?: string,
-  _shippingState?: string,
-): boolean {
+export function isInterStateShipping(_storeState?: string, _shippingState?: string): boolean {
   // Default to intra-state (CGST+SGST) for now
   // TODO: compare _storeState and _shippingState when store config is available
   return false;

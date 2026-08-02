@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../../utils/constants';
+import { sanitizeHtml } from '../../utils/sanitize';
 
 interface BreadcrumbItem {
   label: string;
@@ -71,7 +72,7 @@ const Breadcrumb = ({ items }: BreadcrumbProps) => {
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(JSON.stringify(structuredData)) }}
       />
     </nav>
   );

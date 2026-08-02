@@ -48,7 +48,13 @@ export const removeFromCart = async (itemId: string): Promise<void> => {
   await apiClient.delete(`/cart/items/${itemId}`);
 };
 
-export const mergeCart = async (guestSessionId: string): Promise<{ merged: boolean; items: CartItem[] }> => {
-  const { data } = await apiClient.post<{ merged: boolean; items: CartItem[] }>('/cart/merge', { guestSessionId });
+/**
+ * REQ-FE-GUEST-001: guest identity travels in the `Authorization: Bearer
+ * <guest_token>` header (attached by the client.ts request interceptor), so
+ * merge takes no body and no guestSessionId. The backend resolves the guest
+ * session from the verified JWT and the customer identity from the cookie.
+ */
+export const mergeCart = async (): Promise<{ merged: boolean; items: CartItem[] }> => {
+  const { data } = await apiClient.post<{ merged: boolean; items: CartItem[] }>('/cart/merge');
   return data;
 };

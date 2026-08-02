@@ -1,8 +1,11 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { ProtectedRoute } from '../components/common/ProtectedRoute';
+// REQ-FE-BP-001: retryLazy wraps every dynamic import so a transient chunk
+// failure (stale SW) retries before surfacing to ErrorBoundary.
+import { retryLazy as lazy } from '../utils/retryLazy';
 
 // Customer pages
 const Home = lazy(() => import('../pages/Home'));

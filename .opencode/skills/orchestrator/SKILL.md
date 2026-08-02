@@ -87,8 +87,8 @@ node .opencode/lib/ast-parser/ast-analyze.js validate-schema <files>
 
 ```
 (findings exist for this request?)
-  ├─ No  → explore → research-agent → expert agents → code-review-and-qa → suggestion-agent
-  └─ Yes → research-agent → expert agents → code-review-and-qa → suggestion-agent
+  ├─ No  → explore → research-agent → expert agents → code-review-and-qa (incl. Security Checkpoint) → suggestion-agent
+  └─ Yes → research-agent → expert agents → code-review-and-qa (incl. Security Checkpoint) → suggestion-agent
 ```
 
 ### Research-First Pipeline (Pre-Planning)
@@ -101,6 +101,9 @@ node .opencode/lib/ast-parser/ast-analyze.js validate-schema <files>
    Writes: explore_findings.md + research_report.md + research_report_coverage.json + suggestion_report_pre.md
    ↓
    Stops. User can later run `implement` mode.
+   Note: no code is written here, so code-review-and-qa (incl. Security Checkpoint) is deferred to the
+   later `implement` run — research-agent must inject REQ-SEC-* security requirements now so QA can
+   verify them against the code then.
 ```
 
 ### Implement Pipeline (Warm-Start / Resume)
@@ -108,7 +111,7 @@ node .opencode/lib/ast-parser/ast-analyze.js validate-schema <files>
 ```
 (reads existing explore_findings.md + research_report.md + suggestion_report_pre.md)
    ↓
-expert agents → code-review-and-qa → suggestion-agent (post-implementation)
+expert agents → code-review-and-qa (incl. Security Checkpoint) → suggestion-agent (post-implementation)
 ```
 
 The `suggestion_report_pre.md` from the research-first pass guides implementation priorities — expert agents know *what* matters most before they start coding.
@@ -283,6 +286,7 @@ The orchestrator creates and manages a shared state file at `.opencode/state/pro
     "retry_count": 0,
     "max_retries": 3,
     "checked_contracts": [],
+    "security_checklist": [],
     "notes": ""
   },
   "loopback_targets": [],
@@ -291,6 +295,8 @@ The orchestrator creates and manages a shared state file at `.opencode/state/pro
   "frontend_code": {}
 }
 ```
+
+`qa_report.security_checklist` is an array of `{ "id": "SEC-XX", "pass": true|false, "location": "file:line", "fix": "..." }` entries produced by the code-review-and-qa Phase 1.5 Security Checkpoint.
 
 ## Status Flow
 
@@ -345,6 +351,8 @@ The orchestrator can be configured with:
 5. **Validate before proceeding**: Always run QA review before moving to suggestions
 6. **Track state**: Always update the state file to track progress
 7. **Handle errors gracefully**: Always provide clear error messages and recovery options
+8. **Never mark `ready_for_suggestion` without the Phase 1.5 Security Checkpoint PASS**: QA must report `security_checklist` PASS/FAIL before the pipeline advances
+9. **Security is a gate, not a hint**: ensure research-agent injected REQ-SEC-* requirements, experts claimed them, and QA ran the independent security checkpoint
 
 ## Quick Reference
 

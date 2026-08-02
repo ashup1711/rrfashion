@@ -74,6 +74,10 @@ export class CartService {
     userId,
     guestSessionId,
   }: CartIdentifier): Promise<CartContext> {
+    // REQ-SEC-004 / SEC-06: identifier.guestSessionId is ALWAYS derived from the
+    // verified guest JWT (StoreAuthGuard / toCartIdentifier) — never from a
+    // client-supplied id. Every guestCartItem read/write below is scoped by this
+    // token-derived session id, closing the IDOR window.
     if (userId) return { type: 'user', userId };
     if (guestSessionId) {
       const validation = await this.guestSessionService.validate(guestSessionId);
@@ -87,6 +91,12 @@ export class CartService {
   }
 
   async findCart(identifier: CartIdentifier) {
+    // REQ-BE-GUEST-001: anonymous browse (AllowGuest=true, no token) returns an
+    // empty cart instead of throwing — identity is never client-supplied.
+    if (!identifier.userId && !identifier.guestSessionId) {
+      return { id: 'anonymous', items: [], itemCount: 0, total: 0 };
+    }
+
     const ctx = await this.resolveCartContext(identifier);
     if (ctx.type === 'user') {
       let cart = await this.prisma.cart.findUnique({
@@ -150,7 +160,9 @@ export class CartService {
     );
 
     if (totalAvailableStock <= 0) {
-      throw new BadRequestException(`Variant "${variant.size}" - "${variant.color}" is out of stock`);
+      throw new BadRequestException(
+        `Variant "${variant.size}" - "${variant.color}" is out of stock`,
+      );
     }
 
     const productId = variant.product.id;

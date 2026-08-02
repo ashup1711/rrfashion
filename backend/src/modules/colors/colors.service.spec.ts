@@ -17,10 +17,7 @@ describe('ColorsService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ColorsService,
-        { provide: PrismaService, useValue: mockPrisma },
-      ],
+      providers: [ColorsService, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
 
     service = module.get<ColorsService>(ColorsService);
@@ -34,7 +31,15 @@ describe('ColorsService', () => {
   describe('findAll', () => {
     it('should return active colors sorted by sortOrder then name', async () => {
       const expected = [
-        { id: '1', name: 'Black', hexCode: '#000000', isActive: true, sortOrder: 0, createdAt: new Date(), updatedAt: new Date() },
+        {
+          id: '1',
+          name: 'Black',
+          hexCode: '#000000',
+          isActive: true,
+          sortOrder: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
       ];
       mockPrisma.color.findMany.mockResolvedValue(expected);
 
@@ -50,7 +55,15 @@ describe('ColorsService', () => {
 
   describe('findById', () => {
     it('should return a color by id', async () => {
-      const expected = { id: '1', name: 'Black', hexCode: '#000000', isActive: true, sortOrder: 0, createdAt: new Date(), updatedAt: new Date() };
+      const expected = {
+        id: '1',
+        name: 'Black',
+        hexCode: '#000000',
+        isActive: true,
+        sortOrder: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
       mockPrisma.color.findUnique.mockResolvedValue(expected);
 
       const result = await service.findById('1');
@@ -66,7 +79,13 @@ describe('ColorsService', () => {
   describe('create', () => {
     it('should create a color with isActive: true', async () => {
       const dto = { name: 'Navy Blue', hexCode: '#000080', sortOrder: 1 };
-      const expected = { id: 'new', ...dto, isActive: true, createdAt: new Date(), updatedAt: new Date() };
+      const expected = {
+        id: 'new',
+        ...dto,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
       mockPrisma.color.create.mockResolvedValue(expected);
 
       const result = await service.create(dto);
@@ -78,7 +97,14 @@ describe('ColorsService', () => {
 
     it('should default sortOrder to 0 when not provided', async () => {
       const dto = { name: 'Black', hexCode: '#000000' };
-      mockPrisma.color.create.mockResolvedValue({ id: 'new', ...dto, sortOrder: 0, isActive: true, createdAt: new Date(), updatedAt: new Date() });
+      mockPrisma.color.create.mockResolvedValue({
+        id: 'new',
+        ...dto,
+        sortOrder: 0,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
 
       await service.create(dto);
       expect(mockPrisma.color.create).toHaveBeenCalledWith({
@@ -89,7 +115,15 @@ describe('ColorsService', () => {
 
   describe('update', () => {
     it('should update a color partially', async () => {
-      const existing = { id: '1', name: 'Old Name', hexCode: '#000000', isActive: true, sortOrder: 0, createdAt: new Date(), updatedAt: new Date() };
+      const existing = {
+        id: '1',
+        name: 'Old Name',
+        hexCode: '#000000',
+        isActive: true,
+        sortOrder: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
       const updated = { ...existing, name: 'New Name' };
       mockPrisma.color.findUnique.mockResolvedValue(existing);
       mockPrisma.color.update.mockResolvedValue(updated);
@@ -104,7 +138,9 @@ describe('ColorsService', () => {
 
     it('should throw NotFoundException when color does not exist', async () => {
       mockPrisma.color.findUnique.mockResolvedValue(null);
-      await expect(service.update('nonexistent', { name: 'Test' })).rejects.toThrow(NotFoundException);
+      await expect(service.update('nonexistent', { name: 'Test' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

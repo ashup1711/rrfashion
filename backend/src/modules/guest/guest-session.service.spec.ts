@@ -1,7 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { GuestSessionService } from './guest-session.service';
+import { GuestAddressService } from './guest-address.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 describe('GuestSessionService', () => {
@@ -31,6 +33,13 @@ describe('GuestSessionService', () => {
     verify: jest.fn().mockReturnValue({ sub: 'session-1' }),
   };
 
+  const mockGuestAddressService = {
+    listAddresses: jest.fn(),
+    createAddress: jest.fn(),
+    updateAddress: jest.fn(),
+    deleteAddress: jest.fn(),
+  };
+
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -47,6 +56,10 @@ describe('GuestSessionService', () => {
           provide: JwtService,
           useValue: mockJwtService,
         },
+        {
+          provide: GuestAddressService,
+          useValue: mockGuestAddressService,
+        },
       ],
     }).compile();
     service = module.get<GuestSessionService>(GuestSessionService);
@@ -59,6 +72,8 @@ describe('GuestSessionService', () => {
       if (key === 'GUEST_SESSION_TTL_DAYS') return 30;
       return defaultValue;
     });
+    mockJwtService.sign.mockReturnValue('mock-token');
+    mockJwtService.verify.mockReturnValue({ sub: 'session-1' });
   });
 
   it('should be defined', () => {
@@ -204,6 +219,66 @@ describe('GuestSessionService', () => {
     });
   });
 
+  describe('createWithToken (REQ-SEC-007)', () => {
+    it('signs a guest token with ver=0 claim', async () => {
+      mockPrisma.guestSession.create.mockResolvedValue({
+        id: 'session-1',
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60),
+        lastActivityAt: new Date(),
+        createdAt: new Date(),
+      });
+
+      const result = await service.createWithToken();
+
+      expect(result.guestToken).toBe('mock-token');
+      expect(mockJwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'guest', ver: 0 }),
+        expect.any(Object),
+      );
+    });
+  });
+
+  describe('refreshSession (REQ-SEC-007)', () => {
+    it('rotates tokenVersion and embeds the new version as the ver claim', async () => {
+      const futureDate = new Date(Date.now() + 1000 * 60 * 60);
+      mockPrisma.guestSession.findUnique.mockResolvedValue({
+        id: 'session-1',
+        expiresAt: futureDate,
+        lastActivityAt: new Date(),
+        createdAt: new Date(),
+      });
+      mockPrisma.guestSession.update.mockResolvedValue({
+        id: 'session-1',
+        expiresAt: futureDate,
+        lastActivityAt: new Date(),
+        createdAt: new Date(),
+        tokenVersion: 4,
+      });
+
+      const result = await service.refreshSession('session-1');
+
+      expect(result.guestSessionId).toBe('session-1');
+      expect(mockPrisma.guestSession.update).toHaveBeenCalledWith({
+        where: { id: 'session-1' },
+        data: {
+          lastActivityAt: expect.any(Date),
+          expiresAt: expect.any(Date),
+          tokenVersion: { increment: 1 },
+        },
+      });
+      expect(mockJwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'guest', ver: 4 }),
+        expect.any(Object),
+      );
+    });
+
+    it('throws NotFoundException when the session is missing or expired', async () => {
+      mockPrisma.guestSession.findUnique.mockResolvedValue(null);
+
+      await expect(service.refreshSession('missing')).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('delete', () => {
     it('should delete the session by id', async () => {
       mockPrisma.guestSession.delete.mockResolvedValue({});
@@ -217,12 +292,12 @@ describe('GuestSessionService', () => {
   });
 
   describe('cleanupExpired', () => {
-    it('should return 0/0/0 when no expired sessions exist', async () => {
+    it('should return 0/0/0/0 when no expired sessions exist', async () => {
       mockPrisma.guestSession.findMany.mockResolvedValue([]);
 
       const result = await service.cleanupExpired(new Date());
 
-      expect(result).toEqual({ sessions: 0, cartItems: 0, wishlistItems: 0 });
+      expect(result).toEqual({ sessions: 0, cartItems: 0, wishlistItems: 0, addresses: 0 });
       expect(mockPrisma.guestSession.deleteMany).not.toHaveBeenCalled();
     });
 
@@ -234,14 +309,14 @@ describe('GuestSessionService', () => {
           expiresAt: new Date(now.getTime() - 1000),
           lastActivityAt: now,
           createdAt: now,
-          _count: { cartItems: 2, wishlistItems: 3 },
+          _count: { cartItems: 2, wishlistItems: 3, addresses: 1 },
         },
         {
           id: 'session-2',
           expiresAt: new Date(now.getTime() - 1000),
           lastActivityAt: now,
           createdAt: now,
-          _count: { cartItems: 1, wishlistItems: 0 },
+          _count: { cartItems: 1, wishlistItems: 0, addresses: 0 },
         },
       ]);
       mockPrisma.guestSession.deleteMany.mockResolvedValue({ count: 2 });
@@ -251,6 +326,7 @@ describe('GuestSessionService', () => {
       expect(result.sessions).toBe(2);
       expect(result.cartItems).toBe(3);
       expect(result.wishlistItems).toBe(3);
+      expect(result.addresses).toBe(1);
       expect(mockPrisma.guestSession.deleteMany).toHaveBeenCalledWith({
         where: { expiresAt: { lt: now } },
       });

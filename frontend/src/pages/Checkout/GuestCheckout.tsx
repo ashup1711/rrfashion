@@ -121,16 +121,11 @@ const GuestCheckout = () => {
     };
 
     try {
-      // Step 1: Ensure guest session exists (JWT token in localStorage)
-      let guestToken = localStorage.getItem('guest_token');
-      if (!guestToken) {
-        await initializeGuestSession();
-        guestToken = localStorage.getItem('guest_token');
-      }
-
-      if (!guestToken) {
-        throw new Error('Failed to initialize guest session. Please refresh and try again.');
-      }
+      // Step 1: Ensure a guest session exists (JWT token in localStorage).
+      // REQ-FE-GUEST-001: no manual token passing — the client.ts interceptor
+      // attaches `Authorization: Bearer <guest_token>` to every request, so
+      // order creation and payment verification are credentials-ready.
+      await initializeGuestSession();
 
       // Step 2: Create the order via POST /orders (StoreAuthGuard + AllowGuest)
       // This works with guest JWT tokens stored in guest_token localStorage.
@@ -343,8 +338,16 @@ const GuestCheckout = () => {
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Guest Checkout</h1>
         <Card>
           <div className="text-center py-8">
-            <p className="text-red-500 mb-4">Failed to load cart. Please refresh.</p>
-            <Button onClick={() => window.location.reload()}>Refresh Page</Button>
+            <p className="text-red-500 mb-4">Failed to load cart. Please try again.</p>
+            {/* REQ-FE-RC-003: SPA navigation — no full page reload */}
+            <Button
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.cart] });
+                navigate(ROUTES.CART);
+              }}
+            >
+              Back to Cart
+            </Button>
           </div>
         </Card>
       </div>

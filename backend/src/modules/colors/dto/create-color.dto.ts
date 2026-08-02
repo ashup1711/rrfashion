@@ -5,7 +5,9 @@ export class CreateColorDto {
   name!: string;
 
   @IsString()
-  @Matches(/^#[0-9A-Fa-f]{6}$/, { message: 'hexCode must be a valid 6-character hex color (e.g. #FF0000)' })
+  @Matches(/^#[0-9A-Fa-f]{6}$/, {
+    message: 'hexCode must be a valid 6-character hex color (e.g. #FF0000)',
+  })
   hexCode!: string;
 
   @IsOptional()

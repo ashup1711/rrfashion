@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { GuestAddress } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateGuestAddressDto,
@@ -13,6 +14,13 @@ export class GuestAddressService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findBySession(guestSessionId: string): Promise<GuestAddressResponseDto[]> {
+    // FIX-1 (QA): never allow an undefined/empty guest session id to reach Prisma.
+    // Prisma IGNORES undefined filters, which would return every guest address
+    // across all sessions (PII leak). The guard must be present even though the
+    // controller route is now @AllowGuest(false) — defense in depth.
+    if (!guestSessionId) {
+      throw new BadRequestException('Guest session required');
+    }
     const addresses = await this.prisma.guestAddress.findMany({
       where: { guestSessionId },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
@@ -163,7 +171,10 @@ export class GuestAddressService {
     return this.toResponse(updated);
   }
 
-  async findBySessionRaw(guestSessionId: string) {
+  async findBySessionRaw(guestSessionId: string): Promise<GuestAddress[]> {
+    if (!guestSessionId) {
+      throw new BadRequestException('Guest session required');
+    }
     return this.prisma.guestAddress.findMany({
       where: { guestSessionId },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],

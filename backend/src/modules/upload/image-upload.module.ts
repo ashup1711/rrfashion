@@ -27,6 +27,16 @@ mkdirSync(TEMP_DIR, { recursive: true });
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
+// REQ-SEC-014 / SEC-09: stored file extension is derived from the validated MIME
+// type, NOT from the client-supplied originalname. A spoofed `x.html` filename
+// with mimetype image/jpeg previously produced `<uuid>.html` on disk, which
+// Express static would serve as text/html (stored-XSS vector).
+const MIME_EXTENSION_MAP: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+
 // REQ-BE-009: Default max file sizes (can be overridden via env)
 const DEFAULT_MAX_SIZE_VARIANT_IMAGE = 10 * 1024 * 1024; // 10MB
 const DEFAULT_MAX_SIZE_PROFILE_PHOTO = 5 * 1024 * 1024; // 5MB
@@ -79,7 +89,8 @@ export class BullQueueHealthCheck implements OnModuleInit {
           storage: diskStorage({
             destination: TEMP_DIR,
             filename: (_req, file, cb) => {
-              const ext = file.originalname.split('.').pop() ?? 'jpg';
+              // REQ-SEC-014: extension from the allow-listed MIME type (not originalname).
+              const ext = MIME_EXTENSION_MAP[file.mimetype] ?? 'jpg';
               cb(null, `${uuidv4()}.${ext}`);
             },
           }),

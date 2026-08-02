@@ -71,10 +71,13 @@ export class GuestSessionService {
     try {
       const { guestSessionId, expiresAt } = await this.create();
 
+      // REQ-SEC-007 / SEC-05: embed ver=0 (new sessions) so StoreAuthGuard can
+      // compare payload.ver against GuestSession.tokenVersion.
       const payload = {
         sub: guestSessionId,
         type: 'guest',
         guestSessionId,
+        ver: 0,
       };
 
       const ttlSeconds = Math.floor(this.ttlMs / 1000);
@@ -106,7 +109,7 @@ export class GuestSessionService {
       }
 
       const fallbackToken = this.jwtService.sign(
-        { sub: fallbackSessionId, type: 'guest', guestSessionId: fallbackSessionId },
+        { sub: fallbackSessionId, type: 'guest', guestSessionId: fallbackSessionId, ver: 0 },
         { expiresIn: Math.floor(this.ttlMs / 1000) },
       );
 
@@ -149,6 +152,8 @@ export class GuestSessionService {
 
   /**
    * REQ-BE-016: Refresh an existing guest session — extends TTL and returns new JWT.
+   * REQ-SEC-007 / SEC-05: rotates `tokenVersion` and embeds the new version as
+   * the `ver` claim; StoreAuthGuard rejects any previously issued token.
    */
   async refreshSession(id: string): Promise<{
     guestToken: string;
@@ -160,23 +165,25 @@ export class GuestSessionService {
       throw new NotFoundException('Guest session not found or expired');
     }
 
-    // Extend the session TTL
+    // Extend the session TTL and rotate the token version (single atomic update)
     const now = new Date();
     const expiresAt = new Date(now.getTime() + this.ttlMs);
 
-    await this.prisma.guestSession.update({
+    const session = await this.prisma.guestSession.update({
       where: { id },
       data: {
         lastActivityAt: now,
         expiresAt,
+        tokenVersion: { increment: 1 },
       },
     });
 
-    // Sign a new token with updated expiry
+    // Sign a new token with updated expiry and the rotated version
     const payload = {
       sub: id,
       type: 'guest',
       guestSessionId: id,
+      ver: session.tokenVersion,
     };
 
     const ttlSeconds = Math.floor(this.ttlMs / 1000);
@@ -184,7 +191,11 @@ export class GuestSessionService {
       expiresIn: ttlSeconds,
     });
 
-    this.logger.log({ guestSessionId: id, action: 'guest.session.refreshed' });
+    this.logger.log({
+      guestSessionId: id,
+      action: 'guest.session.refreshed',
+      tokenVersion: session.tokenVersion,
+    });
 
     return { guestToken, guestSessionId: id, expiresAt };
   }

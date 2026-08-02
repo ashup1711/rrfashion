@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ReviewsService } from './reviews.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { ReviewStatus } from '@prisma/client';
 
 describe('ReviewsService', () => {
@@ -13,16 +13,14 @@ describe('ReviewsService', () => {
     },
     review: {
       findFirst: jest.fn(),
+      findUnique: jest.fn(),
       create: jest.fn(),
     },
   };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ReviewsService,
-        { provide: PrismaService, useValue: mockPrisma },
-      ],
+      providers: [ReviewsService, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
 
     service = module.get<ReviewsService>(ReviewsService);
@@ -127,6 +125,27 @@ describe('ReviewsService', () => {
       expect(createCallData).not.toHaveProperty('variantId');
       expect(createCallData).not.toHaveProperty('orderItemId');
       expect(createCallData.productId).toBe('product-1');
+    });
+
+    it('should reject anonymous creation with UnauthorizedException (FIX-3)', async () => {
+      await expect(service.create(null, dto)).rejects.toThrow(UnauthorizedException);
+      await expect(service.create('', dto)).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.product.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.review.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update/remove (FIX-3)', () => {
+    it('should reject anonymous update with UnauthorizedException', async () => {
+      await expect(service.update(null, 'review-1', { rating: 4 })).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(mockPrisma.review.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should reject anonymous delete with UnauthorizedException', async () => {
+      await expect(service.remove(null, 'review-1')).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.review.findUnique).not.toHaveBeenCalled();
     });
   });
 });

@@ -22,6 +22,7 @@ You specialize in implementing React web applications — both customer-facing s
 - `.opencode/state/coverage_backend.json` — read this to see which endpoints were implemented, their exact request/response shapes, and any contract notes
 - If pipeline_mode is `"implement"`: `.opencode/state/suggestion_report_pre.md` — read the pre-implementation suggestions for priority ordering and risk warnings
 - If this is a revision pass: `qa_report.errors` filtered to frontend-contract issues
+- `.opencode/skills/api-security-standards/SKILL.md` — **MANDATORY** — shared API security standards (SEC-01..SEC-20). Read before writing any API-consuming code (see "Apply Frontend Security Standards" step and the "Security Standards (Required)" section)
 
 ## Steps
 
@@ -78,6 +79,19 @@ For each component/page/hook:
 - Match request/response shapes exactly to the "Exact Contracts" section of the research report
 - Handle auth token attachment (interceptor pattern) and 401 redirect-to-login uniformly
 - For guest checkout / no-auth flows, ensure the API layer doesn't force an auth header
+
+### 6.5 Apply Frontend Security Standards
+
+Before writing or editing any API-consuming code, read `.opencode/skills/api-security-standards/SKILL.md` and apply every frontend-applicable SEC-XX standard to the code you produce this pass:
+
+- **SEC-16** — access token in **memory only** (Zustand store / React context), never `localStorage`/`sessionStorage`; refresh token stays in the backend's HttpOnly Secure cookie and is never read from JS
+- **Axios/fetch interceptor** — attach `Authorization: Bearer <accessToken>` from memory; on 401 call `/auth/refresh` (cookie, `withCredentials`) once, retry the original request once, else logout; handle 401/403 with graceful logout + redirect to `/login`
+- **SEC-08** — never `dangerouslySetInnerHTML` without sanitizing with `isomorphic-dompurify`; never interpolate user data into raw HTML; rely on React escaping + CSP
+- **SEC-14 / SEC-17** — per-endpoint `staleTime`/`gcTime` in React Query; never keep user-specific data cached across users (include `user.id` in user-scoped query keys); PWA service worker `network-first` for API or skip auth'd calls; never cache user-specific payloads; clear caches on logout (`caches.keys()` + `caches.delete`)
+- **SEC-13** — client error toasts show generic messages only, never raw server stack traces/error dumps
+- **Secrets** — never expose secrets in client code; `VITE_*` env vars are inlined into the bundle and must never contain secrets
+
+Full details and copy-paste-ready snippets are in the `## Security Standards (Required)` section below.
 
 ### 7. Apply Enhanced Frontend Patterns
 
@@ -211,6 +225,175 @@ Update `.opencode/state/project_state.json`:
 - `coverage_manifests.react-expert`: `".opencode/state/coverage_frontend.json"`
 - Leave `status` as `"in_progress"`
 
+## Security Standards (Required)
+
+Read `.opencode/skills/api-security-standards/SKILL.md` at the start of every run — before writing any code. It is the single source of truth (SEC-01..SEC-20); the requirements below are the frontend minimum and are non-negotiable. `code-review-and-qa` runs an independent Security QA Checkpoint and will fail you for skipping any applicable standard.
+
+### SEC-16 — Token Storage: Memory Only
+
+- Access token: **memory only** (Zustand store / React context). **NEVER** `localStorage`/`sessionStorage` — they are XSS-exfiltratable.
+- Refresh token: HttpOnly Secure cookie set by the backend — **never readable from JS**. It rides along automatically on `/auth/refresh` via `withCredentials`.
+
+```typescript
+// stores/authStore.ts
+import { create } from 'zustand';
+import type { User } from '../types';
+
+interface AuthState {
+  accessToken: string | null;
+  user: User | null;
+  setSession: (accessToken: string, user: User) => void;
+  clearSession: () => void;
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
+  accessToken: null,
+  user: null,
+  setSession: (accessToken, user) => set({ accessToken, user }),
+  clearSession: () => set({ accessToken: null, user: null }),
+}));
+```
+
+### Axios Interceptor — Bearer Attachment + Single Refresh Retry
+
+```typescript
+// services/httpClient.ts
+import axios from 'axios';
+import { useAuthStore } from '../stores/authStore';
+
+export const httpClient = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL });
+
+let isRefreshing = false;
+let failedQueue: Array<(token: string | null) => void> = [];
+
+const processQueue = (error: unknown, token: string | null = null) => {
+  failedQueue.forEach((cb) => cb(token));
+  failedQueue = [];
+};
+
+httpClient.interceptors.request.use((config) => {
+  const token = useAuthStore.getState().accessToken;
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+httpClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const { response, config: originalRequest } = error;
+    if (!response || ![401, 403].includes(response.status) || originalRequest._retried) {
+      return Promise.reject(error);
+    }
+
+    if (response.status === 401) {
+      // A refresh is already in flight — queue this request and retry when it resolves
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push((token) => (token ? resolve(httpClient(originalRequest)) : reject(error)));
+        });
+      }
+
+      originalRequest._retried = true; // retry the original request exactly ONCE
+      isRefreshing = true;
+      try {
+        const { data } = await axios.post(
+          `${import.meta.env.VITE_API_BASE_URL}/auth/refresh`,
+          {},
+          { withCredentials: true }, // HttpOnly cookie sent automatically — never read from JS
+        );
+        useAuthStore.getState().setSession(data.accessToken, data.user);
+        processQueue(null, data.accessToken);
+        return httpClient(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        useAuthStore.getState().clearSession();
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    if (response.status === 403) {
+      useAuthStore.getState().clearSession();
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+```
+
+Interceptor rules: attach `Authorization: Bearer` from memory; on 401 call `/auth/refresh` once and retry the original request once, otherwise logout; handle 401/403 with graceful logout + redirect to `/login`. Never swallow errors — surface a generic message (SEC-13). Guest/no-auth endpoints must not force the auth header.
+
+### SEC-08 — XSS Prevention
+
+- Never use `dangerouslySetInnerHTML` without sanitizing with DOMPurify first:
+
+```typescript
+import DOMPurify from 'isomorphic-dompurify';
+
+// eslint-disable-next-line react/no-danger
+<div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(product.descriptionHtml) }} />
+```
+
+- Never interpolate user data into raw HTML strings. Rely on React's JSX auto-escaping plus the CSP (`script-src 'self'`) configured by the backend.
+
+### SEC-14 / SEC-17 — React Query Caching + PWA Service Worker
+
+- Set `staleTime`/`gcTime` **per endpoint**, proportional to data volatility — never one global default:
+
+```typescript
+// Public catalog data — cache longer
+useQuery({
+  queryKey: ['products', filters],
+  queryFn: () => productService.list(filters),
+  staleTime: 5 * 60 * 1000,
+  gcTime: 30 * 60 * 1000,
+});
+
+// User-specific data — never serve stale, key by user id, keep gcTime short
+useQuery({
+  queryKey: ['orders', user.id, page],
+  queryFn: () => orderService.list(page),
+  staleTime: 0,
+  gcTime: 5 * 60 * 1000,
+});
+```
+
+- **Never keep user-specific data cached across users** — include `user.id` in user-scoped query keys and clear all queries on logout (`queryClient.removeQueries()` / `queryClient.clear()`).
+- Service worker (`vite-plugin-pwa`): precache static assets; API calls use `network-first` or are skipped entirely; **never cache user-specific payloads**:
+
+```typescript
+// vite.config.ts
+pwa: {
+  workbox: {
+    navigateFallbackDenylist: [/^\/api\//],
+    runtimeCaching: [
+      {
+        urlPattern: /^https?:\/\/.*\/api\/.*$/i,
+        handler: 'NetworkFirst',
+        options: { cacheName: 'api-dynamic', networkTimeoutSeconds: 5 },
+      },
+    ],
+  },
+}
+```
+
+- On logout, clear all service-worker caches:
+
+```typescript
+const cacheNames = await caches.keys();
+await Promise.all(cacheNames.map((name) => caches.delete(name)));
+```
+
+### SEC-13 — Generic Client Error Messages
+
+- Error toasts display **generic messages** only — never raw server stack traces, SQL errors, or error dumps. Map status codes to friendly copy (e.g. `toast.error('Something went wrong. Please try again.')`); log technical detail to the console, not the UI.
+
+### Secrets in Client Code
+
+- Never expose secrets in client code. `VITE_*` env vars are inlined into the bundle — they must never hold API keys, tokens, or secrets. Use them only for non-sensitive config (public API base URL, Razorpay key ID — public by design).
+
 ## Hard Rules
 
 - API field names and routes must exactly match the design doc / research report contract section — code-review-and-qa will flag any drift
@@ -226,6 +409,7 @@ Update `.opencode/state/project_state.json`:
 - **Every data-fetching component must have loading, empty, and error states** — a component that only handles the happy path will be flagged as incomplete by code-review-and-qa.
 - **Use `useMemo`/`useCallback` for derived data and callback props** passed to child components, especially in list renderers and form components. Excessive re-renders are a common CI lint failure.
 - **Wrap page-level components with ErrorBoundary** — unhandled React rendering crashes should show a recovery UI, not a blank white screen.
+- **Read `.opencode/skills/api-security-standards/SKILL.md` at the start of every run and satisfy every SEC-XX standard applicable to the frontend layer. QA will fail you if you skip any.** SEC-08, SEC-13, SEC-14, SEC-16, SEC-17, and SEC-18 always apply to React code.
 
 ## React Patterns for This Project (R R Fashion)
 

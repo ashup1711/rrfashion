@@ -21,6 +21,8 @@ import { GuestCleanupService } from './guest-cleanup.service';
   ],
   controllers: [GuestController],
   providers: [GuestSessionService, GuestAddressService, GuestCleanupService],
-  exports: [GuestSessionService, GuestAddressService],
+  // REQ-BE-GUEST-001: JwtModule is exported so Cart/Wishlist controllers can
+  // inject JwtService and verify the guest Bearer token on /merge endpoints.
+  exports: [GuestSessionService, GuestAddressService, JwtModule],
 })
 export class GuestModule {}

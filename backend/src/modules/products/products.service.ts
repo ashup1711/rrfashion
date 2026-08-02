@@ -109,7 +109,8 @@ export class ProductsService {
 
     // Size filter — combine with any existing variants filter
     if (filters.sizes && filters.sizes.length > 0) {
-      const existingVariantsFilter = (where.variants as Prisma.ProductVariantListRelationFilter) || {};
+      const existingVariantsFilter =
+        (where.variants as Prisma.ProductVariantListRelationFilter) || {};
       where.variants = {
         ...existingVariantsFilter,
         some: {

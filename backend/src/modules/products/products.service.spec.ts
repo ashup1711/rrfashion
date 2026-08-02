@@ -12,7 +12,13 @@ describe('ProductsService', () => {
   const categoryFindMany = jest.fn();
   const productGroupBy = jest.fn();
 
-  const mockPrisma = {
+  interface MockPrisma {
+    product: Record<string, jest.Mock>;
+    productVariant: Record<string, jest.Mock>;
+    category: Record<string, jest.Mock>;
+  }
+
+  const mockPrisma: MockPrisma = {
     product: {
       findMany: productFindMany,
       count: productCount,
@@ -25,7 +31,7 @@ describe('ProductsService', () => {
     productVariant: {
       findMany: jest.fn(),
     },
-  } as unknown as PrismaService;
+  };
 
   const mockGateway = {
     notifyProductUpdate: jest.fn(),
@@ -157,8 +163,8 @@ describe('ProductsService', () => {
 
     beforeEach(() => {
       jest.clearAllMocks();
-      (mockPrisma as any).product = { findUnique: productFindUnique };
-      (mockPrisma as any).productVariant = { findMany: productVariantFindMany };
+      mockPrisma.product = { findUnique: productFindUnique };
+      mockPrisma.productVariant = { findMany: productVariantFindMany };
     });
 
     it('should return product variant specs with stock levels', async () => {
@@ -181,9 +187,7 @@ describe('ProductsService', () => {
           color: 'Red',
           sku: 'SKU-002',
           salePrice: 1499,
-          inventorySummaries: [
-            { quantityAvailable: 3, storeId: 'store-1' },
-          ],
+          inventorySummaries: [{ quantityAvailable: 3, storeId: 'store-1' }],
         },
         {
           id: 'variant-3',

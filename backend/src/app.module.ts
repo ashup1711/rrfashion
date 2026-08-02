@@ -114,6 +114,18 @@ import { StorageModule } from './storage/storage.module';
             ttl: 300,
             limit: 5,
           },
+          // REQ-SEC-002 / SEC-10: dedicated throttler for guest session endpoints.
+          // Name must be `guest` to match @Throttle({ guest }) keys on
+          // POST /guest/start and POST /guest/refresh.
+          {
+            name: 'guest',
+            ttl: 60000,
+            limit: config.get<number>('RATE_LIMIT_GUEST', 20),
+            skipIf: (context) => {
+              const request = context.switchToHttp().getRequest();
+              return !request.url?.startsWith('/api/guest/');
+            },
+          },
         ],
         storage,
         errorMessage: 'Too many requests — please try again later',

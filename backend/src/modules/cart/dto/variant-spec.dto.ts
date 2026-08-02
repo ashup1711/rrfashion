@@ -23,7 +23,10 @@ export class VariantSpecDto {
   stock!: number;
 
   @Expose()
-  @ApiProperty({ description: 'Whether variant is available (stock > 0 and active)', example: true })
+  @ApiProperty({
+    description: 'Whether variant is available (stock > 0 and active)',
+    example: true,
+  })
   isAvailable!: boolean;
 
   @Expose()

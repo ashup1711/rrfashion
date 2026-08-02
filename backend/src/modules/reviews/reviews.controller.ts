@@ -23,14 +23,18 @@ import { ReviewFilterDto } from './dto/review-filter.dto';
 @ApiTags('Reviews')
 @Controller('reviews')
 @UseGuards(StoreAuthGuard)
+// FIX-3 (QA): anonymous READING of approved reviews is allowed, but every
+// state-changing route below overrides with @AllowGuest(false) so that review
+// creation/editing/deletion require a verified customer or guest JWT.
 @AllowGuest(true)
 export class ReviewsController {
   constructor(private readonly reviewsService: ReviewsService) {}
 
   @Post()
+  @AllowGuest(false)
   @ApiCommonResponse({ summary: 'Create a new review', status: 201, type: CreateReviewDto })
   async create(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('id') userId: string | null,
     @Body() createReviewDto: CreateReviewDto,
     @GuestSessionId() guestSessionId?: string,
   ) {
@@ -55,9 +59,10 @@ export class ReviewsController {
   }
 
   @Patch(':id')
+  @AllowGuest(false)
   @ApiCommonResponse({ summary: 'Update a review', type: UpdateReviewDto })
   async update(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('id') userId: string | null,
     @Param('id') id: string,
     @Body() updateReviewDto: UpdateReviewDto,
   ) {
@@ -65,8 +70,9 @@ export class ReviewsController {
   }
 
   @Delete(':id')
+  @AllowGuest(false)
   @ApiCommonResponse({ summary: 'Delete a review' })
-  async remove(@CurrentUser('id') userId: string, @Param('id') id: string) {
+  async remove(@CurrentUser('id') userId: string | null, @Param('id') id: string) {
     return this.reviewsService.remove(userId, id);
   }
 }

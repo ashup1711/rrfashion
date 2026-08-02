@@ -36,7 +36,12 @@ export const addAllWishlistToCart = async (): Promise<{ added: number; skipped: 
   return data;
 };
 
-export const mergeWishlist = async (guestSessionId: string): Promise<{ merged: boolean }> => {
-  const { data } = await apiClient.post<{ merged: boolean }>('/wishlist/merge', { guestSessionId });
+/**
+ * REQ-FE-GUEST-001: guest identity travels in the `Authorization: Bearer
+ * <guest_token>` header (attached by the client.ts request interceptor), so
+ * merge takes no body and no guestSessionId.
+ */
+export const mergeWishlist = async (): Promise<{ merged: boolean }> => {
+  const { data } = await apiClient.post<{ merged: boolean }>('/wishlist/merge');
   return data;
 };

@@ -67,7 +67,9 @@ export class ColorsService {
     });
 
     if (variantCount > 0) {
-      this.logger.warn(`Color "${color.name}" deactivated but is used by ${variantCount} active variant(s)`);
+      this.logger.warn(
+        `Color "${color.name}" deactivated but is used by ${variantCount} active variant(s)`,
+      );
     }
 
     // Soft-delete by setting isActive to false

@@ -35,10 +35,7 @@ export class AdminAuthController {
   @UseGuards(AdminJwtAuthGuard)
   @Post('logout')
   @ApiCommonResponse({ summary: 'Admin logout' })
-  async logout(
-    @CurrentUser('id') adminId: string,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async logout(@CurrentUser('id') adminId: string, @Res({ passthrough: true }) res: Response) {
     // Revoke all admin sessions server-side before clearing cookies (SEC-01)
     await this.adminAuthService.revokeAllSessions(adminId);
 
@@ -58,7 +55,8 @@ export class AdminAuthController {
   private setAdminAuthCookies(res: Response, accessToken: string, refreshToken: string): void {
     // SameSite=None required for cross-origin (GitHub Pages → ngrok)
     // Can be overridden via COOKIE_SAMESITE env var (none/strict/lax)
-    const sameSite = (process.env.COOKIE_SAMESITE || (process.env.NODE_ENV === 'production' ? 'none' : 'strict')) as 'none' | 'strict' | 'lax';
+    const sameSite = (process.env.COOKIE_SAMESITE ||
+      (process.env.NODE_ENV === 'production' ? 'none' : 'strict')) as 'none' | 'strict' | 'lax';
     // Secure is REQUIRED when SameSite=None (browser spec)
     const isSecure = sameSite === 'none' || process.env.NODE_ENV === 'production';
     res.cookie('admin_access_token', accessToken, {

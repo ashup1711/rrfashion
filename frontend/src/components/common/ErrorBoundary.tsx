@@ -38,12 +38,19 @@ interface ErrorBoundaryState {
   error: Error | null;
   isChunkError: boolean;
   isAuthError: boolean;
+  chunkRetryCount: number;
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null, isChunkError: false, isAuthError: false };
+    this.state = {
+      hasError: false,
+      error: null,
+      isChunkError: false,
+      isAuthError: false,
+      chunkRetryCount: 0,
+    };
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -52,6 +59,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
       error,
       isChunkError: isChunkLoadError(error),
       isAuthError: isAuthError(error),
+      chunkRetryCount: 0,
     };
   }
 
@@ -61,6 +69,19 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
   handleRetry = () => {
     if (this.state.isChunkError) {
+      // REQ-FE-BP-001: first retry resets the boundary → React re-renders →
+      // retryLazy re-attempts the dynamic import. Only reload after a second
+      // consecutive chunk failure (stale SW is the usual cause then).
+      if (this.state.chunkRetryCount < 1) {
+        this.setState((s) => ({
+          hasError: false,
+          error: null,
+          isChunkError: false,
+          isAuthError: false,
+          chunkRetryCount: s.chunkRetryCount + 1,
+        }));
+        return;
+      }
       window.location.reload();
       return;
     }
@@ -72,7 +93,13 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     if (this.props.onRetry) {
       this.props.onRetry();
     }
-    this.setState({ hasError: false, error: null, isChunkError: false, isAuthError: false });
+    this.setState({
+      hasError: false,
+      error: null,
+      isChunkError: false,
+      isAuthError: false,
+      chunkRetryCount: 0,
+    });
   };
 
   handleRefresh = () => {
@@ -99,8 +126,15 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
             </p>
             <div className="flex gap-3">
               <button
-                onClick={this.handleRefresh}
+                onClick={this.handleRetry}
                 className="px-6 py-2.5 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 font-medium"
+                aria-label="Try loading the latest version again"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={this.handleRefresh}
+                className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 font-medium"
                 aria-label="Refresh the page to load the latest version"
               >
                 Refresh Now

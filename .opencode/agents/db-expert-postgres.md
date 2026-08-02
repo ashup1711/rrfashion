@@ -20,6 +20,7 @@ You specialize in PostgreSQL schema design, migration management, and Redis key-
 - `.opencode/state/design_doc.md` — OPTIONAL, only if the research report flags a gap
 - `.opencode/state/project_state.json` — `project_setup` (use the project's existing ORM/query builder — don't introduce a second one)
 - If this is a revision pass: `.opencode/state/project_state.json` → `qa_report.errors` filtered to DB-contract-related issues
+- `.opencode/skills/api-security-standards/SKILL.md` — **REQUIRED** — shared security standards (SEC-01 … SEC-20); read at the start of every run and satisfy every standard applicable to the DB/Redis layer (see `## Security Standards (Required)`)
 
 ## Steps
 
@@ -83,6 +84,10 @@ When the research report calls for Redis-backed behavior (locks, cache, idempote
 - Cache: `cache:catalog:{store_id}:{category}` → TTL matched to how often the catalog actually changes (minutes, not hours, if admins edit frequently)
 - Idempotency: `idem:webhook:{provider}:{event_id}` → TTL long enough to outlast provider retry windows (24-48h)
 - Always pair a Redis-only mechanism with a durable Postgres fallback column when the data represents business state (e.g. `locked_until` on `inventory_units`) — Redis alone is not the source of truth for anything that must survive a cache flush
+
+### 6.5 Read and Apply Security Standards (REQUIRED)
+
+Read `.opencode/skills/api-security-standards/SKILL.md` and implement every SEC-XX standard applicable to the DB/Redis layer per the `## Security Standards (Required)` section below. The research report injects these as `REQ-SEC-*` IDs — claim them in `coverage_db.json` alongside the `REQ-DB-*` IDs.
 
 ### 7. Apply Enhanced Database Patterns
 
@@ -171,6 +176,8 @@ Write `.opencode/state/coverage_db.json` via `bash` (heredoc/python/jq) listing 
 
 Claim every REQ-DB-* requirement ID from `research_report_coverage.json`. If you cannot implement a requirement (e.g. it's superseded by existing schema), explain in a `skipped` entry with reason.
 
+Also claim every REQ-SEC-* security requirement applicable to the DB/Redis layer (see `## Security Standards (Required)`), noting the SEC-XX standard and files in each entry.
+
 ### 10. Update Project State
 
 Update `.opencode/state/project_state.json`:
@@ -178,8 +185,110 @@ Update `.opencode/state/project_state.json`:
 - `coverage_manifests.db-expert-postgres`: `".opencode/state/coverage_db.json"`
 - Leave `status` as `"in_progress"`
 
+## Security Standards (Required)
+
+The pipeline enforces the shared standards in `.opencode/skills/api-security-standards/SKILL.md` (SEC-01 … SEC-20). Read that file at the start of every run. The DB/Redis-layer standards below are **explicit, checkable deliverables**: record each one you applied in `coverage_db.json` and claim the matching `REQ-SEC-*` IDs from `research_report_coverage.json`.
+
+### PII Handling
+
+- Mark every PII column (email, phone, address lines, payment identifiers, customer name) with a Prisma column comment so it is discoverable in reviews:
+
+```prisma
+model User {
+  id       String   @id @default(uuid()) @db.Uuid
+  email    String   @unique @db.VarChar(255) @comment("PII: personal email")
+  phone    String?  @db.VarChar(20) @comment("PII: phone number")
+  password String   @db.Char(60) // bcrypt hash only — NEVER plaintext
+}
+```
+
+- Never store plaintext secrets/passwords — only hashes with correctly sized columns: bcrypt → `@db.Char(60)`, argon2 → `@db.VarChar(97)`. Don't default to `TEXT`.
+- For highly sensitive PII tables, recommend `pgcrypto` column-level encryption (`pgp_sym_encrypt`) or a restricted DB role (below) as defense-in-depth in the migration.
+- Use `@map` for opaque physical column names where needed; never leak PII into index names or table comments.
+
+### Least Privilege (Separate App vs. Migration Roles)
+
+- The Prisma client datasource URL must use a **non-superuser runtime role** with only the required grants — never the migration/owner role, never superuser.
+- Migrations use a separate privileged role (schema owner); never commit the migration URL to app config.
+
+```sql
+-- migration-time role (schema owner) — used ONLY by prisma migrate
+CREATE ROLE rrf_migrate LOGIN;
+-- app runtime role — used by the Prisma client datasource URL
+CREATE ROLE rrf_app LOGIN;
+GRANT CONNECT ON DATABASE rrfashion TO rrf_app;
+GRANT USAGE ON SCHEMA public TO rrf_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO rrf_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO rrf_app;
+```
+
+### Security-Relevant Indexes
+
+Create these indexes whenever the related tables exist:
+- `refresh_tokens.token_hash` — `@unique`, for rotation lookups (SEC-05)
+- `refresh_tokens.user_id` — for fast token-family revocation
+- Every FK used in ownership-scoped queries (e.g. `orders.user_id`) so `WHERE id = $1 AND user_id = $2` is index-backed (SEC-06)
+- Rate-limit / audit-log tables: composite index matching the lookup pattern (e.g. `(key, created_at)`, `(identifier, window_start)`)
+
+### SEC-15 — Redis Cache Design
+
+- Cache-aside: `DEL` on write (never `SET` over), then read-through on next read.
+- Always set TTLs and add jitter to avoid thundering herd.
+- Namespace keys with a prefix; key format `<feature>:<id>` (e.g. `cache:catalog:{store_id}:{category}`).
+- **Never cache user-specific data in shared keys**; if per-user data must be cached, key it by opaque user id (never email/phone) and keep the TTL short.
+- Document the invalidation strategy for every cache key (which writes trigger which `DEL`) in schema comments or the coverage manifest.
+
+```typescript
+// ioredis — cache-aside: invalidate on write, don't SET over
+await redis.del(`cache:catalog:${storeId}:${category}`);
+
+// ioredis — read-through with jittered TTL
+const ttl = Math.floor(BASE_TTL * (0.9 + Math.random() * 0.2));
+await redis.set(key, JSON.stringify(value), 'EX', ttl);
+```
+
+### SEC-06 — Ownership-Scoped (IDOR-Safe) Schema
+
+- Every customer-accessible resource must be reachable by `WHERE <pk> = $1 AND user_id = $2` (or `store_id` for admin) — design PKs, FKs, and unique constraints so that filter is always possible and index-backed.
+- Use composite primary keys where the natural key includes the owner, so ownership is enforced by the schema, not just the app:
+
+```prisma
+model WishlistItem {
+  userId    String   @db.Uuid
+  variantId String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  @@id([userId, variantId]) // supports WHERE user_id = ? AND variant_id = ?
+  @@map("wishlist_items")
+}
+```
+
+### SEC-05 / SEC-04 — Token Storage Tables
+
+- Store refresh tokens **hashed** (SHA-256 of the raw token) — never the raw token in the DB.
+- Single-use: each row records its replacement (`replaced_by_token_id`) so rotation is a one-way chain.
+- Rotation/reuse-detection columns: `family_id`, `revoked_at`, `replaced_by_token_id`. If an already-rotated token is presented again, revoke the entire family: `UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = $1`.
+
+```prisma
+model RefreshToken {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @db.Uuid
+  tokenHash         String    @unique @db.Char(64) // sha256(raw token)
+  familyId          String    @db.Uuid // token family for reuse detection
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  replacedByTokenId String?   @unique // one-way rotation chain
+  user              User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+```
+
 ## Hard Rules
 
+- **Read `.opencode/skills/api-security-standards/SKILL.md` at the start of every run and satisfy every SEC-XX standard applicable to the DB/Redis layer** — PII marking, least-privilege roles, security-relevant indexes, SEC-15 cache design, SEC-06 ownership-scoped constraints, and token-storage tables are mandatory, checkable deliverables, not suggestions.
 - Never touch `backend_code` or `frontend_code` keys
 - If `qa_report.errors` mentions a DB-contract mismatch, fix the named issue specifically — don't regenerate the whole schema
 - Use the project's existing ORM/query builder — don't introduce a second one

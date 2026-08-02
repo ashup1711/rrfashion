@@ -5,15 +5,24 @@ export function useGuestSession() {
   const [initialized, setInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // REQ-FE-BP-002: guest init must never throw into render or block first paint.
+  // The effect is fire-and-forget; a failed backend guest-session call degrades
+  // to local-first cart/wishlist (stores fall back to localStorage).
   useEffect(() => {
     let cancelled = false;
-    initializeGuestSession()
-      .then(() => {
+    (async () => {
+      try {
+        await initializeGuestSession();
+      } catch (err) {
+        console.warn('Guest session init failed (non-blocking):', err);
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : 'Failed to initialize guest session';
+          setError(message);
+        }
+      } finally {
         if (!cancelled) setInitialized(true);
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };

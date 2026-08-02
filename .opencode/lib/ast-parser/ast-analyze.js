@@ -17,6 +17,54 @@ Modes:
 
 const modes = ['explore', 'validate-nestjs', 'validate-react', 'validate-schema', 'validate-contracts', 'symbol-index'];
 
+function analyzeSecurityHeuristics(filePath, parsed, state) {
+  const findings = [];
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    const baseName = filePath.split(/[\\/]/).pop() || '';
+    const isBootstrap =
+      baseName === 'main.ts' || baseName === 'main.js' ||
+      /NestFactory\.(create|createMicroservice|createApplicationContext)\s*\(/.test(content);
+
+    if (/ThrottlerModule|ThrottlerGuard/.test(content)) {
+      state.throttleReferenced = true;
+    }
+    if (state.bootstrapPath === null && isBootstrap) {
+      state.bootstrapPath = filePath;
+    }
+    if (state.modulePath === null && /\.module\.(ts|js)$/.test(filePath)) {
+      state.modulePath = filePath;
+    }
+
+    if (!isBootstrap) return findings;
+
+    const hasHelmet =
+      /from\s+['"]helmet['"]/.test(content) ||
+      /require\s*\(\s*['"]helmet['"]\s*\)/.test(content);
+    if (!hasHelmet) {
+      findings.push({
+        file: filePath,
+        severity: 'warning',
+        issue: 'helmet missing — app bootstrap does not import helmet',
+        category: 'security',
+        security: 'medium',
+      });
+    }
+
+    const corsArgs = content.match(/enableCors\s*\(\s*\{([\s\S]*?)\}/);
+    if (corsArgs && /origin\s*:\s*(['"]\*['"]|true)(?=[,\s}])/.test(corsArgs[1])) {
+      findings.push({
+        file: filePath,
+        severity: 'warning',
+        issue: 'permissive CORS origin — enableCors configured with wildcard origin',
+        category: 'security',
+        security: 'high',
+      });
+    }
+  } catch {}
+  return findings;
+}
+
 async function main() {
   if (!mode || !modes.includes(mode) || filePaths.length === 0) {
     console.error(USAGE);
@@ -56,6 +104,8 @@ async function main() {
 
     case 'validate-nestjs': {
       const issues = [];
+      const securityState = { throttleReferenced: false, bootstrapPath: null, modulePath: null };
+
       for (const [filePath, parsed] of parsedFiles) {
         const controllers = findNestJSControllers(parsed);
         const services = findNestJSServices(parsed);
@@ -79,10 +129,35 @@ async function main() {
         for (const route of routes) {
           const hasGuard = route.guards && route.guards.length > 0;
           if (!hasGuard && !route.path.includes('/health')) {
-            issues.push({ file: filePath, severity: 'warning', issue: 'Route may lack auth guard', route: `${route.method} ${route.path}` });
+            issues.push({
+              file: filePath,
+              severity: 'warning',
+              issue: 'Route may lack auth guard',
+              route: `${route.method} ${route.path}`,
+              category: 'security',
+              security: 'high',
+            });
           }
         }
+
+        issues.push(...analyzeSecurityHeuristics(filePath, parsed, securityState));
       }
+
+      try {
+        if (!securityState.throttleReferenced) {
+          const target = securityState.bootstrapPath || securityState.modulePath;
+          if (target) {
+            issues.push({
+              file: target,
+              severity: 'warning',
+              issue: 'rate limiting missing — ThrottlerModule/ThrottlerGuard not referenced',
+              category: 'security',
+              security: 'medium',
+            });
+          }
+        }
+      } catch {}
+
       console.log(JSON.stringify({ validated: issues.length === 0, issues }, null, 2));
       break;
     }

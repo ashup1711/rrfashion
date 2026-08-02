@@ -347,6 +347,12 @@ export default function PosPage() {
           >
             Reload
           </button>
+          <p className="text-xs text-gray-400 mt-2">
+            {/* REQ-FE-RC-003: this is a genuine full app re-init — the POS device
+                API key / device UUID are read at module scope and SyncEngine is
+                rebuilt on mount, so a hard reload is intentionally required after
+                configuration. All other navigation in this screen is SPA-based. */}
+          </p>
         </div>
       </div>
     );

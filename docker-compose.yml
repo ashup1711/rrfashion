@@ -55,7 +55,9 @@ services:
       - "${BACKEND_HOST_PORT:-3000}:3000"
     environment:
       NODE_ENV: development
-      COOKIE_SAMESITE: "none"
+      # REQ-SEC-006 / SEC-03: COOKIE_SAMESITE=none is only valid over HTTPS.
+      # Keep 'strict' for local dev (default); set 'none' only behind HTTPS in prod.
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-strict}
       PORT: "3000"
       DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/rr_fashion?schema=public"
       REDIS_HOST: redis
@@ -66,12 +68,16 @@ services:
       MINIO_USE_SSL: "false"
       STORAGE_DRIVER: local
       UPLOAD_DIR: /app/uploads
-      JWT_SECRET: "change-in-production"
-      JWT_ADMIN_SECRET: "change-in-production"
+      # REQ-SEC-003 / SEC-18: placeholder only for dev. In production set real
+      # secrets via env (NODE_ENV=production startup refuses these dev defaults).
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
+      JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET:-dev-only-change-me}
       JWT_EXPIRES_IN: "15m"
       JWT_ADMIN_EXPIRES_IN: "15m"
       REFRESH_EXPIRES_IN: "7d"
       BCRYPT_SALT_ROUNDS: "12"
+      # REQ-SEC-009: Swagger is served in dev; gate it in prod via SWAGGER_ENABLED=true
+      # SWAGGER_ENABLED: "false"
       # Razorpay
       RAZORPAY_KEY_ID: "${RAZORPAY_KEY_ID:-rzp_test_TGxA0nk6EK1Bn2}"
       RAZORPAY_KEY_SECRET: "${RAZORPAY_KEY_SECRET:-hOYiuXtDuL0FflS1c3boFjk3}"

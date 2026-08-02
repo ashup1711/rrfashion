@@ -167,8 +167,7 @@ export class PosService {
 
         if (!summary || summary.quantityAvailable < qty) {
           throw new ConflictException({
-            message:
-              'This item is no longer available in the requested quantity.',
+            message: 'This item is no longer available in the requested quantity.',
             itemUnavailable: true,
           });
         }

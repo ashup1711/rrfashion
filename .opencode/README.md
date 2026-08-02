@@ -24,6 +24,8 @@ This pipeline orchestrates development workflows across database, backend, front
     code-review-and-qa.md    # SUBAGENT - Technical code review + QA verification
     suggestion-agent.md      # SUBAGENT - Post-implementation improvements
   skills/
+    api-security-standards/
+      SKILL.md              # Shared API security standards (SEC-01..SEC-20) — referenced by all agents
     orchestrator/
       SKILL.md              # Detailed skill documentation
     db-expert/
@@ -77,7 +79,8 @@ The pipeline uses 11 specialized agents defined in `.opencode/agents/`:
 5. **Code-review-and-qa** performs technical code review and verifies requirements
 6. **Suggestion-agent** provides actionable improvement suggestions
 7. Each subagent reads its corresponding SKILL.md (where one exists) for detailed patterns
-8. Subagents update `project_state.json` as they work
+8. All agents follow the shared `.opencode/skills/api-security-standards/SKILL.md` standards (SEC-01..SEC-20)
+9. Subagents update `project_state.json` as they work
 
 ## How It Works
 
@@ -100,6 +103,7 @@ The research-agent:
 - Scans the entire codebase to understand existing patterns and conventions
 - Cross-references requirements with the actual codebase (what exists vs. what's needed)
 - Writes a **final requirement prompt** (research_report.md) that tells expert agents exactly WHAT to build and HOW to build it following existing conventions
+- Also appends an "API Security Standards (REQ-SEC-*)" section to research_report.md and records REQ-SEC-* IDs in research_report_coverage.json
 - Expert agents use this as their primary instruction set
 
 ### 4. Expert Agents Execute in Dependency Order
@@ -118,6 +122,11 @@ The code-review-and-qa agent performs two phases:
 - Performance issues (N+1 queries, missing indexes)
 - Layer-specific best practices
 
+**Phase 1.5 — Security QA Checkpoint (independent):**
+Runs against the shared `.opencode/skills/api-security-standards/SKILL.md` standards (SEC-01..SEC-20), independently of the owning experts:
+- Guards/IDOR, CORS, headers, input validation, rate limiting, secrets, token storage, caching, payment webhooks, swagger/metrics exposure
+- Reports PASS/FAIL for each check; a critical security failure forces a revision loop back to the owning expert (via `loopback_targets`)
+
 **Phase 2 — QA Verification:**
 - Requirement compliance (all items implemented)
 - Cross-stack contract validation (DB ↔ Backend ↔ Frontend)
@@ -129,6 +138,8 @@ The suggestion-agent provides:
 - Security hardening opportunities
 - Code quality and refactoring suggestions
 - Follow-up feature ideas
+
+Security hardening is a standing suggestion category — the suggestion-agent always checks for and proposes security improvements against the shared API security standards (SEC-01..SEC-20).
 
 ## Routing Logic
 

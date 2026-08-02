@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import {
   BadRequestException,
@@ -134,9 +133,7 @@ describe('PaymentsService', () => {
 
       service.onModuleInit();
 
-      expect(logSpy).toHaveBeenCalledWith(
-        '✓ Using Razorpay LIVE MODE. Payments are REAL.',
-      );
+      expect(logSpy).toHaveBeenCalledWith('✓ Using Razorpay LIVE MODE. Payments are REAL.');
     });
 
     it('should mask credentials in logs', () => {
@@ -144,9 +141,7 @@ describe('PaymentsService', () => {
 
       service.onModuleInit();
 
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringMatching(/KEY_ID=rzp_test\*\*\*/),
-      );
+      expect(logSpy).toHaveBeenCalledWith(expect.stringMatching(/KEY_ID=rzp_test\*\*\*/));
     });
 
     it('should warn when key format is unexpected', () => {
@@ -158,9 +153,7 @@ describe('PaymentsService', () => {
 
       service.onModuleInit();
 
-      expect(warnSpy).toHaveBeenCalledWith(
-        '⚠ Razorpay KEY_ID has unexpected format.',
-      );
+      expect(warnSpy).toHaveBeenCalledWith('⚠ Razorpay KEY_ID has unexpected format.');
     });
 
     it('should warn when webhook secret is missing', () => {
@@ -182,9 +175,7 @@ describe('PaymentsService', () => {
 
       service.onModuleInit();
 
-      expect(logSpy).toHaveBeenCalledWith(
-        '✓ Razorpay webhook secret configured.',
-      );
+      expect(logSpy).toHaveBeenCalledWith('✓ Razorpay webhook secret configured.');
     });
   });
 
@@ -233,9 +224,7 @@ describe('PaymentsService', () => {
     it('should throw ServiceUnavailableException when order not found', async () => {
       mockPrisma.order.findUnique.mockResolvedValue(null);
 
-      await expect(service.createOrder(dto)).rejects.toThrow(
-        ServiceUnavailableException,
-      );
+      await expect(service.createOrder(dto)).rejects.toThrow(ServiceUnavailableException);
     });
 
     it('should throw ServiceUnavailableException on Razorpay API failure', async () => {
@@ -252,9 +241,7 @@ describe('PaymentsService', () => {
       });
       mockPrisma.payment.create.mockResolvedValue({ id: 'pay-1' });
 
-      await expect(service.createOrder(dto)).rejects.toThrow(
-        ServiceUnavailableException,
-      );
+      await expect(service.createOrder(dto)).rejects.toThrow(ServiceUnavailableException);
     });
 
     it('should reject immediately when circuit breaker is already open', async () => {
@@ -274,9 +261,7 @@ describe('PaymentsService', () => {
         /* expected */
       }
 
-      await expect(service.createOrder(dto)).rejects.toThrow(
-        ServiceUnavailableException,
-      );
+      await expect(service.createOrder(dto)).rejects.toThrow(ServiceUnavailableException);
     });
 
     it('should return Razorpay order data on success', async () => {
@@ -312,9 +297,9 @@ describe('PaymentsService', () => {
     it('should throw BadRequestException when order not found', async () => {
       mockPrisma.order.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.createPaymentLink('non-existent', 10000),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.createPaymentLink('non-existent', 10000)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should return payment link data on success', async () => {
@@ -343,14 +328,12 @@ describe('PaymentsService', () => {
         orderNumber: 'ORD-001',
       });
       const mockApi = createMockRazorApi();
-      mockApi.paymentLink.create.mockRejectedValue(
-        new Error('Rate limit exceeded'),
-      );
+      mockApi.paymentLink.create.mockRejectedValue(new Error('Rate limit exceeded'));
       jest.spyOn(service as any, 'getRazorpay').mockReturnValue(mockApi);
 
-      await expect(
-        service.createPaymentLink('order-1', 10000),
-      ).rejects.toThrow(InternalServerErrorException);
+      await expect(service.createPaymentLink('order-1', 10000)).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
   });
 
@@ -359,7 +342,8 @@ describe('PaymentsService', () => {
 
     it('should retry on transient errors with ETIMEDOUT', async () => {
       const spy = jest.spyOn(service, 'createOrder');
-      spy.mockRejectedValueOnce(new Error('ETIMEDOUT'))
+      spy
+        .mockRejectedValueOnce(new Error('ETIMEDOUT'))
         .mockRejectedValueOnce(new Error('ECONNREFUSED'))
         .mockResolvedValueOnce({ id: 'rzp_order_123' });
 
@@ -389,9 +373,7 @@ describe('PaymentsService', () => {
       err4xx.statusCode = 400;
       spy.mockRejectedValue(err4xx);
 
-      await expect(service.createOrderWithRetry(dto, 3)).rejects.toThrow(
-        'Bad request',
-      );
+      await expect(service.createOrderWithRetry(dto, 3)).rejects.toThrow('Bad request');
       expect(spy).toHaveBeenCalledTimes(1);
     });
 
@@ -400,17 +382,13 @@ describe('PaymentsService', () => {
       const err = new Error('ETIMEDOUT');
       spy.mockRejectedValue(err);
 
-      await expect(service.createOrderWithRetry(dto, 2)).rejects.toThrow(
-        'ETIMEDOUT',
-      );
+      await expect(service.createOrderWithRetry(dto, 2)).rejects.toThrow('ETIMEDOUT');
       expect(spy).toHaveBeenCalledTimes(2);
     });
 
     it('should retry NestJS exceptions (no statusCode property)', async () => {
       const spy = jest.spyOn(service, 'createOrder');
-      spy.mockRejectedValue(
-        new InternalServerErrorException('Server hiccup'),
-      );
+      spy.mockRejectedValue(new InternalServerErrorException('Server hiccup'));
 
       await expect(service.createOrderWithRetry(dto, 3)).rejects.toThrow(
         InternalServerErrorException,
@@ -429,16 +407,12 @@ describe('PaymentsService', () => {
     it('should throw BadRequestException on invalid signature', async () => {
       validDto.razorpaySignature = 'invalid_signature';
 
-      await expect(service.verifyPayment(validDto)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.verifyPayment(validDto)).rejects.toThrow(BadRequestException);
     });
 
     it('should return verified result on valid signature', async () => {
       const expectedSig = createHmac('sha256', 'test_secret_12345')
-        .update(
-          `${validDto.razorpayOrderId}|${validDto.razorpayPaymentId}`,
-        )
+        .update(`${validDto.razorpayOrderId}|${validDto.razorpayPaymentId}`)
         .digest('hex');
       validDto.razorpaySignature = expectedSig;
 
@@ -462,17 +436,13 @@ describe('PaymentsService', () => {
 
     it('should throw BadRequestException when payment record not found', async () => {
       const expectedSig = createHmac('sha256', 'test_secret_12345')
-        .update(
-          `${validDto.razorpayOrderId}|${validDto.razorpayPaymentId}`,
-        )
+        .update(`${validDto.razorpayOrderId}|${validDto.razorpayPaymentId}`)
         .digest('hex');
       validDto.razorpaySignature = expectedSig;
 
       mockPrisma.payment.findFirst.mockResolvedValue(null);
 
-      await expect(service.verifyPayment(validDto)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.verifyPayment(validDto)).rejects.toThrow(BadRequestException);
     });
   });
 });

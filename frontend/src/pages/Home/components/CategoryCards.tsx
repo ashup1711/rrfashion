@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { ROUTES, CATEGORY_SLUGS } from '../../../utils/constants';
 import { useCategories } from '../../../hooks/useCategories';
+import type { LandingSection } from '../../../hooks/useLandingPageData';
+import type { Category } from '../../../types/category';
 import LoadingSpinner from '../../../components/common/LoadingSpinner';
 
 const FALLBACK_COLORS: Record<string, string> = {
@@ -15,21 +17,32 @@ const STATIC_SLUGS = [
   CATEGORY_SLUGS.JEWELLERY,
 ];
 
-const CategoryCards = () => {
-  const { data: categories, isLoading } = useCategories();
+interface CategoryCardsProps {
+  /** REQ-FE-LP-001: optional pre-fetched section from useLandingPageData. */
+  section?: LandingSection<Category[]>;
+}
 
-  const visibleCategories = STATIC_SLUGS
-    .map((slug) => {
-      const apiCat = categories?.find((c) => c.slug === slug);
-      return {
-        name: apiCat?.name || slug,
-        slug,
-        image: apiCat?.image || null,
-        bg: FALLBACK_COLORS[slug] || '#f0e8d5',
-      };
-    });
+const CategoryCards = ({ section }: CategoryCardsProps = {}) => {
+  // Fallback for standalone usage — React Query dedupes against the landing hook.
+  const internal = useCategories();
+  const resolved: LandingSection<Category[]> = section ?? {
+    status: internal.isLoading ? 'loading' : internal.isError ? 'error' : 'success',
+    data: internal.data,
+    error: internal.error ?? undefined,
+    refetch: internal.refetch,
+  };
 
-  if (isLoading) {
+  const visibleCategories = STATIC_SLUGS.map((slug) => {
+    const apiCat = (resolved.data ?? [])?.find((c) => c.slug === slug);
+    return {
+      name: apiCat?.name || slug,
+      slug,
+      image: apiCat?.image || null,
+      bg: FALLBACK_COLORS[slug] || '#f0e8d5',
+    };
+  });
+
+  if (resolved.status === 'loading') {
     return (
       <section className="page-section" role="region" aria-label="Shop by category">
         <div className="container-page py-12">
@@ -38,6 +51,33 @@ const CategoryCards = () => {
           </h2>
           <div className="flex justify-center items-center h-[173px]">
             <LoadingSpinner label="Loading categories..." />
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (resolved.status === 'error') {
+    return (
+      <section className="page-section" role="region" aria-label="Shop by category">
+        <div className="container-page py-12">
+          <h2 className="font-display text-section-subtitle text-black text-center mb-10">
+            Category
+          </h2>
+          <div className="flex justify-center items-center h-[173px]">
+            <div className="text-center">
+              <p className="text-body text-gray-400 mb-2">Unable to load categories</p>
+              <p className="text-caption text-gray-400">
+                {resolved.error?.message || 'Something went wrong. Please try again later.'}
+              </p>
+              <button
+                onClick={() => resolved.refetch()}
+                className="mt-4 px-5 py-2 bg-primary-600 text-white text-sm rounded-md hover:bg-primary-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                aria-label="Retry loading categories"
+              >
+                Retry
+              </button>
+            </div>
           </div>
         </div>
       </section>

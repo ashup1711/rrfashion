@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
+import { Throttle } from '@nestjs/throttler';
 import { ApiCommonResponse } from '../../common/decorators/api-response.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { StoreAuthGuard } from '../../common/guards/store-auth.guard';
@@ -35,6 +36,7 @@ export class GuestController {
   ) {}
 
   @Public()
+  @Throttle({ guest: { ttl: 60000, limit: 10 } })
   @Post('start')
   @ApiCommonResponse({
     summary: 'Start a guest session — returns JWT token for store API auth',
@@ -49,8 +51,10 @@ export class GuestController {
   /**
    * REQ-BE-016: Refresh an expiring guest session.
    * Accepts the current guest token and returns a new token with extended expiry.
+   * REQ-SEC-007: refresh rotates tokenVersion — the old token is invalidated.
    */
   @Public()
+  @Throttle({ guest: { ttl: 60000, limit: 10 } })
   @Post('refresh')
   @ApiCommonResponse({
     summary: 'Refresh an expiring guest session',
@@ -78,16 +82,21 @@ export class GuestController {
     }
   }
 
+  // FIX-1 (QA): anonymous requests must NOT be able to list guest addresses.
+  // A guest identity can ONLY come from a verified guest JWT, so the route is
+  // @AllowGuest(false) — anonymous callers get 401 before the handler runs.
   @UseGuards(StoreAuthGuard)
-  @AllowGuest(true)
+  @AllowGuest(false)
   @Get('addresses')
   @ApiOperation({ summary: 'List guest addresses' })
   async getAddresses(@GuestSessionId() guestSessionId: string): Promise<GuestAddressResponseDto[]> {
     return this.guestSessionService.getAddresses(guestSessionId);
   }
 
+  // REQ-BE-GUEST-001: guest address mutations REQUIRE the guest JWT
+  // (@AllowGuest(false)) — no mutation without proof of the session.
   @UseGuards(StoreAuthGuard)
-  @AllowGuest(true)
+  @AllowGuest(false)
   @Post('addresses')
   @HttpCode(201)
   @ApiOperation({ summary: 'Create guest address' })
@@ -99,7 +108,7 @@ export class GuestController {
   }
 
   @UseGuards(StoreAuthGuard)
-  @AllowGuest(true)
+  @AllowGuest(false)
   @Patch('addresses/:id')
   @ApiOperation({ summary: 'Update guest address' })
   async updateAddress(
@@ -111,7 +120,7 @@ export class GuestController {
   }
 
   @UseGuards(StoreAuthGuard)
-  @AllowGuest(true)
+  @AllowGuest(false)
   @Delete('addresses/:id')
   @ApiOperation({ summary: 'Delete guest address' })
   async deleteAddress(
@@ -122,7 +131,7 @@ export class GuestController {
   }
 
   @UseGuards(StoreAuthGuard)
-  @AllowGuest(true)
+  @AllowGuest(false)
   @Patch('addresses/:id/default')
   @ApiOperation({ summary: 'Set guest address as default' })
   async setDefaultAddress(

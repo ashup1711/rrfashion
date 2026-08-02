@@ -137,7 +137,7 @@ describe('Orders - POST /orders (e2e)', () => {
   }
 
   function setupTransactionMock() {
-    mockPrisma.$transaction.mockImplementation(async (cb: Function) => {
+    mockPrisma.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
       const tx = {
         order: {
           create: jest.fn().mockResolvedValue(mockCreatedOrder),
@@ -232,14 +232,9 @@ describe('Orders - POST /orders (e2e)', () => {
         new Error('Payment link creation failed'),
       );
 
-      const res = await request(app.getHttpServer())
-        .post('/orders')
-        .send(validBody)
-        .expect(201);
+      const res = await request(app.getHttpServer()).post('/orders').send(validBody).expect(201);
       expect(res.body).toHaveProperty('razorpayError');
-      expect(res.body.razorpayError).toContain(
-        'Failed to initialize payment gateway',
-      );
+      expect(res.body.razorpayError).toContain('Failed to initialize payment gateway');
       expect(res.body.razorpayOrderId).toBeNull();
       expect(res.body.id).toBe('order-1');
     });
@@ -254,10 +249,7 @@ describe('Orders - POST /orders (e2e)', () => {
         currency: 'INR',
       });
 
-      const res = await request(app.getHttpServer())
-        .post('/orders')
-        .send(validBody)
-        .expect(201);
+      const res = await request(app.getHttpServer()).post('/orders').send(validBody).expect(201);
 
       expect(res.body).toHaveProperty('razorpayOrderId', 'rzp_order_test_123');
       expect(res.body).toHaveProperty('razorpayKeyId', 'rzp_test_12345678');
@@ -281,10 +273,7 @@ describe('Orders - POST /orders (e2e)', () => {
         .query({ guestSessionId: 'guest-session-123' })
         .expect(201);
 
-      expect(res.body).toHaveProperty(
-        'razorpayOrderId',
-        'rzp_order_guest_456',
-      );
+      expect(res.body).toHaveProperty('razorpayOrderId', 'rzp_order_guest_456');
       expect(res.body.razorpayError).toBeNull();
     });
 
@@ -292,18 +281,13 @@ describe('Orders - POST /orders (e2e)', () => {
       setupCartMocks();
       setupTransactionMock();
 
-      mockPaymentsService.createOrderWithRetry.mockRejectedValue(
-        new Error('Timeout'),
-      );
+      mockPaymentsService.createOrderWithRetry.mockRejectedValue(new Error('Timeout'));
       mockPaymentsService.createPaymentLink.mockResolvedValue({
         paymentLinkId: 'plink_123',
         shortUrl: 'https://rzp.io/i/fallback',
       });
 
-      const res = await request(app.getHttpServer())
-        .post('/orders')
-        .send(validBody)
-        .expect(201);
+      const res = await request(app.getHttpServer()).post('/orders').send(validBody).expect(201);
 
       expect(res.body.razorpayError).toContain('payment link');
       expect(res.body.razorpayError).toContain('https://rzp.io/i/fallback');
@@ -316,10 +300,7 @@ describe('Orders - POST /orders (e2e)', () => {
         items: [],
       });
 
-      await request(app.getHttpServer())
-        .post('/orders')
-        .send(validBody)
-        .expect(400);
+      await request(app.getHttpServer()).post('/orders').send(validBody).expect(400);
     });
 
     it('should return 400 when shipping address is missing', async () => {

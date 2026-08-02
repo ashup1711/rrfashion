@@ -29,7 +29,7 @@ export class InquiriesService {
       // Special case: "ASSIGNED" means inquiries where assignedAdminId is not null
       if (status === 'ASSIGNED') {
         where = { assignedAdminId: { not: null } };
-      } else if (!VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
+      } else if (!VALID_STATUSES.includes(status as (typeof VALID_STATUSES)[number])) {
         throw new BadRequestException(
           `Invalid status "${status}". Valid values: ${[...VALID_STATUSES, 'ASSIGNED'].join(', ')}`,
         );

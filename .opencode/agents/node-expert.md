@@ -201,6 +201,69 @@ import { APP_GUARD } from '@nestjs/core';
 })
 ```
 
+### 11.5 Apply API Security Standards (Required)
+
+Read `.opencode/skills/api-security-standards/SKILL.md` **fully before writing any code** — it is the single source of truth for SEC-01 … SEC-20 and QA runs an independent Security QA Checkpoint against it. Implement every SEC-XX standard applicable to the backend layer as an explicit, checkable deliverable — never as an implicit "nice to have":
+
+- **SEC-01 — Security Headers (Helmet)**: register Helmet globally in `main.ts`; CSP `connect-src` must allow Vite HMR (`ws://localhost:*`, `http://localhost:*`) only when `NODE_ENV !== 'production'`; call `app.disable('x-powered-by')`:
+  ```typescript
+  const isDev = NODE_ENV !== 'production';
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: isDev ? ["'self'", 'ws://localhost:*', 'http://localhost:*'] : ["'self'"],
+          frameAncestors: ["'none'"],
+        },
+      },
+      hsts: isDev ? false : { maxAge: 63072000, includeSubDomains: true, preload: true },
+    }),
+  );
+  app.disable('x-powered-by');
+  ```
+- **SEC-02 — CORS Allow-List**: `app.enableCors({ origin: ALLOWED_ORIGINS, credentials: true })` — `ALLOWED_ORIGINS` from env, never `origin: '*'` or `origin: true` in prod.
+- **SEC-03 — Refresh-Token Cookie**: `res.cookie('refreshToken', token, { httpOnly: true, secure: NODE_ENV === 'production', sameSite: 'lax', path: '/api/v1/auth', maxAge: REFRESH_TOKEN_MAX_AGE_MS })` — never readable from JS.
+- **SEC-04 — CSRF Protection**: double-submit or synchronizer token on state-changing cookie-auth routes (POST/PUT/PATCH/DELETE); validate `Origin`/`Referer` as a second layer; skip `multipart/form-data` (existing `csrf.guard.ts` already does this).
+- **SEC-05 — JWT Lifecycle**: short-lived access token (5–15 min); pinned algorithm; validate `issuer`/`audience`/`exp`/`nbf`. Refresh rotation: issue a new refresh token on every refresh, store a server-side hash, single-use, **reuse detection revokes the entire token family**, logout revokes the current refresh token, and tokens are revoked on password/role change.
+- **SEC-06 — RBAC / IDOR Prevention**: `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles(...)` before every non-public handler; scope every query by `userId`/`storeId` from `@CurrentUser()`, never trust client-supplied IDs for authorization:
+  ```typescript
+  @Get(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.CUSTOMER)
+  async findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser('id') userId: string) {
+    return this.ordersService.findOneForUser(id, userId); // WHERE id = $1 AND userId = $2
+  }
+  ```
+- **SEC-07 — Input Validation**: global strict `ValidationPipe` in `main.ts`; DTOs for every body/query/param; `ParseUUIDPipe` on `:id` params:
+  ```typescript
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      forbidUnknownValues: true,
+    }),
+  );
+  ```
+- **SEC-09 — File Upload Safety**: size/MIME/extension allow-lists; store via S3 presigned URLs or serve through an authenticated endpoint; rate-limit uploads; never execute or store uploads inside the web root.
+- **SEC-10 — Rate Limiting / DoS Protection**: global `@nestjs/throttler` `APP_GUARD` with **Redis-backed** storage (not in-memory counters); stricter `@Throttle` on login/OTP/checkout/upload:
+  ```typescript
+  @Post('login')
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  async login(@Body() dto: LoginDto) { /* ... */ }
+  ```
+- **SEC-11 — Body-Size Limit**: `app.use(express.json({ limit: '100kb' }))` in `main.ts`; cap multipart upload sizes too.
+- **SEC-12 — SSRF Prevention**: allow-list or strictly validate outbound URLs (webhooks, imports); never fetch a raw user-supplied URL server-side; block private/loopback/link-local IP ranges.
+- **SEC-13 — No Sensitive Data Leakage**: structured logs exclude passwords/tokens/PII; generic error responses with `requestId` (never stack traces/raw DB errors); Swagger UI disabled in prod; `/metrics` admin-only or internal-network-only.
+- **SEC-14 — HTTP Cache Header Correctness**: `Cache-Control: no-store` on auth'd/user-specific routes; public catalog may use ETag/`s-maxage`; never let the browser/CDN cache authenticated responses.
+- **SEC-15 — Redis Cache Invalidation**: cache-aside with `DEL` on write (not `SET` over); TTLs with jitter; key prefix `<feature>:<id>`; **never cache user-specific data** in shared Redis keys.
+- **SEC-18 — Secrets Management**: `process.env` only with runtime validation (`@nestjs/config` Joi/validate); no secrets in code or committed `.env`; `.env.example` placeholders only.
+- **SEC-19 — Payment Webhook Security** (if payments are in scope): verify `X-Razorpay-Signature` (HMAC-SHA256) over the **raw body** before any parse/mutation; Redis `SETNX` idempotency on event ID; validate amount/currency/order_id; reject stale/duplicate events; never trust client-supplied payment status.
+
 ### 12. Write Tests
 
 - Happy path tests (200/201 with correct response shape)
@@ -229,7 +292,7 @@ The `validate-nestjs` mode checks for:
 - Routes that may lack auth guards
 - Controllers not registered in any module
 
-Fix any issues found before proceeding to write the coverage manifest.
+Treat `Routes that may lack auth guards` as a **HARD FAILURE** to fix, not a warning — a route without a guard (that isn't a documented public route) is a security defect. Fix any issues found before proceeding to write the coverage manifest.
 
 ### 14. Write Coverage Manifest
 
@@ -292,6 +355,7 @@ Update `.opencode/state/project_state.json`:
 - **Read the DB expert's coverage manifest** (`coverage_db.json`) before starting — it tells you which tables and fields exist so you don't write handlers against non-existent columns.
 - **Every public endpoint must have complete Swagger decorators** (`@ApiOperation`, `@ApiOkResponse`, `@Api*Response` for all error codes) — QA checks decorator completeness.
 - **Include structured logging** for every service method — log entry and exit for create/update/delete operations, and log errors at the appropriate level (warn for client errors, error for server errors).
+- **Read `.opencode/skills/api-security-standards/SKILL.md` at the start of every run and satisfy every SEC-XX standard applicable to the backend layer. QA will fail you if you skip any.**
 
 ## Node.js Patterns for This Project (R R Fashion)
 

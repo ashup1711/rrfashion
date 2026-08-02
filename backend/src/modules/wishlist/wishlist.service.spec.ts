@@ -131,8 +131,12 @@ describe('WishlistService', () => {
       );
     });
 
-    it('throws BadRequestException when neither userId nor guestSessionId is given', async () => {
-      await expect(service.findAll({})).rejects.toThrow(BadRequestException);
+    // REQ-BE-GUEST-001: anonymous browse (AllowGuest(true), no token) returns an
+    // empty wishlist instead of throwing.
+    it('returns an empty wishlist for anonymous browse (no identifier)', async () => {
+      const result = await service.findAll({});
+
+      expect(result).toEqual([]);
     });
   });
 

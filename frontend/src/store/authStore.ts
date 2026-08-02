@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { User } from '../types/user';
 import type { AdminUser } from '../types/admin';
-import { clearGuestSessionId, clearGuestToken } from '../utils/guestSession';
+import { clearGuestSessionId, clearGuestToken, getGuestToken } from '../utils/guestSession';
 import { mergeCart } from '../api/cart';
 import { mergeWishlist } from '../api/wishlist';
 import { getMe } from '../api/auth';
@@ -33,6 +33,18 @@ interface AuthState {
   clearAuth: () => void;
 }
 
+// REQ-SEC-FE-005 / SEC-17: wipe service-worker caches on logout so stale
+// user-specific payloads cannot survive across users on a shared device.
+async function clearPwaCaches(): Promise<void> {
+  if (typeof window === 'undefined' || !('caches' in window)) return;
+  try {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((k) => caches.delete(k)));
+  } catch {
+    /* noop — cache cleanup is best-effort */
+  }
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isAuthenticated: false,
@@ -44,30 +56,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAdminAuthValidated: false,
 
   setAuth: (user) => {
-    // Guest session migration still works — tokens are in cookies now
-    const guestSessionId = localStorage.getItem('guest_session_id');
-
-    // Clear local guest data
-    clearGuestSessionId();
-    clearGuestToken();
-    localStorage.removeItem('guest_id');
-    localStorage.removeItem('guest_cart_items');
-    localStorage.removeItem('guest_wishlist');
+    // REQ-FE-GUEST-002: capture guest state BEFORE dispatching merges and
+    // clear guest data AFTER the merge requests are created — the axios
+    // interceptor reads localStorage['guest_token'] synchronously at request
+    // creation, so the merge requests carry the guest Bearer header and the
+    // backend merges that exact session. Clearing first would merge nothing.
+    const hadGuestToken = !!getGuestToken();
+    const hadGuestSession = !!localStorage.getItem('guest_session_id');
 
     set({
       user,
       isAuthenticated: true,
     });
 
-    // Trigger guest-to-auth cart and wishlist merge in the background
-    if (guestSessionId) {
-      mergeCart(guestSessionId).catch((err) =>
+    if (hadGuestToken || hadGuestSession) {
+      // Identity travels in the Authorization header (no body id — REQ-FE-GUEST-001)
+      mergeCart().catch((err) =>
         console.warn('Guest cart merge failed (non-blocking):', err),
       );
-      mergeWishlist(guestSessionId).catch((err) =>
+      mergeWishlist().catch((err) =>
         console.warn('Guest wishlist merge failed (non-blocking):', err),
       );
     }
+
+    // Clear guest data AFTER the merge requests are created
+    clearGuestSessionId();
+    clearGuestToken();
+    localStorage.removeItem('guest_id');
+    localStorage.removeItem('guest_cart_items');
+    localStorage.removeItem('guest_wishlist');
   },
 
   setAdminAuth: (admin, permissions) => {
@@ -125,6 +142,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user: null,
       isAuthenticated: false,
     });
+    // REQ-SEC-FE-005: fire-and-forget SW cache purge on logout
+    void clearPwaCaches();
   },
 
   adminLogout: () => {
@@ -163,5 +182,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isAdminAuthenticated: false,
       isAdminAuthValidated: false,
     });
+    // REQ-SEC-FE-005: fire-and-forget SW cache purge on full auth clear
+    void clearPwaCaches();
   },
 }));

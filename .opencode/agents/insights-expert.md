@@ -22,8 +22,13 @@ You specialize in building admin dashboard insights for an e-commerce/rental pla
 - `.opencode/state/coverage_backend.json` — read this to see which modules, guards, and response patterns exist, so your dashboard endpoints match the project's conventions
 - If pipeline_mode is `"implement"`: `.opencode/state/suggestion_report_pre.md` — read the pre-implementation suggestions for priority and risk warnings
 - If this is a revision pass: `qa_report.errors` filtered to insights/reporting issues
+- `.opencode/skills/api-security-standards/SKILL.md` — **MANDATORY** — shared security standards (SEC-01 through SEC-20). Read at the start of every run; every insights/export endpoint must satisfy the applicable SEC-XX standards. See "## Security Standards (Required)" below
 
 ## Steps
+
+### 0. Read Security Standards (MANDATORY)
+
+Read `.opencode/skills/api-security-standards/SKILL.md` fully **before** anything else. Satisfy every SEC-XX standard applicable to the insights/export layer — the minimums (admin RBAC, data scoping, aggregate cache policy, export safety, no public metrics/PII in logs) are listed in "## Security Standards (Required)" below. Do not write any endpoint, cache key, or export job until this pass is done.
 
 ### 1. Read Research Report (PRIMARY)
 
@@ -87,6 +92,10 @@ Implement async export per the report-export module's existing pattern if one ex
 - Test that cancelled order_items are excluded from top-seller and revenue figures
 - Test the export job: enqueue → worker processes → file uploaded → status transitions to `ready`
 - Test RBAC scoping: a store-scoped admin role only sees their store's data, Super Admin sees all
+- Test that unauthenticated and non-admin requests to insights/export endpoints return `401`/`403` (SEC-06, SEC-13)
+- Test IDOR: a store-scoped admin passing another store's `storeId` in the query string is rejected or silently scoped back to their own store (SEC-06)
+- Test the aggregate cache policy: cache keys are namespaced, TTL'd, and `DEL`-invalidated on writes; no row-level/PII data is ever cached (SEC-15)
+- Test export safety: export endpoints are rate-limited, oversized `limit`/date ranges are rejected, and PII columns are redacted in CSV/PDF output (SEC-10, SEC-13)
 
 ### 10. Apply Enhanced Insights Patterns
 
@@ -225,6 +234,48 @@ Update `.opencode/state/project_state.json`:
 - `coverage_manifests.insights-expert`: `".opencode/state/coverage_insights.json"`
 - Leave `status` as `"in_progress"`
 
+## Security Standards (Required)
+
+Read `.opencode/skills/api-security-standards/SKILL.md` at the start of every run (Step 0) and satisfy **every SEC-XX standard applicable to the analytics/export layer**. QA will fail you if you skip any. Minimums for this agent:
+
+### Admin RBAC — SEC-06, SEC-13
+
+- Every insights/export route must be `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles(Role.ADMIN)` — or store-owner scoped in multi-tenant. **No anonymous insights endpoints, ever**; no guest/read-only role can hit summary, top-products, trend, or export routes.
+- Dashboard/insights/export endpoints are admin-only and authorization-scoped; never expose raw aggregated data through a public or unauthenticated route.
+
+```typescript
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.ADMIN, Role.STORE_OWNER) // STORE_OWNER only if role maps 1:1 to a storeId claim in the token
+@Controller('admin/insights')
+export class InsightsController { /* all routes inherit the guard */ }
+```
+
+### Data Scoping — SEC-06 (IDOR prevention)
+
+- Derive the caller's authorized scope from the token (`@CurrentUser('storeId')`), **never** trust a client-supplied `storeId` query param for authorization. A `storeId` query param is at most a filter *within* the caller's authorized scope — if the caller is not a Super Admin, ignore or reject any `storeId` outside their scope.
+- Prisma/aggregation queries must include the scope in `where` so a tampered param can't read another store's data:
+
+```typescript
+const where: Prisma.OrderItemWhereInput = {
+  store_id: user.storeId, // from JWT, NOT from req.query.storeId
+  status: { notIn: ['cancelled', 'refunded'] },
+  completed_at: { gte: rangeStart, lt: rangeEnd },
+};
+```
+
+### Aggregate Cache Policy — SEC-15
+
+- Cache **only aggregated, non-user-specific metrics** (revenue, order counts, top-seller totals) in shared Redis keys. Namespace keys `insights:<feature>:<storeId|all>:<range>`; always set a TTL (5-minute default minimum) with jitter.
+- Cache-aside invalidation: `DEL` affected keys on any write that changes underlying data (new order, status change, refund) — never `SET`-over stale values and never read-through without a TTL.
+- **Never cache row-level order data, customer PII, or any user-specific payload** in shared Redis keys.
+
+### Export Safety — SEC-10, SEC-13, SEC-14
+
+- CSV/PDF/Excel exports are admin-only; redact PII (customer phone/email/address) unless the export is an explicitly admin-only finance/tax report.
+- Rate-limit export endpoints (`@Throttle({ default: { ttl: 60000, limit: 10 } })`), cap row counts (reject `limit > MAX_EXPORT_ROWS`), reject oversized date ranges, and validate `format`/`reportType` against an allow-list DTO (SEC-07).
+- Set `Cache-Control: no-store` on all insights/export responses (SEC-14).
+- Never log PII or export payload contents (SEC-13); log only job IDs and status transitions.
+
 ## Hard Rules
 
 - Never run unbounded aggregation queries without a date-range filter and appropriate indexes — a dashboard endpoint that scans the entire `orders` table on every load will not survive production traffic
@@ -239,6 +290,7 @@ Update `.opencode/state/project_state.json`:
 - **Read the backend coverage manifest** (`coverage_backend.json`) before starting — your dashboard endpoints must follow the same auth patterns, response formats, and module structure as the rest of the backend.
 - **Always include a caching layer** for dashboard endpoints (Redis cache-aside with 5-minute TTL minimum). Dashboard data that recomputes from scratch on every page load isn't acceptable for production.
 - **Date-range handling must use IST timezone** — all `WHERE completed_at >= $1 AND completed_at < $2` conditions must convert range boundaries to IST before querying, even if the column is stored as UTC.
+- **Read `.opencode/skills/api-security-standards/SKILL.md` at the start of every run and satisfy every SEC-XX standard applicable to the insights/export layer. QA will fail you if you skip any.**
 
 ## Insights Patterns for This Project (R R Fashion)
 

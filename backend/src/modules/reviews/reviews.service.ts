@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
   ConflictException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
@@ -33,7 +34,14 @@ const EDIT_WINDOW_DAYS = 30;
 export class ReviewsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(userId: string, dto: CreateReviewDto, guestSessionId?: string) {
+  async create(userId: string | null, dto: CreateReviewDto, guestSessionId?: string) {
+    // FIX-3 (QA / SEC-06): a review must always be attributable to a verified
+    // customer or guest session — anonymous review spam is rejected here even
+    // if a future route forgets the guard.
+    if (!userId && !guestSessionId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
     // Validate that the product exists
     const product = await this.prisma.product.findUnique({
       where: { id: dto.productId },
@@ -164,7 +172,12 @@ export class ReviewsService {
     return review;
   }
 
-  async update(userId: string, id: string, dto: UpdateReviewDto) {
+  async update(userId: string | null, id: string, dto: UpdateReviewDto) {
+    // FIX-3: only a verified identity can edit a review.
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
     const review = await this.prisma.review.findUnique({
       where: { id },
     });
@@ -204,7 +217,12 @@ export class ReviewsService {
     });
   }
 
-  async remove(userId: string, id: string): Promise<{ deleted: boolean }> {
+  async remove(userId: string | null, id: string): Promise<{ deleted: boolean }> {
+    // FIX-3: only a verified identity can delete a review.
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
     const review = await this.prisma.review.findUnique({
       where: { id },
     });

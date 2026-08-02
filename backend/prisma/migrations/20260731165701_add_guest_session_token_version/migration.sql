@@ -1,0 +1,33 @@
+-- ============================================================================
+-- Migration: add_guest_session_token_version
+-- Part of: Security hardening pipeline (REQ-DB-001 / REQ-SEC-007 / SEC-05)
+--
+-- Purpose:
+--   Add a server-side JWT version counter to guest sessions so StoreAuthGuard
+--   can reject stale guest tokens after GuestSessionService.refreshSession()
+--   rotates the session (SEC-05 refresh-token rotation with reuse detection).
+--
+--   - tokenVersion defaults to 0 for existing rows (no backfill needed —
+--     every current guest JWT was issued with ver = 0).
+--   - On every guest refresh the service increments tokenVersion and embeds
+--     the new value as the `ver` claim; StoreAuthGuard compares
+--     `payload.ver ?? 0` against this column and rejects mismatches.
+--   - Existing FK cascade cleanup (cleanup_expired_guest_sessions / ON DELETE
+--     CASCADE on guest_cart_items, guest_wishlist_items, guest_addresses) is
+--     unaffected — this is a pure column add on the parent table.
+--
+-- Column naming note:
+--   The guest_sessions table stores camelCase column names (expiresAt,
+--   lastActivityAt, createdAt) because the Prisma model fields carry no @map
+--   and Prisma uses the field name verbatim. tokenVersion follows the same
+--   convention, so Prisma's generated ALTER TABLE matches this SQL exactly.
+-- ============================================================================
+
+ALTER TABLE "guest_sessions" ADD COLUMN "tokenVersion" INTEGER NOT NULL DEFAULT 0;
+
+-- ============================================================================
+-- ROLLBACK
+-- ============================================================================
+-- /*
+-- ALTER TABLE "guest_sessions" DROP COLUMN "tokenVersion";
+-- */

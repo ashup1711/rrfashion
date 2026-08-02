@@ -26,6 +26,10 @@ export class WishlistService {
   ) {}
 
   private async resolveWishlistContext(identifier: WishlistIdentifier): Promise<WishlistContext> {
+    // REQ-SEC-004 / SEC-06: identifier.guestSessionId is ALWAYS derived from the
+    // verified guest JWT — never from a client-supplied id. Every
+    // guestWishlistItem read/write below is scoped by this token-derived session
+    // id, closing the IDOR window.
     if (identifier.userId) return { type: 'user', userId: identifier.userId };
     if (identifier.guestSessionId) {
       const validation = await this.guestSessionService.validate(identifier.guestSessionId);
@@ -39,6 +43,12 @@ export class WishlistService {
   }
 
   async findAll(identifier: WishlistIdentifier) {
+    // REQ-BE-GUEST-001: anonymous browse (AllowGuest=true, no token) returns an
+    // empty wishlist instead of throwing.
+    if (!identifier.userId && !identifier.guestSessionId) {
+      return [];
+    }
+
     const ctx = await this.resolveWishlistContext(identifier);
     if (ctx.type === 'user') {
       return this.prisma.wishlist.findMany({

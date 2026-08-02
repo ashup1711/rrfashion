@@ -5,12 +5,23 @@ import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder, SwaggerDocumentOptions } from '@nestjs/swagger';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 import { join } from 'path';
 import { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { SanitizePipe } from './common/pipes/sanitize.pipe';
+import { noStoreMiddleware } from './common/middleware/no-store.middleware';
+
+const PRODUCTION_ORIGINS = [
+  'https://rrfashion.com',
+  'https://admin.rrfashion.com',
+  'https://ashup1711.github.io',
+];
+
+// REQ-SEC-013 / SEC-02: explicit dev allow-list — never blanket-allow in dev.
+const DEV_ORIGINS = ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -22,38 +33,43 @@ async function bootstrap() {
   // Parse cookies from request headers
   app.use(cookieParser());
 
+  // REQ-SEC-005: response compression (gzip) for API payloads above 1KB.
+  // Never compress SSE/streaming responses; default filter skips already-compressed types.
+  app.use(
+    compression({
+      threshold: 1024,
+      filter: (req: Request, res: Response) => {
+        if (req.headers['accept']?.includes('text/event-stream')) return false;
+        return compression.filter(req, res);
+      },
+    }),
+  );
+
+  // REQ-SEC-010 / SEC-14: Cache-Control: no-store on authenticated/user-specific routes.
+  app.use(noStoreMiddleware);
+
   app.useStaticAssets(join(__dirname, '..', 'uploads'), {
     prefix: '/uploads',
   });
 
+  // REQ-SEC-013 / SEC-02: CORS allow-list — production origins always enforced;
+  // dev origins only when not production; CORS_ORIGINS env adds extra origins.
+  const isProduction = process.env.NODE_ENV === 'production';
   app.enableCors({
     origin: (origin, callback) => {
-      const allowedOrigins = [
-        'https://rrfashion.com',
-        'https://admin.rrfashion.com',
-        'https://ashup1711.github.io',
-        'http://localhost:5173',
-        'http://localhost:3000',
-      ];
-
-      // Support env-configured origins (e.g., ngrok domain)
+      const allowedOrigins = [...PRODUCTION_ORIGINS];
+      if (!isProduction) allowedOrigins.push(...DEV_ORIGINS);
       if (process.env.CORS_ORIGINS) {
         const envOrigins = process.env.CORS_ORIGINS.split(',').map((o) => o.trim());
         allowedOrigins.push(...envOrigins);
       }
 
-      // Allow requests with no origin (server-to-server, mobile apps)
-      if (!origin) {
+      // Allow requests with no origin (server-to-server, mobile apps, curl)
+      if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
         return;
       }
-
-      // Check if origin is in allowed list, or allow all in development
-      if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
-        callback(null, true);
-      } else {
-        callback(new Error(`Origin ${origin} not allowed by CORS`));
-      }
+      callback(new Error(`Origin ${origin} not allowed by CORS`));
     },
     credentials: true,
   });
@@ -61,7 +77,9 @@ async function bootstrap() {
   // ── Security Headers with explicit CSP ──────────────────────────────
   // REQ-BE-002: Strengthen Helmet CSP with strict directives + reporting
   // REQ-BE-004: Add security audit headers
-  const isProduction = process.env.NODE_ENV === 'production';
+  // REQ-SEC-006 / SEC-01: keep scriptSrc 'unsafe-inline' — the frontend
+  // index.html inline loading spinner + Vite preload hints require it (documented
+  // tradeoff in research report pitfalls #1). CSP is disabled in dev so Vite HMR works.
   app.use(
     helmet({
       contentSecurityPolicy: isProduction
@@ -99,6 +117,7 @@ async function bootstrap() {
       permittedCrossDomainPolicies: { permittedPolicies: 'none' },
     }),
   );
+  app.disable('x-powered-by'); // SEC-01: remove framework fingerprinting
 
   // Add Permissions-Policy header (not available in Helmet 7 directly)
   app.use((_req: Request, res: Response, next: NextFunction) => {
@@ -109,7 +128,7 @@ async function bootstrap() {
     next();
   });
 
-  // REQ-BE-006: Request body size limiting
+  // REQ-BE-006 / REQ-SEC-011: Request body size limiting (documented via BODY_LIMIT_JSON)
   app.useBodyParser('json', { limit: '1mb' });
   app.useBodyParser('urlencoded', { limit: '1mb', extended: true });
 
@@ -127,6 +146,7 @@ async function bootstrap() {
       whitelist: true,
       transform: true,
       forbidNonWhitelisted: true,
+      forbidUnknownValues: true, // REQ-SEC-008 / SEC-07
     }),
     new SanitizePipe(),
   );
@@ -135,19 +155,24 @@ async function bootstrap() {
   app.useGlobalInterceptors(new TransformInterceptor(reflector));
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  const config = new DocumentBuilder()
-    .setTitle('RR FASHION API')
-    .setDescription('API documentation for RR FASHION online fashion store')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
+  // REQ-SEC-009 / SEC-13: Swagger UI is disabled in production unless explicitly
+  // enabled via SWAGGER_ENABLED=true — prevents API inventory exposure.
+  const swaggerEnabled = !isProduction || process.env.SWAGGER_ENABLED === 'true';
+  if (swaggerEnabled) {
+    const config = new DocumentBuilder()
+      .setTitle('RR FASHION API')
+      .setDescription('API documentation for RR FASHION online fashion store')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
 
-  const options: SwaggerDocumentOptions = {
-    deepScanRoutes: true,
-  };
+    const options: SwaggerDocumentOptions = {
+      deepScanRoutes: true,
+    };
 
-  const document = SwaggerModule.createDocument(app, config, options);
-  SwaggerModule.setup('docs', app, document);
+    const document = SwaggerModule.createDocument(app, config, options);
+    SwaggerModule.setup('docs', app, document);
+  }
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 3000);

@@ -24,6 +24,7 @@ Your output is the single source of truth for all expert agents. They read your 
 - `.opencode/state/design_doc.md` — orchestrator's feature requirements and design
 - `.opencode/state/project_state.json` — project setup, user prompt, layers affected, pipeline_mode
 - **`.opencode/state/explore_findings.md`** — codebase structure, conventions, and excerpts gathered by the explore agent. This is your primary codebase source. Do not re-read files already documented here.
+- **`.opencode/skills/api-security-standards/SKILL.md`** — **MANDATORY** shared API security standards (SEC-01..SEC-20); read at start of every run.
 
 ## Output
 
@@ -174,7 +175,17 @@ Write `.opencode/state/research_report.md` with this exact structure (prepend `<
 [e.g., "**REQ-IS-001**: Create GET /api/v1/admin/insights/summary endpoint"]
 [e.g., "**REQ-IS-002**: Implement PDF export for financial reports"]
 
+### Layer: Security (always when any layer affected)
+[list every applicable REQ-SEC-* item injected from `.opencode/skills/api-security-standards/SKILL.md` — prefixed with its requirement ID]
+[e.g., "**REQ-SEC-001**: SEC-06 — guards before handlers + ownership scoping on every resource endpoint"]
+[e.g., "**REQ-SEC-002**: SEC-10 — Redis-backed rate limiting on login/OTP/checkout/upload endpoints"]
+[full detail for each item in the "## API Security Standards (REQ-SEC-*)" section below]
+
 ---
+
+## API Security Standards (REQ-SEC-*)
+
+[Mandatory when any layer in `layers_affected` is touched. List every applicable standard from `.opencode/skills/api-security-standards/SKILL.md` with its assigned `REQ-SEC-<NNN>` ID, the SEC-XX source standard, the affected layer(s), and the required implementation. Every REQ-SEC-* ID must also appear in `research_report_coverage.json` with `"layer": "security"`.]
 
 ## How to Build It (Codebase Conventions)
 
@@ -323,6 +334,13 @@ For every code skeleton you write, add an entry to `research_report_coverage.jso
 - [List of URLs/search references]
 ```
 
+### 6.5 Security Standards (REQUIRED)
+
+- Read `.opencode/skills/api-security-standards/SKILL.md` and carry every standard applicable to the layers in `prompt_analysis.layers_affected` into the research report as a new section **"## API Security Standards (REQ-SEC-*)"** — list specific REQ-SEC-IDs per layer.
+- Assign a `REQ-SEC-<NNN>` ID to every applicable standard (e.g. `REQ-SEC-001` for SEC-06 guards + ownership scoping, `REQ-SEC-002` for SEC-10 rate limiting on login/OTP, etc.) and add each to the coverage manifest (`research_report_coverage.json`) with `"layer": "security"` and `"section": "What to Build / Layer: Security"`.
+- Whenever the design doc conflicts with a standard (e.g. design says tokens in localStorage vs SEC-16), add the conflict to "Potential Pitfalls & Warnings" stating that the standard supersedes the design doc.
+- **Never ship a research report without the security section when any layer in `layers_affected` is touched — this is a hard rule.**
+
 ### 6. Write Coverage Manifest
 
 Write `.opencode/state/research_report_coverage.json` via `bash` (heredoc/python/jq) with this structure:
@@ -347,6 +365,13 @@ Write `.opencode/state/research_report_coverage.json` via `bash` (heredoc/python
       "description": "Create POST /api/v1/orders endpoint",
       "section": "What to Build / Layer: Backend",
       "design_doc_ref": "REST API Contract row 1"
+    },
+    {
+      "id": "REQ-SEC-001",
+      "layer": "security",
+      "description": "SEC-06 guards + ownership scoping on every resource endpoint",
+      "section": "What to Build / Layer: Security",
+      "design_doc_ref": "api-security-standards SKILL.md SEC-06"
     }
   ],
   "total_requirements": 0,
@@ -401,3 +426,4 @@ Update `.opencode/state/project_state.json` via `bash` (e.g. `python3 -c` with `
 - **Every requirement in `research_report.md` must have a unique requirement ID** (REQ-<LAYER>-<NNN>) — this ID is the traceability anchor that connects expert agent implementations to QA verification. No requirement ID = no traceability = the pipeline can't verify completeness.
 - **Every requirement ID must appear in `research_report_coverage.json`** — this is the machine-readable manifest that orchestrator, expert agents, and QA all use to track completeness. If you add a requirement to the report without adding it to the coverage manifest, it will be flagged as a gap in Step 8 of the orchestrator.
 - **Coverage manifest is not optional**: writing `research_report_coverage.json` is as important as writing `research_report.md`. Both are required outputs of this agent. If you only write the report, the pipeline cannot verify coverage and code-review-and-qa will fail on the very first check.
+- **Never omit the API Security Standards (REQ-SEC-*) section** — when any layer in `layers_affected` is touched, the research report MUST include it and the coverage manifest MUST include the REQ-SEC-* IDs. QA treats a missing security section as a research-agent failure.

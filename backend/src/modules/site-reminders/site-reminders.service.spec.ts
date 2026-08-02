@@ -20,10 +20,7 @@ describe('SiteRemindersService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        SiteRemindersService,
-        { provide: PrismaService, useValue: mockPrisma },
-      ],
+      providers: [SiteRemindersService, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
 
     service = module.get<SiteRemindersService>(SiteRemindersService);
@@ -45,7 +42,13 @@ describe('SiteRemindersService', () => {
     };
 
     it('should create a reminder', async () => {
-      const expected = { id: 'uuid', ...dto, linkUrl: null, createdAt: new Date(), updatedAt: new Date() };
+      const expected = {
+        id: 'uuid',
+        ...dto,
+        linkUrl: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
       prisma.siteReminder.create.mockResolvedValue(expected);
 
       const result = await service.create(dto);
@@ -65,7 +68,12 @@ describe('SiteRemindersService', () => {
 
     it('should create with linkUrl', async () => {
       const dtoWithLink = { ...dto, linkUrl: '/shop' };
-      prisma.siteReminder.create.mockResolvedValue({ id: 'uuid', ...dtoWithLink, createdAt: new Date(), updatedAt: new Date() });
+      prisma.siteReminder.create.mockResolvedValue({
+        id: 'uuid',
+        ...dtoWithLink,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
 
       await service.create(dtoWithLink);
 
@@ -95,7 +103,10 @@ describe('SiteRemindersService', () => {
 
   describe('findAll', () => {
     it('should return paginated results', async () => {
-      const reminders = [{ id: '1', title: 'A' }, { id: '2', title: 'B' }];
+      const reminders = [
+        { id: '1', title: 'A' },
+        { id: '2', title: 'B' },
+      ];
       prisma.siteReminder.findMany.mockResolvedValue(reminders);
       prisma.siteReminder.count.mockResolvedValue(2);
 
@@ -141,7 +152,9 @@ describe('SiteRemindersService', () => {
     it('should throw if not found', async () => {
       prisma.siteReminder.findUnique.mockResolvedValue(null);
 
-      await expect(service.update('nonexistent', { title: 'X' })).rejects.toThrow(NotFoundException);
+      await expect(service.update('nonexistent', { title: 'X' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -167,7 +180,17 @@ describe('SiteRemindersService', () => {
     it('should return active reminders within date range', async () => {
       const now = new Date();
       const reminders = [
-        { id: '1', title: 'Active', message: 'Test', linkUrl: null, startDate: new Date(now.getTime() - 86400000), endDate: new Date(now.getTime() + 86400000), isActive: true, createdAt: new Date(), updatedAt: new Date() },
+        {
+          id: '1',
+          title: 'Active',
+          message: 'Test',
+          linkUrl: null,
+          startDate: new Date(now.getTime() - 86400000),
+          endDate: new Date(now.getTime() + 86400000),
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
       ];
       prisma.siteReminder.findMany.mockResolvedValue(reminders);
 

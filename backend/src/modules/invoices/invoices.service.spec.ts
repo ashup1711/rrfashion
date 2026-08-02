@@ -7,7 +7,7 @@ import { StorageService } from '../../storage/storage.service';
 describe('InvoicesService', () => {
   let service: InvoicesService;
 
-  const mockPrisma = {} as any;
+  const mockPrisma = {} as unknown as PrismaService;
   const mockStorageService = {
     upload: jest.fn(),
     getPublicUrl: jest.fn().mockReturnValue('https://example.com/invoice.pdf'),

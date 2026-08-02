@@ -1,18 +1,25 @@
 import { Suspense, useEffect } from 'react';
-import { useLocation, Navigate } from 'react-router-dom';
+import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { AppRoutes } from './routes';
 import Layout from './components/layout/Layout';
 import AdminLayout from './components/layout/AdminLayout';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import PageTransition from './components/common/PageTransition';
+import { RouteChangeWatcher } from './components/common/RouteChangeWatcher';
 import { useAuthStore } from './store/authStore';
 import { useGuestSession } from './hooks/useGuestSession';
+import { setGlobalNavigator } from './utils/navigation';
 
 const App = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isAdminLogin = location.pathname === '/admin/login';
   const { isAdminAuthenticated, isAdminAuthValidated, initializeAuth, initializeAdminAuth } = useAuthStore();
+
+  // REQ-FE-RC-003: register the router navigator so axios interceptors /
+  // stores can SPA-navigate on 401 instead of hard-redirecting.
+  setGlobalNavigator(navigate);
 
   // Initialize guest session on app load (fire-and-forget, does not block rendering)
   useGuestSession();
@@ -67,6 +74,8 @@ const App = () => {
     <Suspense fallback={<LoadingSpinner />}>
       <Layout>
         <PageTransition>
+          {/* REQ-FE-RC-002: cancel + refetch route-scoped queries on every SPA route change */}
+          <RouteChangeWatcher />
           <AppRoutes />
         </PageTransition>
       </Layout>

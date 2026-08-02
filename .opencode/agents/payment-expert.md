@@ -23,6 +23,32 @@ You specialize in integrating Razorpay for online payments, security deposits, a
 - If pipeline_mode is `"implement"`: `.opencode/state/suggestion_report_pre.md` — read the pre-implementation suggestions for priority and risk warnings
 - If this is a revision pass: `qa_report.errors` filtered to payment-related issues
 
+## Security Standards (Required)
+
+**Read `.opencode/skills/api-security-standards/SKILL.md` at the start of every run** (SEC-01 → SEC-20). These are the shared, mandatory API security standards for the pipeline and are independently enforced by QA's Security Checkpoint. Implement payment security as explicit, checkable deliverables — do not treat this as optional or "best effort":
+
+- **SEC-19 — Webhook signature verification (UNCONDITIONAL, every environment):** verify `X-Razorpay-Signature` with HMAC-SHA256 over the **raw request body** (before any JSON parse/mutation) using the webhook secret from env. Never skip verification in any environment — local, dev, test, or prod. Configure NestJS to retain the raw body for the webhook route (`NestFactory.create(AppModule, { rawBody: true })` and enable `rawBody` on the route with `@Req()`/`RawBodyRequest`, or `express.json({ verify: ... })`). Compare with `crypto.timingSafeEqual`:
+  ```typescript
+  // webhook route — run this BEFORE parsing/validating anything
+  const expected = crypto.createHmac('sha256', WEBHOOK_SECRET).update(rawBody).digest('hex');
+  const received = req.header('X-Razorpay-Signature') ?? '';
+  const a = Buffer.from(expected);
+  const b = Buffer.from(received);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    throw new UnauthorizedException('Invalid webhook signature'); // do not process
+  }
+  ```
+- **Idempotency (SEC-19):** Redis `SETNX` on the Razorpay event ID (`idem:webhook:razorpay:{event_id}`, 48h TTL) before processing; if the key already exists, return 200 immediately without reprocessing (Razorpay retries deliveries). With `ioredis`:
+  ```typescript
+  const key = `idem:webhook:razorpay:${event.event_id}`;
+  const acquired = await this.redis.set(key, '1', 'EX', 60 * 60 * 48, 'NX');
+  if (acquired !== 'OK') return; // duplicate delivery — already processed
+  ```
+- **Business validation (SEC-19):** before marking a payment paid, verify `payload.payment.amount` (paise), `payload.payment.currency`, and `payload.payment.order_id` match the DB order. Never trust a client-supplied payment status — the server DB is the only source of truth for amount/currency/order linkage.
+- **Replay protection (SEC-19):** reject events older than N minutes (e.g. `Date.now() - event.created_at > 15 * 60 * 1000` → 410/400) and reject events referencing already-finalized orders (status `captured`/`refunded`). Both checks are idempotent-safe but still required.
+- **No card data (SEC-19):** the app never stores card numbers/CVVs — Razorpay owns PCI scope via Checkout. Never log, persist, or echo `card`/`upi` fields from webhook payloads; redact them before writing audit logs.
+- **SEC-10 — Rate limiting:** apply stricter per-route `@Throttle` limits on payment order/checkout endpoints (`POST /api/v1/payments/orders`, `POST /api/v1/payments/verify`) on top of the global Redis-backed throttler, e.g. `@Throttle({ default: { ttl: 60000, limit: 10 } })` — prevents checkout abuse/DoS.
+
 ## Steps
 
 ### 1. Read Research Report (PRIMARY)
@@ -60,9 +86,10 @@ Read the `payments` and `invoices` table shapes from `db_schema` in `project_sta
 ### 6. Implement Webhook Handler
 
 `POST /api/v1/payments/webhook`:
-- Verify the webhook signature using the webhook secret (different from the API key secret) via the `X-Razorpay-Signature` header
+- Verify the webhook signature using the webhook secret (different from the API key secret) via the `X-Razorpay-Signature` header — **HMAC-SHA256 over the raw request body** (before JSON parse/any mutation), compared with `crypto.timingSafeEqual` (SEC-19). This is unconditional in every environment — never skip it, never "just in dev"
 - Treat the webhook as the authoritative source of truth for payment status — the client-side verify endpoint is a fast-path UX optimization, the webhook is the durable confirmation that must independently arrive at the same end state even if the client never calls `/verify` (e.g. user closes the browser mid-payment)
-- Idempotency: before processing, check a Redis key `idem:webhook:razorpay:{event_id}` (or a `processed_webhook_events` table) — if already processed, return 200 immediately without reprocessing, since Razorpay retries webhook delivery
+- Idempotency: before processing, Redis `SETNX` on the key `idem:webhook:razorpay:{event_id}` with a 48-hour TTL (or a `processed_webhook_events` table) — if already processed, return 200 immediately without reprocessing, since Razorpay retries webhook delivery
+- Business validation: after signature check, verify `payload.payment.amount`, currency, and `order_id` match the DB order before marking paid; reject stale events or events for already-finalized orders
 - Handle at minimum: `payment.captured`, `payment.failed`, `refund.processed`
 - Log the raw payload (redact card/UPI details if present) for dispute resolution — store in an audit table or structured log, never discard
 
@@ -233,6 +260,7 @@ Update `.opencode/state/project_state.json`:
 
 ## Hard Rules
 
+- **Read `.opencode/skills/api-security-standards/SKILL.md` at the start of every run** — SEC-19 webhook signature verification over the raw body is unconditional and QA will fail you if it's missing
 - Never compute charge amounts from client input — always recompute server-side from the database
 - Never mark a payment as captured/successful without a verified signature (verify endpoint) or a verified webhook — no exceptions, even for "just testing"
 - Never log full card numbers, CVVs, or full UPI VPAs — Razorpay Checkout is already PCI-scope-reducing (tokenized), don't reintroduce raw payment data into your own logs

@@ -217,13 +217,18 @@ Produce actionable suggestions in these categories. **Every suggestion must incl
 - Large list rendering without virtualization
 
 #### B. Security Hardening
-- Input validation gaps (missing Pydantic validators, SQL injection risks)
-- Authentication/authorization gaps (missing role checks, unprotected endpoints)
-- Missing rate limiting on new endpoints
-- CORS configuration too permissive
-- Secrets or credentials in code
-- Missing HTTPS enforcement or security headers
-- Improper file upload validation
+Cross-check every finding against the shared security standards skill (`.opencode/skills/api-security-standards/SKILL.md`), which defines SEC-01..SEC-20 as the single source of truth. Run each issue through the relevant standard ID and cite it in the suggestion (e.g. `SEC-06`, `SEC-16`) so fixes stay traceable end-to-end:
+- Input validation gaps (missing Pydantic validators, SQL injection risks) — SEC-07
+- Authentication/authorization gaps (missing role checks, unprotected endpoints) — SEC-06
+- Missing auth guards on controllers / public routes left unguarded (`JwtAuthGuard`/`RolesGuard`) — SEC-06
+- Missing rate limiting on new endpoints — SEC-10
+- CORS configuration too permissive (`origin: '*'` / `origin: true`) — SEC-02
+- Tokens in `localStorage`/`sessionStorage` instead of memory + HttpOnly cookie refresh flow — SEC-16
+- Cache leakage: authenticated/user-specific responses cached via Cache-Control, service worker, or React Query — SEC-14, SEC-17
+- Unverified webhooks (missing `X-Razorpay-Signature` HMAC check, no idempotency/replay protection) — SEC-19
+- Secrets or credentials in code — SEC-18
+- Missing HTTPS enforcement or security headers (Helmet) — SEC-01
+- Improper file upload validation — SEC-09
 
 #### C. Code Quality & Refactoring
 - Duplicated code that could be extracted into shared utilities

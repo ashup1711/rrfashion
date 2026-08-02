@@ -23,7 +23,7 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @UseGuards(StoreAuthGuard)
-  @AllowGuest(true)
+  @AllowGuest(false)
   @Post()
   @ApiCommonResponse({
     summary: 'Create a new order from user cart',
@@ -32,7 +32,7 @@ export class OrdersController {
     auth: true,
   })
   async create(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('id') userId: string | null,
     @Body() createOrderDto: CreateOrderDto,
     @GuestSessionId() guestSessionId?: string,
   ) {
@@ -52,8 +52,10 @@ export class OrdersController {
     return this.ordersService.findAll();
   }
 
+  // FIX-2 (QA): "my" order routes require a verified identity — an anonymous
+  // request (no customer JWT / no guest JWT) gets 401 from StoreAuthGuard.
   @UseGuards(StoreAuthGuard)
-  @AllowGuest(true)
+  @AllowGuest(false)
   @Get('my')
   @ApiCommonResponse({
     summary: 'Get my orders',
@@ -62,7 +64,7 @@ export class OrdersController {
     pagination: true,
   })
   async findMyOrders(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('id') userId: string | null,
     @Query() query: OrderHistoryQueryDto,
     @GuestSessionId() guestSessionId?: string,
   ) {
@@ -70,11 +72,11 @@ export class OrdersController {
   }
 
   @UseGuards(StoreAuthGuard)
-  @AllowGuest(true)
+  @AllowGuest(false)
   @Get('my/:id')
   @ApiCommonResponse({ summary: 'Get my order by ID', type: CreateOrderDto })
   async findMyOrder(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('id') userId: string | null,
     @Param('id') id: string,
     @GuestSessionId() guestSessionId?: string,
   ) {
@@ -82,11 +84,11 @@ export class OrdersController {
   }
 
   @UseGuards(StoreAuthGuard)
-  @AllowGuest(true)
+  @AllowGuest(false)
   @Post('my/:id/repurchase')
   @ApiCommonResponse({ summary: 'Repurchase items from past order', type: RepurchaseResponseDto })
   async repurchase(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('id') userId: string | null,
     @Param('id') id: string,
     @GuestSessionId() guestSessionId?: string,
   ) {
@@ -110,11 +112,11 @@ export class OrdersController {
   }
 
   @UseGuards(StoreAuthGuard)
-  @AllowGuest(true)
+  @AllowGuest(false)
   @Get(':orderId/invoice')
   @ApiCommonResponse({ summary: 'Download invoice PDF for an order' })
   async downloadInvoice(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('id') userId: string | null,
     @Param('orderId') orderId: string,
     @Res() res: Response,
     @GuestSessionId() guestSessionId?: string,
@@ -134,11 +136,11 @@ export class OrdersController {
   // --- Returns & Exchanges ---
 
   @UseGuards(StoreAuthGuard)
-  @AllowGuest(true)
+  @AllowGuest(false)
   @Post('my/:id/return')
   @ApiCommonResponse({ summary: 'Initiate return for a delivered order', type: InitiateReturnDto })
   async initiateReturn(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('id') userId: string | null,
     @Param('id') id: string,
     @Body() dto: InitiateReturnDto,
     @GuestSessionId() guestSessionId?: string,
@@ -149,11 +151,11 @@ export class OrdersController {
   // --- Coupon Application ---
 
   @UseGuards(StoreAuthGuard)
-  @AllowGuest(true)
+  @AllowGuest(false)
   @Post('apply-coupon')
   @ApiCommonResponse({ summary: 'Apply coupon to current order', type: ApplyCouponDto })
   async applyCoupon(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('id') userId: string | null,
     @Body() dto: ApplyCouponDto,
     @GuestSessionId() guestSessionId?: string,
   ) {
@@ -163,11 +165,11 @@ export class OrdersController {
   // --- Order Tracking ---
 
   @UseGuards(StoreAuthGuard)
-  @AllowGuest(true)
+  @AllowGuest(false)
   @Get('my/:id/tracking')
   @ApiCommonResponse({ summary: 'Get tracking info for order' })
   async getTracking(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('id') userId: string | null,
     @Param('id') id: string,
     @GuestSessionId() guestSessionId?: string,
   ) {

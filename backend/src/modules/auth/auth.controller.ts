@@ -23,6 +23,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  @Throttle({ auth: { ttl: 60000, limit: 5 } })
   @Post('login')
   @ApiCommonResponse({ summary: 'User login', auth: false })
   async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
@@ -32,6 +33,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ auth: { ttl: 60000, limit: 5 } })
   @Post('register')
   @ApiCommonResponse({ summary: 'User registration', status: 201, auth: false })
   async register(@Body() registerDto: RegisterDto, @Res({ passthrough: true }) res: Response) {
@@ -95,10 +97,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   @ApiCommonResponse({ summary: 'Logout and invalidate refresh token' })
-  async logout(
-    @CurrentUser('id') userId: string,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async logout(@CurrentUser('id') userId: string, @Res({ passthrough: true }) res: Response) {
     // Revoke all tokens for this user (no refreshToken arg needed — cookies carry it)
     await this.authService.logout(userId);
     // Clear auth cookies
@@ -144,7 +143,8 @@ export class AuthController {
   private setAuthCookies(res: Response, accessToken: string, refreshToken: string): void {
     // SameSite=None required for cross-origin (GitHub Pages → ngrok)
     // Can be overridden via COOKIE_SAMESITE env var (none/strict/lax)
-    const sameSite = (process.env.COOKIE_SAMESITE || (process.env.NODE_ENV === 'production' ? 'none' : 'strict')) as 'none' | 'strict' | 'lax';
+    const sameSite = (process.env.COOKIE_SAMESITE ||
+      (process.env.NODE_ENV === 'production' ? 'none' : 'strict')) as 'none' | 'strict' | 'lax';
     // Secure is REQUIRED when SameSite=None (browser spec)
     const isSecure = sameSite === 'none' || process.env.NODE_ENV === 'production';
     res.cookie('access_token', accessToken, {

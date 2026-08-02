@@ -138,6 +138,17 @@ This is the highest-leverage section and the one generic scans skip. Actively lo
 - Anything the user's request implies that you could **not** find evidence of in the codebase (a missing auth pattern, no existing rate-limiting setup, no test infra for a layer) — flag explicitly, don't silently omit. This is what research-agent uses to know "build from scratch" vs. "extend existing."
 - Any TODOs, deprecated patterns, or inconsistencies you noticed between similar files (e.g. two different DTO validation styles side by side) — flag so expert agents pick the newer/dominant one deliberately instead of copying whichever file they happen to open first.
 
+### 10. Security Configuration Findings (cross-cutting — always scan)
+Capture security-relevant configuration **once, here**, so downstream agents (expert agents, code-review-and-qa, suggestion-agent) never have to re-discover it by re-reading source. For each item, quote the file path plus the actual config; if the evidence is absent, flag it explicitly as a gap:
+- **CORS**: where `enableCors` is called and whether origin is an allow-list from env or `*`/`true`
+- **Helmet / security headers**: is `helmet()` applied? in which file? any CSP overrides (e.g. dev `connect-src` for Vite HMR)?
+- **Auth guards**: `JwtAuthGuard`/`RolesGuard` usage on controllers, any public/unprotected routes, `@CurrentUser()` decorator pattern
+- **Frontend token storage**: access/refresh token location (localStorage vs cookie vs memory) and the refresh flow (interceptor, `/auth/refresh`)
+- **Cache headers / caching**: `Cache-Control` usage, service worker config (vite-plugin-pwa), React Query/SWR cache settings
+- **Rate limiting**: `ThrottlerModule` config, storage driver (Redis vs in-memory), per-route `@Throttle` overrides
+- **Swagger / metrics exposure**: Swagger UI setup and env gating, `/metrics` endpoint protection
+- **Security middleware & cookie flags**: existing middleware (e.g. `csrf.guard.ts`) and cookie flags (`httpOnly`, `secure`, `sameSite`)
+
 ## Output Structure
 
 ```markdown
@@ -175,6 +186,16 @@ This is the highest-leverage section and the one generic scans skip. Actively lo
 ## 9. Known Gaps & Risks
 - [gap 1]: [what's missing, where you looked, why it matters]
 - [inconsistency 1]: [the two conflicting patterns and which one is dominant/newer]
+
+## 10. Security Configuration Findings
+- **CORS**: [where `enableCors` is called, origin allow-list vs `*`]
+- **Helmet / Security Headers**: [`helmet()` applied? in which file? CSP settings]
+- **Auth Guards**: [`JwtAuthGuard`/`RolesGuard` coverage, public routes, `@CurrentUser` pattern]
+- **Frontend Token Storage**: [localStorage vs cookie vs memory; refresh flow]
+- **Cache Headers / Caching**: [Cache-Control, service worker config, React Query config]
+- **Rate Limiting**: [ThrottlerModule config, storage driver, per-route `@Throttle`]
+- **Swagger / Metrics Exposure**: [Swagger UI setup + env gating, `/metrics` protection]
+- **Security Middleware & Cookie Flags**: [csrf.guard.ts and other middleware; cookie flags]
 
 ## AST Symbol Index
 

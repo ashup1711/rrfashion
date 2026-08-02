@@ -62,6 +62,29 @@ Reviews code quality across all layers:
 - Frontend: Loading/error/empty states, API contract matching, memory leaks
 - Database: Column types, foreign keys, indexes, migration completeness
 
+### Phase 1.5: Security QA Checkpoint
+
+The **independent security gate** between code review and QA verification. Runs against EVERY implementation regardless of what expert agents claimed. The QA agent is **read-only and never fixes code** — it only reports PASS/FAIL; fixes always go back to the owning expert via `loopback_targets`. Read `.opencode/skills/api-security-standards/SKILL.md` (SEC-01..SEC-20) first; it is authoritative and takes precedence over any expert's claims.
+
+**PASS** requires the named evidence with a specific file/line. **FAIL** produces a `code_review/security` error with `location` (file/line), `expected`, `actual`, and `fix`.
+
+| # | Check | PASS criteria | Evidence (file/line) |
+|---|-------|--------------|----------------------|
+| 1 | Guard coverage | Every non-public controller route has `JwtAuthGuard`/`RolesGuard` (or is explicitly whitelisted with a documented reason) | AST `validate-nestjs` route-guard output |
+| 2 | Ownership scoping (IDOR) | Every resource read/write filters by `userId`/`storeId` from the token; spot-check 2–3 routes for trusting client-supplied IDs | Filtered service queries (`WHERE ... AND userId = $n`) |
+| 3 | CORS | No `origin: true`/`'*'` in prod config; origins come from env | `main.ts` CORS configuration |
+| 4 | Headers | Helmet registered in `main.ts`; `X-Content-Type-Options`, HSTS (prod) present; `X-Powered-By` disabled | `main.ts` bootstrap + `app.disable('x-powered-by')` |
+| 5 | Validation | Global `ValidationPipe` with `whitelist`/`forbidNonWhitelisted`/`transform`; DTOs for all request bodies; no `any` bodies | `main.ts` pipe config + DTO files |
+| 6 | Rate limiting | Global ThrottlerGuard + Redis storage; stricter limits on login/OTP/upload | Throttler module config + `@Throttle` decorators |
+| 7 | Secrets | No hardcoded keys/tokens in code; env-only | Grep results + env config validation |
+| 8 | Logging/sanitization | No PII/tokens in logs; error responses generic; Swagger disabled in prod; metrics protected | Logger setup + exception filter + Swagger/metrics config |
+| 9 | Token storage (frontend) | No access/refresh token in `localStorage`/`sessionStorage`; refresh token HttpOnly cookie; access token in memory | Frontend auth store + axios/fetch interceptor |
+| 10 | Caching correctness | Auth'd routes `Cache-Control: no-store`; no user-specific data in service-worker or Redis caches; cache-aside `DEL` on write | Route cache headers + SW config + Redis service |
+| 11 | Payment (if payment-expert ran) | Webhook signature verified over RAW body; idempotency key present | Webhook controller (raw-body + `SETNX`) |
+| 12 | Swagger/metrics | Swagger disabled in prod; `/metrics` protected (admin/internal) | Swagger setup + metrics guard |
+
+**Severity rules:** any **critical** security failure → hard FAIL (`qa_report.passed: false`, status `revision_needed`) regardless of other passes. Every FAIL loops back to the owning expert via `loopback_targets` (e.g. `node-expert` for backend items, `react-expert` for token storage, `payment-expert` for the webhook item).
+
 ### Phase 2: QA Verification
 
 Validates implementation against requirements:
@@ -175,11 +198,14 @@ The code-review-and-qa skill works with other skills by:
 6. **Include fix suggestions** — every error should suggest a specific fix
 7. **Track retry count** — prevent infinite loops
 8. **Use clear status codes** — READY_FOR_SUGGESTION, REVISION_NEEDED, HALT
+9. **Run the Phase 1.5 Security QA Checkpoint on every pass** — independently of any security claims by expert agents. If any expert skipped a standard, that's a FAIL you report, not something you trust. Read `.opencode/skills/api-security-standards/SKILL.md` first.
+10. **The QA agent is read-only and never fixes code** — it only reports PASS/FAIL. Fixes always go to the owning expert via `loopback_targets`.
 
 ## Quick Reference
 
 | Phase | Check Type | Error Type | Fix Strategy |
 |-------|-----------|------------|--------------|
+| Security Checkpoint (Phase 1.5) | Security Standards (SEC-01..SEC-20) | `code_review/security` | Loopback to owning expert on critical |
 | Code Review | Security | `code_review/security` | May not need re-dispatch |
 | Code Review | Error Handling | `code_review/error_handling` | May not need re-dispatch |
 | Code Review | Patterns | `code_review/pattern_violation` | May not need re-dispatch |

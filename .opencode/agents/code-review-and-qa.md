@@ -153,6 +153,33 @@ Review each file for:
 - **AST check — Model field types**: Verify that Prisma model fields parsed by the AST match the types specified in the research report. Mismatches are `type_mismatch`.
 - **AST check — Relation validation**: Verify that Prisma model relations parsed by the AST have corresponding fields in the related models. Orphaned relations are `quality` errors.
 
+### Phase 1.5 — Security QA Checkpoint
+
+This is the **independent security gate**. It runs between Phase 1 (code review) and Phase 2 (QA verification) against EVERY implementation — regardless of what expert agents claimed. Verify against `.opencode/skills/api-security-standards/SKILL.md` (SEC-01..SEC-20), which is authoritative. Read it first. Never trust a security claim; verify the code on disk. If any expert skipped a standard, that's a FAIL you report, not something you trust. You are read-only here — you never fix the code, you only report.
+
+For each item below, record PASS or FAIL. **PASS** requires the named evidence with a specific file/line. **FAIL** produces a `code_review/security` error with `location` (file/line), `expected`, `actual`, and `fix`.
+
+| # | Check | PASS criteria | Evidence (file/line) |
+|---|-------|--------------|----------------------|
+| 1 | Guard coverage | Every non-public controller route has `JwtAuthGuard`/`RolesGuard` (or is explicitly whitelisted with a documented reason) | AST `validate-nestjs` route-guard output |
+| 2 | Ownership scoping (IDOR) | Every resource read/write filters by `userId`/`storeId` from the token; spot-check 2–3 routes for trusting client-supplied IDs | Filtered service queries (`WHERE ... AND userId = $n`) |
+| 3 | CORS | No `origin: true`/`'*'` in prod config; origins come from env | `main.ts` CORS configuration |
+| 4 | Headers | Helmet registered in `main.ts`; `X-Content-Type-Options`, HSTS (prod) present; `X-Powered-By` disabled | `main.ts` bootstrap + `app.disable('x-powered-by')` |
+| 5 | Validation | Global `ValidationPipe` with `whitelist`/`forbidNonWhitelisted`/`transform`; DTOs for all request bodies; no `any` bodies | `main.ts` pipe config + DTO files |
+| 6 | Rate limiting | Global ThrottlerGuard + Redis storage; stricter limits on login/OTP/upload | Throttler module config + `@Throttle` decorators |
+| 7 | Secrets | No hardcoded keys/tokens in code; env-only | Grep results + env config validation |
+| 8 | Logging/sanitization | No PII/tokens in logs; error responses generic; Swagger disabled in prod; metrics protected | Logger setup + exception filter + Swagger/metrics config |
+| 9 | Token storage (frontend) | No access/refresh token in `localStorage`/`sessionStorage`; refresh token HttpOnly cookie; access token in memory | Frontend auth store + axios/fetch interceptor |
+| 10 | Caching correctness | Auth'd routes `Cache-Control: no-store`; no user-specific data in service-worker or Redis caches; cache-aside `DEL` on write | Route cache headers + SW config + Redis service |
+| 11 | Payment (if payment-expert ran) | Webhook signature verified over RAW body; idempotency key present | Webhook controller (raw-body + `SETNX`) |
+| 12 | Swagger/metrics | Swagger disabled in prod; `/metrics` protected (admin/internal) | Swagger setup + metrics guard |
+
+#### Severity Rules
+
+- **Critical security failure → hard FAIL.** Any Phase 1.5 item failing at critical severity sets `qa_report.passed: false` and status `"revision_needed"` **regardless of other passes** — a security gate failure can never be overridden by a clean code review or full QA pass.
+- **Loopback.** Every Phase 1.5 FAIL loops back to the owning expert via `loopback_targets` (e.g. `node-expert` for backend items, `react-expert` for token storage, `payment-expert` for the webhook item). Never emit `ready_for_suggestion` while a security FAIL stands.
+- **Error type.** Every Phase 1.5 failure is recorded as `type: "code_review"`, `subtype: "security"`.
+
 ### Phase 2: QA Verification
 
 Verify that the implementation matches the research report's requirements:
@@ -290,6 +317,8 @@ The `loopback_targets` should list only the specific agent(s) whose output needs
 | `quality` | Code quality issue | Duplicated code, overly complex function, unresolved import |
 | `testing` | Missing or insufficient tests | No error path test, no auth test |
 
+> Note: `code_review/security` is also the error type emitted by the **Phase 1.5 — Security QA Checkpoint**. Every security failure found by that checkpoint (critical or not) is recorded under this subtype with `location` (file/line), `expected`, `actual`, and `fix`.
+
 ### QA Verification Errors
 
 | Subtype | Description | Example |
@@ -319,3 +348,4 @@ The `loopback_targets` should list only the specific agent(s) whose output needs
 - **Don't trust coverage manifests blindly** — verify the file evidence. An expert can claim a requirement ID without implementing it correctly. Read the file, check the contract, verify the implementation.
 - **Separate coverage gaps from code quality issues** in the errors array: coverage gaps go to `loopback_targets` for re-dispatch, code quality issues may be fixable by the orchestrator without re-dispatch.
 - **If research_report_coverage.json doesn't exist**, refuse to proceed — the research agent didn't complete its coverage manifest, which means the pipeline can't verify completeness. Report this as a pipeline configuration error, not a QA failure.
+- **Run the Phase 1.5 Security QA Checkpoint on every pass** — independently of any security claims by expert agents. If any expert skipped a standard, that's a FAIL you report, not something you trust. Read `.opencode/skills/api-security-standards/SKILL.md` first.

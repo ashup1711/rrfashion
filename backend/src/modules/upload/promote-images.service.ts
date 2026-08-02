@@ -122,7 +122,7 @@ export class PromoteImagesService {
 
       for (const v of variants) {
         const storageKey = await this.storage.upload(v.key, v.data.buffer, 'image/webp');
-      const url = this.storage.getPublicUrl(storageKey);
+        const url = this.storage.getPublicUrl(storageKey);
 
         const createdImage: PromotedImage = await this.prisma.productImage.create({
           data: {

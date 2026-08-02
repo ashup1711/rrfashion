@@ -65,7 +65,9 @@ export class SizesService {
     });
 
     if (variantCount > 0) {
-      this.logger.warn(`Size "${size.name}" deactivated but is used by ${variantCount} active variant(s)`);
+      this.logger.warn(
+        `Size "${size.name}" deactivated but is used by ${variantCount} active variant(s)`,
+      );
     }
 
     // Soft-delete by setting isActive to false

@@ -1,8 +1,10 @@
-import { Fragment, useState, useEffect } from 'react';
+import { Fragment, useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCategories } from '../../../hooks/useCategories';
 import { useProducts } from '../../../hooks/useProducts';
+import type { LandingSection } from '../../../hooks/useLandingPageData';
+import type { ProductListResponse } from '../../../types/product';
 import ProductCard from '../../../components/common/ProductCard';
 import LoadingSpinner from '../../../components/common/LoadingSpinner';
 import { ROUTES } from '../../../utils/constants';
@@ -16,6 +18,8 @@ interface ProductCollectionProps {
   featured?: boolean;
   promoTileAfter?: number;
   promoTileConfig?: PromoTileConfig;
+  /** REQ-FE-LP-001: optional pre-fetched section from useLandingPageData. */
+  section?: LandingSection<ProductListResponse>;
 }
 
 const getABVariant = (): 'A' | 'B' => {
@@ -36,6 +40,7 @@ const ProductCollection = ({
   featured,
   promoTileAfter,
   promoTileConfig,
+  section,
 }: ProductCollectionProps) => {
   const [variant] = useState(getABVariant);
 
@@ -47,15 +52,26 @@ const ProductCollection = ({
   const { data: categories, isLoading: categoriesLoading } = useCategories();
   const category = categorySlug ? categories?.find((c) => c.slug === categorySlug) : undefined;
 
-  const { data, isLoading, isError, error } = useProducts(
-    featured
-      ? { isFeatured: true, limit: 4 }
-      : category
-        ? { categoryId: category.id, limit: 4 }
-        : { limit: 4 },
-  );
+  // REQ-FE-LP-002: memoize filters so the query key is stable across renders
+  // (with refetchOnMount: 'always', a fresh object each render causes churn).
+  const collectionFilters = useMemo(() => {
+    if (featured) return { isFeatured: true, limit: 4 } as const;
+    if (category) return { categoryId: category.id, limit: 4 } as const;
+    return { limit: 4 } as const;
+  }, [featured, category]);
 
-  if (categoriesLoading || isLoading) {
+  const internal = useProducts(collectionFilters);
+
+  // REQ-FE-LP-001: prefer the pre-fetched section from useLandingPageData when
+  // provided (standalone usage falls back to the internal query).
+  const resolved: LandingSection<ProductListResponse> = section ?? {
+    status: internal.isLoading ? 'loading' : internal.isError ? 'error' : 'success',
+    data: internal.data,
+    error: internal.error ?? undefined,
+    refetch: internal.refetch,
+  };
+
+  if (categoriesLoading || resolved.status === 'loading') {
     return (
       <section className="page-section" role="region" aria-label={title}>
         <div className="h-[536px] flex items-center justify-center">
@@ -65,7 +81,7 @@ const ProductCollection = ({
     );
   }
 
-  if (isError) {
+  if (resolved.status === 'error') {
     return (
       <section className="page-section" role="region" aria-label={title}>
         <div className="container-page section-spacing">
@@ -86,8 +102,15 @@ const ProductCollection = ({
                 Unable to load products
               </p>
               <p className="text-caption text-gray-400">
-                {(error as Error)?.message || 'Something went wrong. Please try again later.'}
+                {resolved.error?.message || 'Something went wrong. Please try again later.'}
               </p>
+              <button
+                onClick={() => resolved.refetch()}
+                className="mt-4 px-5 py-2 bg-primary-600 text-white text-sm rounded-md hover:bg-primary-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                aria-label={`Retry loading ${title}`}
+              >
+                Retry
+              </button>
             </div>
           </div>
         </div>
@@ -95,7 +118,7 @@ const ProductCollection = ({
     );
   }
 
-  if (!data?.items?.length) {
+  if (!resolved.data?.items?.length) {
     return (
       <section className="page-section" role="region" aria-label={title}>
         <div className="container-page section-spacing">
@@ -118,7 +141,7 @@ const ProductCollection = ({
     );
   }
 
-  const products = data.items.slice(0, 4);
+  const products = resolved.data.items.slice(0, 4);
   const showPromo = promoTileAfter !== undefined && promoTileConfig && products.length > promoTileAfter;
 
   return (
@@ -173,11 +196,21 @@ const contentVariants = {
   exit: { opacity: 0, x: -20, transition: { duration: 0.2 } }
 };
 
-const ProductCollectionTabs = () => {
+interface ProductCollectionTabsProps {
+  /** REQ-FE-LP-001: optional pre-fetched sections from useLandingPageData. */
+  sections?: {
+    newArrivals: LandingSection<ProductListResponse>;
+    bestSellers: LandingSection<ProductListResponse>;
+    onSale: LandingSection<ProductListResponse>;
+  };
+}
+
+const ProductCollectionTabs = ({ sections }: ProductCollectionTabsProps = {}) => {
   const [activeTab, setActiveTab] = useState<TabKey>('newArrivals');
 
-  // Build filter params based on active tab
-  const getFilterParams = () => {
+  // REQ-FE-LP-002: memoize filter params per active tab so the query key is
+  // stable across renders and tab switches refetch the right data.
+  const filters = useMemo(() => {
     switch (activeTab) {
       case 'newArrivals':
         return { isNew: true, limit: 8 };
@@ -188,23 +221,49 @@ const ProductCollectionTabs = () => {
       default:
         return { limit: 8 };
     }
+  }, [activeTab]);
+
+  const internal = useProducts(filters);
+
+  // REQ-FE-LP-001: prefer pre-fetched sections; standalone usage falls back to
+  // the internal query (React Query dedupes shared keys).
+  // NOTE: section keys are pluralized (bestSellers) while tab keys are singular.
+  const sectionByTab: Record<TabKey, keyof NonNullable<ProductCollectionTabsProps['sections']>> = {
+    newArrivals: 'newArrivals',
+    bestSeller: 'bestSellers',
+    onSale: 'onSale',
   };
+  const resolved: LandingSection<ProductListResponse> = sections
+    ? sections[sectionByTab[activeTab]]
+    : {
+        status: internal.isLoading ? 'loading' : internal.isError ? 'error' : 'success',
+        data: internal.data,
+        error: internal.error ?? undefined,
+        refetch: internal.refetch,
+      };
 
-  const { data, isLoading, isError, error } = useProducts(getFilterParams());
-
-  if (isError) {
+  if (resolved.status === 'error') {
     return (
       <section className="page-section" role="region" aria-label="Product Collection">
         <div className="container-page section-spacing">
           <div className="flex justify-center items-center h-[200px] text-gray-500">
-            <p>Unable to load products: {(error as Error)?.message}</p>
+            <div className="text-center">
+              <p>Unable to load products: {resolved.error?.message}</p>
+              <button
+                onClick={() => resolved.refetch()}
+                className="mt-4 px-5 py-2 bg-primary-600 text-white text-sm rounded-md hover:bg-primary-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                aria-label="Retry loading products"
+              >
+                Retry
+              </button>
+            </div>
           </div>
         </div>
       </section>
     );
   }
 
-  const products = data?.items || [];
+  const products = resolved.data?.items || [];
 
   return (
     <section className="page-section" role="region" aria-label="Product Collection">
@@ -252,7 +311,7 @@ const ProductCollectionTabs = () => {
           aria-label={`${TABS.find(t => t.key === activeTab)?.label} products`}
         >
           <AnimatePresence mode="wait">
-            {isLoading ? (
+            {resolved.status === 'loading' ? (
               <motion.div
                 key="loading"
                 initial={{ opacity: 0 }}

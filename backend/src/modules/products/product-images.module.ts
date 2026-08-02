@@ -7,11 +7,7 @@ import { StorageModule } from '../../storage/storage.module';
 import { ImageUploadModule } from '../upload/image-upload.module';
 
 @Module({
-  imports: [
-    PrismaModule,
-    StorageModule,
-    forwardRef(() => ImageUploadModule),
-  ],
+  imports: [PrismaModule, StorageModule, forwardRef(() => ImageUploadModule)],
   controllers: [ProductImagesController],
   providers: [ProductImagesService, ImageProcessingService],
   exports: [ProductImagesService, ImageProcessingService],

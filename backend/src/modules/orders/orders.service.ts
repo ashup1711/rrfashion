@@ -90,8 +90,42 @@ export class OrdersService {
     private readonly config: ConfigService,
   ) {}
 
-  async create(userId: string, dto: CreateOrderDto, guestSessionId?: string) {
+  /**
+   * FIX-2 (QA / SEC-06): every owner-scoped order operation must have at least
+   * one verified identity. Anonymous callers pass `null`/`undefined` for both —
+   * never let a null/undefined owner filter reach Prisma (Prisma treats
+   * `{ userId: null }` as "match rows where userId IS NULL", which exposes ALL
+   * guest orders).
+   */
+  private assertOwnerContext(userId?: string | null, guestSessionId?: string): void {
+    if (!userId && !guestSessionId) {
+      throw new UnauthorizedException('Authentication required');
+    }
+  }
+
+  /**
+   * FIX-2 (QA / SEC-06): ownership check shared by single-order routes. Rejects
+   * anonymous callers AND callers whose verified identity does not own the order.
+   */
+  private assertOrderOwnership(
+    order: { userId: string | null; guestSessionId: string | null },
+    userId?: string | null,
+    guestSessionId?: string,
+  ): void {
+    this.assertOwnerContext(userId, guestSessionId);
+    const ownsOrder = guestSessionId
+      ? order.guestSessionId === guestSessionId
+      : order.userId === userId;
+    if (!ownsOrder) {
+      throw new UnauthorizedException('This order does not belong to you');
+    }
+  }
+
+  async create(userId: string | null, dto: CreateOrderDto, guestSessionId?: string) {
     const customerLabel = guestSessionId ? 'guest' : 'customer';
+    // FIX-2: an order must always be attached to a verified customer or guest
+    // session — anonymous order creation is rejected before any cart lookup.
+    this.assertOwnerContext(userId, guestSessionId);
     this.logger.log({ userId, guestSessionId, action: `order.create.start.${customerLabel}` });
 
     // For guests, fetch guest cart items. For customers, fetch regular cart.
@@ -118,6 +152,11 @@ export class OrdersService {
         throw new BadRequestException('Cart is empty');
       }
     } else {
+      // Narrowing: assertOwnerContext guarantees userId is present whenever
+      // guestSessionId is absent.
+      if (!userId) {
+        throw new UnauthorizedException('Authentication required');
+      }
       const rawCart = await this.prisma.cart.findUnique({
         where: { userId },
         include: {
@@ -673,7 +712,11 @@ export class OrdersService {
     return updated;
   }
 
-  async updateOrderPaymentStatus(orderId: string, dto: UpdateOrderPaymentStatusDto, changedBy?: string) {
+  async updateOrderPaymentStatus(
+    orderId: string,
+    dto: UpdateOrderPaymentStatusDto,
+    changedBy?: string,
+  ) {
     const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order) {
       throw new NotFoundException('Order not found');
@@ -747,7 +790,11 @@ export class OrdersService {
     return updated;
   }
 
-  async findMyOrders(userId: string, query: OrderHistoryQueryDto, guestSessionId?: string) {
+  async findMyOrders(userId: string | null, query: OrderHistoryQueryDto, guestSessionId?: string) {
+    // FIX-2: anonymous callers must never hit the DB with a null owner filter
+    // (Prisma `{ userId: null }` matches EVERY guest order — PII leak).
+    this.assertOwnerContext(userId, guestSessionId);
+
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 10, 100);
     const skip = (page - 1) * limit;
@@ -756,7 +803,7 @@ export class OrdersService {
 
     if (guestSessionId) {
       where.guestSessionId = guestSessionId;
-    } else {
+    } else if (userId) {
       where.userId = userId;
     }
 
@@ -807,7 +854,12 @@ export class OrdersService {
     };
   }
 
-  async findMyOrder(userId: string, orderId: string, guestSessionId?: string) {
+  async findMyOrder(userId: string | null, orderId: string, guestSessionId?: string) {
+    // FIX-2: reject anonymous requests before querying. Without this, a guest
+    // order (userId IS NULL) passes the old `order.userId !== userId` check
+    // because both sides are null.
+    this.assertOwnerContext(userId, guestSessionId);
+
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -824,15 +876,7 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    if (guestSessionId) {
-      if (order.guestSessionId !== guestSessionId) {
-        throw new UnauthorizedException('This order does not belong to you');
-      }
-    } else {
-      if (order.userId !== userId) {
-        throw new UnauthorizedException('This order does not belong to you');
-      }
-    }
+    this.assertOrderOwnership(order, userId, guestSessionId);
 
     return {
       id: order.id,
@@ -862,7 +906,9 @@ export class OrdersService {
     };
   }
 
-  async repurchaseOrder(userId: string, orderId: string, guestSessionId?: string) {
+  async repurchaseOrder(userId: string | null, orderId: string, guestSessionId?: string) {
+    this.assertOwnerContext(userId, guestSessionId);
+
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -879,15 +925,7 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    if (guestSessionId) {
-      if (order.guestSessionId !== guestSessionId) {
-        throw new UnauthorizedException('This order does not belong to you');
-      }
-    } else {
-      if (order.userId !== userId) {
-        throw new UnauthorizedException('This order does not belong to you');
-      }
-    }
+    this.assertOrderOwnership(order, userId, guestSessionId);
 
     const itemsAdded: number[] = [];
     const unavailableDetails: Array<{ productName: string; reason: string }> = [];
@@ -936,6 +974,9 @@ export class OrdersService {
             });
           }
         } else {
+          if (!userId) {
+            throw new UnauthorizedException('Authentication required');
+          }
           let cart = await tx.cart.findUnique({ where: { userId } });
           if (!cart) {
             cart = await tx.cart.create({ data: { userId } });
@@ -994,6 +1035,9 @@ export class OrdersService {
         guestSessionId,
       };
     } else {
+      if (!userId) {
+        throw new UnauthorizedException('Authentication required');
+      }
       const updatedCart = await this.prisma.cart.findUnique({
         where: { userId },
         include: {
@@ -1239,11 +1283,13 @@ export class OrdersService {
   }
 
   async initiateReturn(
-    userId: string,
+    userId: string | null,
     orderId: string,
     dto: InitiateReturnDto,
     guestSessionId?: string,
   ) {
+    this.assertOwnerContext(userId, guestSessionId);
+
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -1258,15 +1304,7 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    if (guestSessionId) {
-      if (order.guestSessionId !== guestSessionId) {
-        throw new UnauthorizedException('This order does not belong to you');
-      }
-    } else {
-      if (order.userId !== userId) {
-        throw new UnauthorizedException('This order does not belong to you');
-      }
-    }
+    this.assertOrderOwnership(order, userId, guestSessionId);
 
     if (order.status !== 'DELIVERED') {
       throw new BadRequestException('Only delivered orders can be returned');
@@ -1315,7 +1353,10 @@ export class OrdersService {
     };
   }
 
-  async applyCoupon(userId: string, dto: ApplyCouponDto, guestSessionId?: string) {
+  async applyCoupon(userId: string | null, dto: ApplyCouponDto, guestSessionId?: string) {
+    // FIX-2: anonymous coupon validation must not be possible.
+    this.assertOwnerContext(userId, guestSessionId);
+
     return this.prisma.$transaction(
       async (tx) => {
         const now = new Date();
@@ -1346,6 +1387,9 @@ export class OrdersService {
 
         // For guest users, skip per-user usage limit (guests don't have userId)
         if (!guestSessionId) {
+          if (!userId) {
+            throw new UnauthorizedException('Authentication required');
+          }
           const userUsageCount = await tx.couponUsage.count({
             where: { couponId: coupon.id, userId },
           });
@@ -1453,7 +1497,9 @@ export class OrdersService {
     );
   }
 
-  async getTracking(userId: string, orderId: string, guestSessionId?: string) {
+  async getTracking(userId: string | null, orderId: string, guestSessionId?: string) {
+    this.assertOwnerContext(userId, guestSessionId);
+
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       select: { id: true, userId: true, guestSessionId: true },
@@ -1463,15 +1509,7 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    if (guestSessionId) {
-      if (order.guestSessionId !== guestSessionId) {
-        throw new UnauthorizedException('This order does not belong to you');
-      }
-    } else {
-      if (order.userId !== userId) {
-        throw new UnauthorizedException('This order does not belong to you');
-      }
-    }
+    this.assertOrderOwnership(order, userId, guestSessionId);
 
     const courierReceipts = await this.prisma.courierReceipt.findMany({
       where: { orderId },
@@ -1499,7 +1537,9 @@ export class OrdersService {
     };
   }
 
-  async getInvoicePdf(orderId: string, userId: string, guestSessionId?: string) {
+  async getInvoicePdf(orderId: string, userId: string | null, guestSessionId?: string) {
+    this.assertOwnerContext(userId, guestSessionId);
+
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -1515,15 +1555,7 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    if (guestSessionId) {
-      if (order.guestSessionId !== guestSessionId) {
-        throw new UnauthorizedException('This order does not belong to you');
-      }
-    } else {
-      if (order.userId !== userId) {
-        throw new UnauthorizedException('This order does not belong to you');
-      }
-    }
+    this.assertOrderOwnership(order, userId, guestSessionId);
 
     // If payment is PAID but no invoice exists, try to finalize sale + generate on the fly
     const existingInvoice = order.invoices[0];

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ROUTES } from '../../../utils/constants';
@@ -27,9 +27,13 @@ const CountdownBanner: React.FC<CountdownBannerProps> = ({
 }) => {
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null);
 
+  // REQ-FE-LP-003: normalize endDate to a stable timestamp so a new Date()
+  // passed from a parent each render does not restart the effect/interval.
+  const targetTime = useMemo(() => +new Date(endDate), [endDate]);
+
   useEffect(() => {
     const calculateTimeLeft = (): TimeLeft | null => {
-      const difference = +new Date(endDate) - +new Date();
+      const difference = targetTime - +new Date();
       if (difference <= 0) return null;
       return {
         days: Math.floor(difference / (1000 * 60 * 60 * 24)),
@@ -40,9 +44,19 @@ const CountdownBanner: React.FC<CountdownBannerProps> = ({
     };
 
     setTimeLeft(calculateTimeLeft());
-    const timer = setInterval(() => setTimeLeft(calculateTimeLeft()), 1000);
+
+    // Stop ticking once the countdown reaches zero (no interval leak).
+    const timer = setInterval(() => {
+      const next = calculateTimeLeft();
+      setTimeLeft(next);
+      if (next === null) {
+        clearInterval(timer);
+      }
+    }, 1000);
+
+    // REQ-FE-LP-003: cleanup on unmount/route change — never leave a stray interval.
     return () => clearInterval(timer);
-  }, [endDate]);
+  }, [targetTime]);
 
   if (!timeLeft) return null;
 

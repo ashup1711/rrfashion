@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/ban-types */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaymentsService } from '../payments/payments.service';
+import { InvoicesService } from '../invoices/invoices.service';
 
 describe('OrdersService', () => {
   let service: OrdersService;
@@ -58,6 +59,12 @@ describe('OrdersService', () => {
     verifyPayment: jest.fn(),
   };
 
+  const mockInvoicesService = {
+    generate: jest.fn(),
+    getFinancialYear: jest.fn(),
+    nextInvoiceNumber: jest.fn(),
+  };
+
   const mockConfigService = {
     get: jest.fn().mockReturnValue(null),
   };
@@ -85,6 +92,10 @@ describe('OrdersService', () => {
         {
           provide: PaymentsService,
           useValue: mockPaymentsService,
+        },
+        {
+          provide: InvoicesService,
+          useValue: mockInvoicesService,
         },
         {
           provide: ConfigService,
@@ -365,6 +376,129 @@ describe('OrdersService', () => {
       mockPrisma.order.findUnique.mockResolvedValue(null);
 
       await expect(service.findOneAdmin('non-existent')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('FIX-2 — anonymous "my order" access is rejected (SEC-06)', () => {
+    const baseOrder = {
+      id: 'order-1',
+      orderNumber: 'ORD-001',
+      status: 'PENDING',
+      subtotal: 1000,
+      discountAmount: 0,
+      shippingCharge: 0,
+      taxAmount: 0,
+      totalAmount: 1000,
+      paymentMethod: 'COD',
+      paymentStatus: 'PENDING',
+      shippingAddress: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      items: [],
+      invoices: [],
+      userId: 'user-1',
+      guestSessionId: null,
+    };
+
+    describe('findMyOrders', () => {
+      it('rejects anonymous callers with UnauthorizedException and never queries Prisma', async () => {
+        await expect(service.findMyOrders(null, {})).rejects.toThrow(UnauthorizedException);
+        expect(mockPrisma.order.findMany).not.toHaveBeenCalled();
+        expect(mockPrisma.order.count).not.toHaveBeenCalled();
+      });
+
+      it('scopes listing by userId for an authenticated customer', async () => {
+        mockPrisma.order.findMany.mockResolvedValue([baseOrder]);
+        mockPrisma.order.count.mockResolvedValue(1);
+
+        const result = await service.findMyOrders('user-1', {});
+
+        expect(mockPrisma.order.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where: expect.objectContaining({ userId: 'user-1' }) }),
+        );
+        expect(result.meta.total).toBe(1);
+      });
+
+      it('scopes listing by guestSessionId for a verified guest', async () => {
+        mockPrisma.order.findMany.mockResolvedValue([]);
+        mockPrisma.order.count.mockResolvedValue(0);
+
+        await service.findMyOrders(null, {}, 'guest-1');
+
+        expect(mockPrisma.order.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({ guestSessionId: 'guest-1' }),
+          }),
+        );
+      });
+    });
+
+    describe('findMyOrder', () => {
+      it('rejects anonymous callers before querying the order', async () => {
+        await expect(service.findMyOrder(null, 'order-1')).rejects.toThrow(UnauthorizedException);
+        expect(mockPrisma.order.findUnique).not.toHaveBeenCalled();
+      });
+
+      it('returns the order when the customer owns it', async () => {
+        mockPrisma.order.findUnique.mockResolvedValue({ ...baseOrder, userId: 'user-1' });
+
+        const result = await service.findMyOrder('user-1', 'order-1');
+
+        expect(result.id).toBe('order-1');
+      });
+
+      it('rejects when the customer does not own the order', async () => {
+        mockPrisma.order.findUnique.mockResolvedValue({ ...baseOrder, userId: 'other-user' });
+
+        await expect(service.findMyOrder('user-1', 'order-1')).rejects.toThrow(
+          UnauthorizedException,
+        );
+      });
+
+      it('allows a verified guest to read their own guest order', async () => {
+        mockPrisma.order.findUnique.mockResolvedValue({
+          ...baseOrder,
+          userId: null,
+          guestSessionId: 'guest-1',
+        });
+
+        const result = await service.findMyOrder(null, 'order-1', 'guest-1');
+
+        expect(result.id).toBe('order-1');
+      });
+    });
+
+    describe('related owner-scoped routes', () => {
+      it('getTracking rejects anonymous callers', async () => {
+        await expect(service.getTracking(null, 'order-1')).rejects.toThrow(UnauthorizedException);
+        expect(mockPrisma.order.findUnique).not.toHaveBeenCalled();
+      });
+
+      it('repurchaseOrder rejects anonymous callers', async () => {
+        await expect(service.repurchaseOrder(null, 'order-1')).rejects.toThrow(
+          UnauthorizedException,
+        );
+        expect(mockPrisma.order.findUnique).not.toHaveBeenCalled();
+      });
+
+      it('initiateReturn rejects anonymous callers', async () => {
+        await expect(
+          service.initiateReturn(null, 'order-1', { reason: 'test', itemIds: ['item-1'] }),
+        ).rejects.toThrow(UnauthorizedException);
+        expect(mockPrisma.order.findUnique).not.toHaveBeenCalled();
+      });
+
+      it('applyCoupon rejects anonymous callers', async () => {
+        await expect(
+          service.applyCoupon(null, { code: 'SAVE10', cartTotal: 1000 }),
+        ).rejects.toThrow(UnauthorizedException);
+        expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      });
+
+      it('getInvoicePdf rejects anonymous callers', async () => {
+        await expect(service.getInvoicePdf('order-1', null)).rejects.toThrow(UnauthorizedException);
+        expect(mockPrisma.order.findUnique).not.toHaveBeenCalled();
+      });
     });
   });
 });

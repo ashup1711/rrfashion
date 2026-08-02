@@ -177,8 +177,14 @@ describe('CartService', () => {
       );
     });
 
-    it('should throw BadRequestException when neither userId nor guestSessionId provided', async () => {
-      await expect(service.findCart({})).rejects.toThrow(BadRequestException);
+    // REQ-BE-GUEST-001: anonymous browse (AllowGuest(true), no token) returns an
+    // empty cart instead of throwing — identity is never client-supplied.
+    it('should return an empty cart for anonymous browse (no identifier)', async () => {
+      const result = await service.findCart({});
+
+      expect(result.items).toEqual([]);
+      expect(result.itemCount).toBe(0);
+      expect(result.total).toBe(0);
     });
   });
 
@@ -510,6 +516,33 @@ describe('CartService', () => {
           { variantId: 'variant-1', quantity: 5, type: 'sale' },
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('updateItem - guest (REQ-SEC-004 IDOR)', () => {
+    it('scopes the lookup by the token-derived guestSessionId', async () => {
+      mockPrisma.guestCartItem.findFirst.mockResolvedValue({
+        id: 'gci-1',
+        guestSessionId: 'guest-1',
+        quantity: 2,
+      });
+      mockPrisma.guestCartItem.update.mockResolvedValue({});
+      mockPrisma.guestCartItem.findMany.mockResolvedValue([]);
+
+      await service.updateItem('gci-1', { guestSessionId: 'guest-1' }, 3);
+
+      expect(mockPrisma.guestCartItem.findFirst).toHaveBeenCalledWith({
+        where: { id: 'gci-1', guestSessionId: 'guest-1' },
+      });
+    });
+
+    it('rejects mutations on an item owned by a different guest session (no target rows)', async () => {
+      mockPrisma.guestCartItem.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateItem('item-of-other-session', { guestSessionId: 'my-session' }, 2),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.guestCartItem.update).not.toHaveBeenCalled();
     });
   });
 

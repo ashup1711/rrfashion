@@ -8,6 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
+import { PrismaService } from '../../prisma/prisma.service';
 import { ALLOW_GUEST_KEY } from '../../config/constants';
 
 /**
@@ -16,6 +17,11 @@ import { ALLOW_GUEST_KEY } from '../../config/constants';
  * - Customer tokens are signed with `auth.jwtSecret` (type = 'customer')
  * - Guest tokens are signed with `auth.jwtSecret` (type = 'guest')
  * - Admin tokens are signed with `auth.jwtAdminSecret`
+ *
+ * REQ-SEC-007 / SEC-05: guest tokens carry a `ver` claim that must match the
+ * server-side `GuestSession.tokenVersion`. `refreshSession()` increments
+ * tokenVersion, so any pre-refresh token becomes invalid immediately after a
+ * rotation (stale-token rejection / reuse detection).
  *
  * Usage:
  *   @UseGuards(StoreAuthGuard)
@@ -31,6 +37,7 @@ export class StoreAuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -67,6 +74,17 @@ export class StoreAuthGuard implements CanActivate {
       const payload = jwt.verify(token, customerSecret) as Record<string, unknown>;
 
       if (payload.type === 'guest') {
+        // REQ-SEC-007: one indexed PK read per guest request — reject stale tokens.
+        // Deliberately NOT cached (a cache would accept rotated tokens).
+        const session = await this.prisma.guestSession.findUnique({
+          where: { id: payload.sub as string },
+          select: { tokenVersion: true },
+        });
+
+        if (session && ((payload.ver as number | undefined) ?? 0) !== session.tokenVersion) {
+          throw new UnauthorizedException('Guest session token rotated — please refresh');
+        }
+
         request.user = {
           sub: payload.sub as string,
           type: 'guest',
@@ -83,7 +101,8 @@ export class StoreAuthGuard implements CanActivate {
         };
       }
       return true;
-    } catch {
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
       // Not a customer/guest token — continue checking
     }
 

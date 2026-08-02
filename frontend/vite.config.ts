@@ -53,7 +53,7 @@ export default defineConfig({
           },
           // Network-first for real-time stock/inventory API
           {
-            urlPattern: /^\/api\/inventory/,
+            urlPattern: /\/api\/inventory/,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-inventory',
@@ -62,20 +62,25 @@ export default defineConfig({
           },
           // Stale-while-revalidate for product catalog
           {
-            urlPattern: /^\/api\/products/,
+            urlPattern: /\/api\/products/,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'api-products',
               expiration: { maxEntries: 100, maxAgeSeconds: 30 * 60 },
             },
           },
-          // Network-first for other API calls
+          // REQ-SEC-FE-005 / SEC-17: only PUBLIC catalog endpoints are cached.
+          // User-specific payloads (/api/cart, /api/wishlist, /api/orders,
+          // /api/auth, /api/profile, /api/guest, /api/admin*) are NEVER cached —
+          // the previous generic `/^\/api\//` catch-all was a gap that could
+          // serve one user's data to another from the SW cache.
           {
-            urlPattern: /^\/api\//,
+            urlPattern: /\/api\/(categories|brands|colors|sizes|stores|sale)\/?(?:$|\?)/,
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'api-calls',
+              cacheName: 'api-catalog',
               expiration: { maxEntries: 100, maxAgeSeconds: 5 * 60 },
+              networkTimeoutSeconds: 5,
             },
           },
         ],
