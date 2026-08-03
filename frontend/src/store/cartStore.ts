@@ -3,6 +3,7 @@ import { getPersistentItem } from '../utils/persistentStorage';
 import apiClient from '../api/client';
 import { toast } from 'sonner';
 import type { Cart } from '../api/cart';
+import { useAuthStore } from './authStore';
 
 const GUEST_CART_KEY = 'guest_cart_items';
 // REQ-FE-002: server cart id is persisted so the next add re-attaches to the
@@ -122,12 +123,14 @@ export const useCartStore = create<CartState>((set, get) => ({
     
     // Sync with backend — REQ-FE-002: pass the persisted cartId so the first
     // add re-attaches to the existing server cart (auto-created if missing).
+    // Don't send cartId when logged in — backend resolves cart from the token.
+    const isAuthenticated = useAuthStore.getState().isAuthenticated;
     try {
       const response = await apiClient.post<Cart>('/cart/items', {
         variantId: item.variantId,
         quantity: item.quantity,
         type: item.type || 'sale',
-        cartId: get().cartId || undefined,
+        ...(isAuthenticated ? {} : { cartId: get().cartId || undefined }),
       });
 
       // REQ-FE-002: capture the server cart id + persist it so future adds
