@@ -1,9 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, GoneException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { CartService } from './cart.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GuestSessionService } from '../guest/guest-session.service';
+import { CartItemType } from './dto/add-cart-item.dto';
 
 describe('CartService', () => {
   let service: CartService;
@@ -13,9 +14,12 @@ describe('CartService', () => {
   const mockPrisma = {
     cart: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       upsert: jest.fn(),
       create: jest.fn(),
+      update: jest.fn(),
       delete: jest.fn(),
+      deleteMany: jest.fn(),
     },
     cartItem: {
       findFirst: jest.fn(),
@@ -38,6 +42,7 @@ describe('CartService', () => {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      deleteMany: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -140,7 +145,7 @@ describe('CartService', () => {
           productId: 'p1',
           variantId: 'v1',
           quantity: 2,
-          type: 'sale',
+          type: CartItemType.SALE,
           product: {
             id: 'p1',
             name: 'Test',
@@ -232,7 +237,7 @@ describe('CartService', () => {
             variantId: 'variant-1',
             productId: 'product-1',
             quantity: 1,
-            type: 'sale',
+            type: CartItemType.SALE,
             product: {
               id: 'product-1',
               name: 'Test Product',
@@ -254,7 +259,7 @@ describe('CartService', () => {
 
       const result = await service.addItem(
         { userId: 'user-1' },
-        { variantId: 'variant-1', quantity: 1, type: 'sale' },
+        { variantId: 'variant-1', quantity: 1, type: CartItemType.SALE },
       );
 
       expect(result.itemCount).toBe(1);
@@ -272,7 +277,7 @@ describe('CartService', () => {
             variantId: 'variant-1',
             productId: 'product-1',
             quantity: 1,
-            type: 'sale',
+            type: CartItemType.SALE,
             product: {
               id: 'product-1',
               name: 'Test Product',
@@ -301,7 +306,7 @@ describe('CartService', () => {
             variantId: 'variant-1',
             productId: 'product-1',
             quantity: 3,
-            type: 'sale',
+            type: CartItemType.SALE,
             product: {
               id: 'product-1',
               name: 'Test Product',
@@ -323,7 +328,7 @@ describe('CartService', () => {
 
       const result = await service.addItem(
         { userId: 'user-1' },
-        { variantId: 'variant-1', quantity: 2, type: 'sale' },
+        { variantId: 'variant-1', quantity: 2, type: CartItemType.SALE },
       );
 
       expect(result.itemCount).toBe(3);
@@ -340,7 +345,7 @@ describe('CartService', () => {
       await expect(
         service.addItem(
           { userId: 'user-1' },
-          { variantId: 'variant-1', quantity: 1, type: 'sale' },
+          { variantId: 'variant-1', quantity: 1, type: CartItemType.SALE },
         ),
       ).rejects.toThrow(NotFoundException);
     });
@@ -355,7 +360,7 @@ describe('CartService', () => {
       await expect(
         service.addItem(
           { userId: 'user-1' },
-          { variantId: 'variant-1', quantity: 1, type: 'sale' },
+          { variantId: 'variant-1', quantity: 1, type: CartItemType.SALE },
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -371,7 +376,7 @@ describe('CartService', () => {
             variantId: 'variant-1',
             productId: 'product-1',
             quantity: 12, // Already has 12 in cart
-            type: 'sale',
+            type: CartItemType.SALE,
           },
         ],
       });
@@ -379,7 +384,7 @@ describe('CartService', () => {
       await expect(
         service.addItem(
           { userId: 'user-1' },
-          { variantId: 'variant-1', quantity: 5, type: 'sale' },
+          { variantId: 'variant-1', quantity: 5, type: CartItemType.SALE },
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -418,7 +423,7 @@ describe('CartService', () => {
           productId: 'product-1',
           variantId: 'variant-1',
           quantity: 1,
-          type: 'sale',
+          type: CartItemType.SALE,
           product: {
             id: 'product-1',
             name: 'Test Product',
@@ -439,7 +444,7 @@ describe('CartService', () => {
 
       const result = await service.addItem(
         { guestSessionId: 'guest-1' },
-        { variantId: 'variant-1', quantity: 1, type: 'sale' },
+        { variantId: 'variant-1', quantity: 1, type: CartItemType.SALE },
       );
 
       expect(result.itemCount).toBe(1);
@@ -460,7 +465,7 @@ describe('CartService', () => {
           productId: 'product-1',
           variantId: 'variant-1',
           quantity: 3,
-          type: 'sale',
+          type: CartItemType.SALE,
           product: {
             id: 'product-1',
             name: 'Test Product',
@@ -481,7 +486,7 @@ describe('CartService', () => {
 
       const result = await service.addItem(
         { guestSessionId: 'guest-1' },
-        { variantId: 'variant-1', quantity: 2, type: 'sale' },
+        { variantId: 'variant-1', quantity: 2, type: CartItemType.SALE },
       );
 
       expect(result.itemCount).toBe(3);
@@ -498,7 +503,7 @@ describe('CartService', () => {
       await expect(
         service.addItem(
           { guestSessionId: 'guest-1' },
-          { variantId: 'variant-1', quantity: 1, type: 'sale' },
+          { variantId: 'variant-1', quantity: 1, type: CartItemType.SALE },
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -513,7 +518,7 @@ describe('CartService', () => {
       await expect(
         service.addItem(
           { guestSessionId: 'guest-1' },
-          { variantId: 'variant-1', quantity: 5, type: 'sale' },
+          { variantId: 'variant-1', quantity: 5, type: CartItemType.SALE },
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -583,7 +588,7 @@ describe('CartService', () => {
                   productId: 'p1',
                   variantId: 'v1',
                   quantity: 2,
-                  type: 'sale',
+                  type: CartItemType.SALE,
                   rentStart: null,
                   rentEnd: null,
                 },
@@ -591,7 +596,7 @@ describe('CartService', () => {
                   productId: 'p2',
                   variantId: 'v2',
                   quantity: 1,
-                  type: 'sale',
+                  type: CartItemType.SALE,
                   rentStart: null,
                   rentEnd: null,
                 },
@@ -602,6 +607,7 @@ describe('CartService', () => {
           cart: {
             findUnique: jest.fn().mockResolvedValue(null),
             create: jest.fn().mockResolvedValue({ id: 'user-cart' }),
+            deleteMany: jest.fn(),
           },
           cartItem: {
             findFirst: jest.fn().mockResolvedValue(null),
@@ -623,7 +629,7 @@ describe('CartService', () => {
             findUnique: jest.fn().mockResolvedValue(null),
             delete: jest.fn(),
           },
-          cart: { findUnique: jest.fn(), create: jest.fn() },
+          cart: { findUnique: jest.fn(), create: jest.fn(), deleteMany: jest.fn() },
           cartItem: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
         });
       });
@@ -644,7 +650,7 @@ describe('CartService', () => {
                   productId: 'p1',
                   variantId: 'v1',
                   quantity: 2,
-                  type: 'sale',
+                  type: CartItemType.SALE,
                   rentStart: null,
                   rentEnd: null,
                 },
@@ -655,6 +661,7 @@ describe('CartService', () => {
           cart: {
             findUnique: jest.fn().mockResolvedValue({ id: 'user-cart' }),
             create: jest.fn(),
+            deleteMany: jest.fn(),
           },
           cartItem: {
             findFirst: jest.fn().mockResolvedValue({ id: 'existing', quantity: 1 }),
@@ -682,7 +689,7 @@ describe('CartService', () => {
             variantId: 'v1',
             productId: 'p1',
             quantity: 2,
-            type: 'sale',
+            type: CartItemType.SALE,
           },
           {
             id: 'gi-2',
@@ -690,7 +697,7 @@ describe('CartService', () => {
             variantId: 'v2',
             productId: 'p2',
             quantity: 1,
-            type: 'sale',
+            type: CartItemType.SALE,
           },
         ],
       };
@@ -705,7 +712,7 @@ describe('CartService', () => {
             variantId: 'v1',
             productId: 'p1',
             quantity: 1,
-            type: 'sale',
+            type: CartItemType.SALE,
           },
         ],
       };
@@ -743,6 +750,170 @@ describe('CartService', () => {
 
       expect(result.merged).toBe(true);
       expect(result.mergedItems).toBe(0);
+    });
+  });
+
+  describe('recoverCart (REQ-BE-005)', () => {
+    const userCartRow = {
+      id: 'cart-1',
+      userId: 'user-1',
+      guestSessionId: null,
+      abandonedAt: new Date('2026-07-20T00:00:00.000Z'),
+      recoveredAt: null,
+    };
+
+    const userCartWithItems = {
+      id: 'cart-1',
+      userId: 'user-1',
+      items: [
+        {
+          id: 'item-1',
+          variantId: 'v1',
+          productId: 'p1',
+          quantity: 1,
+          type: CartItemType.SALE,
+          product: {
+            id: 'p1',
+            name: 'Test Product',
+            slug: 'test-product',
+            images: [],
+            basePrice: 1000,
+            salePrice: null,
+          },
+          variant: {
+            id: 'v1',
+            size: 'M',
+            color: 'Red',
+            sku: 'SKU-1',
+            salePrice: null,
+          },
+        },
+      ],
+    };
+
+    it('marks an owned user cart recovered and returns its items', async () => {
+      mockPrisma.cart.findUnique
+        .mockResolvedValueOnce(userCartRow)
+        .mockResolvedValueOnce(userCartWithItems);
+      mockPrisma.cart.update.mockResolvedValue({});
+
+      const result = await service.recoverCart('cart-1', { userId: 'user-1' });
+
+      expect(result.cart.recoveredAt).toBeInstanceOf(Date);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].unitPrice).toBe(1000);
+      expect(mockPrisma.cart.update).toHaveBeenCalledWith({
+        where: { id: 'cart-1' },
+        data: { recoveredAt: expect.any(Date) },
+      });
+    });
+
+    it('throws 410 Gone when the link has already been used', async () => {
+      mockPrisma.cart.findUnique.mockResolvedValueOnce({
+        ...userCartRow,
+        recoveredAt: new Date('2026-07-21T00:00:00.000Z'),
+      });
+
+      await expect(service.recoverCart('cart-1', { userId: 'user-1' })).rejects.toThrow(
+        GoneException,
+      );
+      expect(mockPrisma.cart.update).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFound when the cart does not exist', async () => {
+      mockPrisma.cart.findUnique.mockResolvedValueOnce(null);
+
+      await expect(service.recoverCart('missing', { userId: 'user-1' })).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('does not let a customer claim another users cart (SEC-06)', async () => {
+      mockPrisma.cart.findUnique.mockResolvedValueOnce({
+        ...userCartRow,
+        userId: 'other-user',
+      });
+
+      await expect(service.recoverCart('cart-1', { userId: 'user-1' })).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('re-attaches a guest-owned cart to the customer and migrates items', async () => {
+      const guestCartRow = {
+        id: 'guest-cart-1',
+        userId: null,
+        guestSessionId: 'guest-session-1',
+        abandonedAt: new Date('2026-07-20T00:00:00.000Z'),
+        recoveredAt: null,
+      };
+
+      mockPrisma.cart.findUnique
+        .mockResolvedValueOnce(guestCartRow) // recoverCart lookup
+        .mockResolvedValueOnce({
+          id: 'guest-cart-1',
+          userId: 'user-1',
+          guestSessionId: null,
+          abandonedAt: guestCartRow.abandonedAt,
+          recoveredAt: new Date('2026-07-22T00:00:00.000Z'),
+        }) // buildUserRecovery lookup
+        .mockResolvedValueOnce(userCartWithItems); // loadRecoveryItems lookup
+
+      mockPrisma.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+        return cb({
+          cart: {
+            findUnique: jest.fn().mockResolvedValue(null),
+            update: jest.fn(),
+          },
+          guestCartItem: {
+            findMany: jest.fn().mockResolvedValue([
+              {
+                productId: 'p1',
+                variantId: 'v1',
+                quantity: 2,
+                type: CartItemType.SALE,
+                rentStart: null,
+                rentEnd: null,
+              },
+            ]),
+            deleteMany: jest.fn(),
+          },
+          cartItem: {
+            findFirst: jest.fn().mockResolvedValue(null),
+            create: jest.fn(),
+            update: jest.fn(),
+          },
+        });
+      });
+
+      const result = await service.recoverCart('guest-cart-1', { userId: 'user-1' });
+
+      expect(result.cart.userId).toBe('user-1');
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].unitPrice).toBe(1000);
+      expect(mockPrisma.cart.update).not.toHaveBeenCalled(); // update happened inside tx
+    });
+  });
+
+  describe('resolveOwnCartId (REQ-BE-005)', () => {
+    it('returns the current users cart id', async () => {
+      mockPrisma.cart.findUnique.mockResolvedValueOnce({ id: 'cart-1' });
+
+      const cartId = await service.resolveOwnCartId({ userId: 'user-1' });
+
+      expect(cartId).toBe('cart-1');
+      expect(mockPrisma.cart.findUnique).toHaveBeenCalledWith({
+        where: { userId: 'user-1' },
+        select: { id: true },
+      });
+    });
+
+    it('throws NotFound when no cart exists yet', async () => {
+      mockPrisma.cart.findUnique.mockResolvedValueOnce(null);
+
+      await expect(service.resolveOwnCartId({ userId: 'user-1' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

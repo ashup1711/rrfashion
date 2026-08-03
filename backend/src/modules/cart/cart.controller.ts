@@ -9,8 +9,15 @@ import {
   Req,
   UseGuards,
   ParseUUIDPipe,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiUnauthorizedResponse, ApiNotFoundResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiUnauthorizedResponse,
+  ApiNotFoundResponse,
+  ApiBadRequestResponse,
+  ApiGoneResponse,
+} from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
@@ -23,6 +30,11 @@ import { CartService, CartIdentifier } from './cart.service';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { CartResponseDto } from './dto/cart-response.dto';
+
+/** REQ-BE-005: stable token type claim so recovery JWTs are never mistaken for auth JWTs. */
+const CART_RECOVERY_TOKEN_TYPE = 'cart-recovery';
+/** REQ-BE-005: recovery links expire after 7 days. */
+const CART_RECOVERY_TOKEN_TTL = '7d';
 
 interface RequestUser {
   type?: string;
@@ -79,6 +91,49 @@ export class CartController {
     return this.cartService.addItem(toCartIdentifier(user), dto);
   }
 
+  // REQ-BE-003: canonical add-item endpoint. Alias of POST /api/cart/add with
+  // a relaxed guard (guests without a JWT reach the service and get a 400 for
+  // missing identity instead of a 401 — identity is still never client-supplied).
+  @UseGuards(StoreAuthGuard)
+  @AllowGuest(true)
+  @Post('items')
+  @ApiCommonResponse({
+    summary: 'Add item to cart (REQ-BE-003)',
+    status: 201,
+    type: CartResponseDto,
+  })
+  @ApiUnauthorizedResponse({ description: 'Invalid or expired token' })
+  @ApiBadRequestResponse({ description: 'Missing identity or invalid body' })
+  async addItemV2(@CurrentUser() user: RequestUser | null, @Body() dto: AddCartItemDto) {
+    return this.cartService.addItem(toCartIdentifier(user), dto);
+  }
+
+  // REQ-BE-005: mint a 7-day signed recovery JWT for the caller's own cart.
+  // Used by the abandonment email flow to build the /api/cart/recover/:token link.
+  @UseGuards(StoreAuthGuard)
+  @AllowGuest(false)
+  @Post('recovery-token')
+  @ApiCommonResponse({ summary: 'Generate cart recovery token' })
+  @ApiUnauthorizedResponse({ description: 'Authentication required — send a valid JWT' })
+  @ApiNotFoundResponse({ description: 'Cart not found — add items first' })
+  async createRecoveryToken(@CurrentUser() user: RequestUser) {
+    const cartId = await this.cartService.resolveOwnCartId(toCartIdentifier(user));
+    return { token: this.signRecoveryToken(cartId), expiresIn: CART_RECOVERY_TOKEN_TTL };
+  }
+
+  // REQ-BE-005: public recovery link — optional JWT (guest or customer).
+  @UseGuards(StoreAuthGuard)
+  @AllowGuest(true)
+  @Get('recover/:token')
+  @ApiCommonResponse({ summary: 'Recover an abandoned cart from a signed link', auth: false })
+  @ApiBadRequestResponse({ description: 'Invalid or expired recovery token' })
+  @ApiNotFoundResponse({ description: 'Cart not found' })
+  @ApiGoneResponse({ description: 'Recovery link has already been used' })
+  async recoverCart(@Param('token') token: string, @CurrentUser() user: RequestUser | null) {
+    const cartId = this.verifyRecoveryToken(token);
+    return this.cartService.recoverCart(cartId, toCartIdentifier(user));
+  }
+
   @UseGuards(StoreAuthGuard)
   @AllowGuest(false)
   @Patch('items/:itemId')
@@ -117,6 +172,38 @@ export class CartController {
     const guestSessionId = await this.resolveGuestSessionFromBearer(req);
     if (!guestSessionId) return { merged: 0, skipped: 0 };
     return this.cartService.mergeGuestSessionIntoUserCart(guestSessionId, userId);
+  }
+
+  /**
+   * REQ-BE-005: sign a recovery JWT `{ cartId, type: 'cart-recovery' }` with
+   * the customer JWT secret (JWT_SECRET) and a 7-day expiry.
+   */
+  private signRecoveryToken(cartId: string): string {
+    const secret = this.configService.get<string>('auth.jwtSecret', 'rr-fashion-jwt-secret-dev');
+    return this.jwtService.sign(
+      { cartId, type: CART_RECOVERY_TOKEN_TYPE },
+      { secret, expiresIn: CART_RECOVERY_TOKEN_TTL },
+    );
+  }
+
+  /**
+   * REQ-BE-005: verify a recovery JWT. Only `type === 'cart-recovery'` tokens
+   * are accepted — an auth JWT can never double as a recovery link.
+   */
+  private verifyRecoveryToken(token: string): string {
+    const secret = this.configService.get<string>('auth.jwtSecret', 'rr-fashion-jwt-secret-dev');
+    let payload: { cartId?: string; type?: string };
+    try {
+      payload = this.jwtService.verify(token, { secret }) as { cartId?: string; type?: string };
+    } catch {
+      throw new BadRequestException('Invalid or expired recovery token');
+    }
+
+    if (payload.type !== CART_RECOVERY_TOKEN_TYPE || !payload.cartId) {
+      throw new BadRequestException('Invalid or expired recovery token');
+    }
+
+    return payload.cartId;
   }
 
   /**

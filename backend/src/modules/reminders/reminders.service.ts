@@ -54,6 +54,9 @@ export class RemindersService {
       where: {
         updatedAt: { lt: cutoff },
         items: { some: {} },
+        // Guest carts (userId null) are handled by the polymorphic-cart
+        // abandonment flow (Batch 1C). This cron only targets user carts.
+        userId: { not: null },
       },
       include: {
         user: { select: { id: true } },
@@ -66,6 +69,12 @@ export class RemindersService {
     let notificationsCreated = 0;
 
     for (const cart of abandonedCarts) {
+      // Defensive: the userId filter above guarantees a non-null user, but
+      // keep the guard so the loop never dereferences a null relation.
+      if (!cart.user) {
+        continue;
+      }
+
       const notification = await this.prisma.notification.create({
         data: {
           userId: cart.user.id,

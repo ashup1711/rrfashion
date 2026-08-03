@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseGuards, Res } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, UseGuards, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
@@ -16,6 +16,9 @@ import { GuestResponseDto } from './dto/guest.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -111,6 +114,34 @@ export class AuthController {
   @ApiCommonResponse({ summary: 'Get current user profile' })
   async getMe(@CurrentUser('id') userId: string) {
     return this.authService.getMe(userId);
+  }
+
+  // REQ-BE-012: forgot / reset / change password flow.
+  // The forgot/reset endpoints are public and throttled to defend against
+  // email-enumeration and brute-force token guessing. The change endpoint
+  // requires an authenticated session (SEC-06).
+
+  @Public()
+  @Throttle({ auth: { ttl: 60000, limit: 5 } })
+  @Post('forgot-password')
+  @ApiCommonResponse({ summary: 'Request a password-reset email', auth: false })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60000, limit: 5 } })
+  @Post('reset-password')
+  @ApiCommonResponse({ summary: 'Reset password with a single-use token', auth: false })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.token, dto.newPassword);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('profile/password')
+  @ApiCommonResponse({ summary: 'Change password for the current user' })
+  async changePassword(@CurrentUser('id') userId: string, @Body() dto: ChangePasswordDto) {
+    return this.authService.changePassword(userId, dto);
   }
 
   @UseGuards(JwtAuthGuard)

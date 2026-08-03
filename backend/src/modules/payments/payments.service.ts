@@ -11,12 +11,14 @@ import CircuitBreaker from 'opossum';
 import { Counter, Histogram } from 'prom-client';
 import Razorpay from 'razorpay';
 import { createHmac } from 'crypto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { RedisService } from '../../redis/redis.service';
 import { InvoicesService } from '../invoices/invoices.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
+import { RefundStatusChangedEvent } from './events/refund-status-changed.event';
 
 @Injectable()
 export class PaymentsService implements OnModuleInit {
@@ -45,6 +47,7 @@ export class PaymentsService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly redis: RedisService,
     private readonly invoicesService: InvoicesService,
+    private readonly eventEmitter: EventEmitter2,
   ) {
     // Initialize circuit breaker immediately so it's available
     this.createOrderBreaker = new CircuitBreaker(this.createOrderInternal.bind(this), {
@@ -363,6 +366,9 @@ export class PaymentsService implements OnModuleInit {
     this.logger.debug({ eventId: resolvedEventId, payload }, 'Raw Razorpay webhook payload');
 
     const ordersNeedingInvoice: string[] = [];
+    // REQ-NOTIF-001: collect refunds that reached a terminal status inside the
+    // transaction and emit refund.status.changed AFTER commit (never inside).
+    const changedRefunds: RefundStatusChangedEvent[] = [];
 
     const result = await this.prisma.$transaction(async (tx) => {
       try {
@@ -385,12 +391,19 @@ export class PaymentsService implements OnModuleInit {
       const paymentEntity = (eventPayload?.payment as Record<string, unknown> | undefined)
         ?.entity as Record<string, unknown> | undefined;
 
-      if (!paymentEntity) {
+      // REQ-BE-009: refund events have a different payload shape — the
+      // outer `payload.refund.entity` is the refund object, not a payment.
+      // Resolve it once here so the switch cases can stay flat.
+      const refundEntity = (eventPayload?.refund as Record<string, unknown> | undefined)?.entity as
+        Record<string, unknown> | undefined;
+
+      if (!paymentEntity && !refundEntity) {
         return { received: true, ignored: true };
       }
 
       switch (payload.event) {
         case 'payment.captured': {
+          if (!paymentEntity) break;
           // First, try to find the payment by razorpayPaymentId (set during verifyPayment modal flow)
           let existing = await tx.payment.findFirst({
             where: { razorpayPaymentId: paymentEntity.id as string },
@@ -439,6 +452,7 @@ export class PaymentsService implements OnModuleInit {
         }
 
         case 'payment.failed': {
+          if (!paymentEntity) break;
           const existing = await tx.payment.findFirst({
             where: { razorpayOrderId: paymentEntity.order_id as string },
           });
@@ -457,6 +471,7 @@ export class PaymentsService implements OnModuleInit {
         }
 
         case 'payment.authorized': {
+          if (!paymentEntity) break;
           const existing = await tx.payment.findFirst({
             where: { razorpayPreAuthId: paymentEntity.id as string },
           });
@@ -472,6 +487,96 @@ export class PaymentsService implements OnModuleInit {
           break;
         }
 
+        // REQ-BE-009: handle Razorpay refund lifecycle events. Idempotent —
+        // the Refund.razorpayRefundId @unique constraint blocks duplicate
+        // INSERTs, and the status field is only ever advanced (never
+        // regressed) so a duplicate event is a no-op.
+        case 'refund.processed': {
+          if (refundEntity?.id) {
+            const refund = await tx.refund.findUnique({
+              where: { razorpayRefundId: refundEntity.id as string },
+            });
+            if (refund) {
+              if (refund.status === 'PROCESSED') {
+                this.logger.log(
+                  { refundId: refund.id, eventId: resolvedEventId },
+                  'refund.processed replayed — already PROCESSED, ignoring',
+                );
+              } else {
+                await tx.refund.update({
+                  where: { id: refund.id },
+                  data: {
+                    status: 'PROCESSED',
+                    processedAt: new Date(),
+                  },
+                });
+                this.logger.log(
+                  { refundId: refund.id, orderId: refund.orderId, eventId: resolvedEventId },
+                  'Refund marked PROCESSED by Razorpay webhook',
+                );
+                changedRefunds.push(
+                  new RefundStatusChangedEvent({
+                    refundId: refund.id,
+                    orderId: refund.orderId,
+                    status: 'PROCESSED',
+                    amount: Number(refund.amount),
+                    processedAt: new Date(),
+                  }),
+                );
+              }
+            } else {
+              this.logger.warn(
+                { razorpayRefundId: refundEntity.id, eventId: resolvedEventId },
+                'refund.processed received but no matching Refund row found',
+              );
+            }
+          }
+          break;
+        }
+
+        case 'refund.failed': {
+          if (refundEntity?.id) {
+            const refund = await tx.refund.findUnique({
+              where: { razorpayRefundId: refundEntity.id as string },
+            });
+            if (refund) {
+              if (refund.status === 'FAILED' || refund.status === 'PROCESSED') {
+                this.logger.log(
+                  { refundId: refund.id, eventId: resolvedEventId, currentStatus: refund.status },
+                  'refund.failed replayed on terminal status — ignoring',
+                );
+              } else {
+                await tx.refund.update({
+                  where: { id: refund.id },
+                  data: {
+                    status: 'FAILED',
+                    processedAt: new Date(),
+                  },
+                });
+                this.logger.warn(
+                  { refundId: refund.id, orderId: refund.orderId, eventId: resolvedEventId },
+                  'Refund marked FAILED by Razorpay webhook',
+                );
+                changedRefunds.push(
+                  new RefundStatusChangedEvent({
+                    refundId: refund.id,
+                    orderId: refund.orderId,
+                    status: 'FAILED',
+                    amount: Number(refund.amount),
+                    processedAt: new Date(),
+                  }),
+                );
+              }
+            } else {
+              this.logger.warn(
+                { razorpayRefundId: refundEntity.id, eventId: resolvedEventId },
+                'refund.failed received but no matching Refund row found',
+              );
+            }
+          }
+          break;
+        }
+
         default:
           this.logger.log(`Unhandled webhook event: ${String(payload.event)}`);
       }
@@ -482,6 +587,13 @@ export class PaymentsService implements OnModuleInit {
     // Finalize inventory and generate invoices outside the DB transaction
     for (const orderId of ordersNeedingInvoice) {
       await this.finalizeSaleAfterPayment(orderId);
+    }
+
+    // REQ-NOTIF-001: emit refund.status.changed AFTER the transaction commits so
+    // listeners never observe uncommitted data. Events are fire-and-forget on
+    // the in-process EventEmitter2 bus (retries via the notifications queue).
+    for (const event of changedRefunds) {
+      this.eventEmitter.emit(RefundStatusChangedEvent.eventName, event);
     }
 
     return result;

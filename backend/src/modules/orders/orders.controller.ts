@@ -1,5 +1,13 @@
 import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, Res } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiBadRequestResponse,
+  ApiNotFoundResponse,
+  ApiForbiddenResponse,
+} from '@nestjs/swagger';
 import { Response } from 'express';
 import { ApiCommonResponse } from '../../common/decorators/api-response.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -16,6 +24,7 @@ import { GuestCheckoutDto } from './dto/guest-checkout.dto';
 import { RepurchaseResponseDto } from './dto/repurchase-response.dto';
 import { InitiateReturnDto } from './dto/initiate-return.dto';
 import { ApplyCouponDto } from './dto/apply-coupon.dto';
+import { CancelOrderDto } from './dto/cancel-order.dto';
 
 @ApiTags('Orders')
 @Controller('orders')
@@ -93,6 +102,49 @@ export class OrdersController {
     @GuestSessionId() guestSessionId?: string,
   ) {
     return this.ordersService.repurchaseOrder(userId, id, guestSessionId);
+  }
+
+  // REQ-BE-001: customer-facing cancellation.
+  // - PENDING / CONFIRMED can be cancelled by the customer.
+  // - Admin (role claim from token) gets PROCESSING override.
+  // - Anything else (SHIPPED, DELIVERED, RETURNED, etc.) → 400.
+  @UseGuards(StoreAuthGuard)
+  @AllowGuest(false)
+  @Post(':id/cancel')
+  @ApiOperation({ summary: 'Cancel an order (customer or admin override)' })
+  @ApiBearerAuth()
+  @ApiOkResponse({
+    description: 'Order cancelled',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        data: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            status: { type: 'string', example: 'CANCELLED' },
+            refundId: { type: 'string', nullable: true },
+            cancelledAt: { type: 'string', format: 'date-time' },
+            orderNumber: { type: 'string' },
+          },
+        },
+        timestamp: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
+  @ApiBadRequestResponse({ description: 'Order cannot be cancelled in its current status' })
+  @ApiNotFoundResponse({ description: 'Order not found' })
+  @ApiForbiddenResponse({ description: 'Caller does not own this order' })
+  async cancel(
+    @CurrentUser('id') userId: string | null,
+    @CurrentUser() currentUser: Record<string, unknown> | null,
+    @Param('id') id: string,
+    @Body() dto: CancelOrderDto,
+    @GuestSessionId() guestSessionId?: string,
+  ) {
+    const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.type === 'admin';
+    return this.ordersService.cancel(id, dto, userId ?? null, guestSessionId ?? null, !!isAdmin);
   }
 
   /**

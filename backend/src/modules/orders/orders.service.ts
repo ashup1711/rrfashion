@@ -8,6 +8,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
@@ -23,7 +24,9 @@ import { ApplyCouponDto } from './dto/apply-coupon.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { UpdateOrderPaymentStatusDto } from './dto/update-order-payment-status.dto';
 import { AdminOrderQueryDto } from './dto/admin-order-query.dto';
-import { OrderStatus, PaymentStatus } from '@prisma/client';
+import { CancelOrderDto } from './dto/cancel-order.dto';
+import { OrderCancelledEvent, OrderCancelledItem } from './events/order-cancelled.event';
+import { OrderStatus, PaymentStatus, ActorType } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { Prisma } from '@prisma/client';
 import { calculateTax, isInterStateShipping } from '../../common/utils/tax.util';
@@ -88,6 +91,7 @@ export class OrdersService {
     private readonly paymentsService: PaymentsService,
     private readonly invoicesService: InvoicesService,
     private readonly config: ConfigService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -1279,6 +1283,339 @@ export class OrdersService {
       shippingAddress: dto.shippingAddress,
       paymentMethod: dto.paymentMethod,
       createdAt: order.createdAt,
+    };
+  }
+
+  // ──────────────────────────────────────────────
+  //  REQ-BE-001 / REQ-BE-002: Customer cancellation
+  // ──────────────────────────────────────────────
+
+  /**
+   * Allowed status transitions for the customer-facing cancel endpoint.
+   * Admin override is handled separately so the controller can document
+   * the rule clearly to operators (vs. inlining it in the service).
+   */
+  static readonly CUSTOMER_CANCELLABLE_STATUSES: ReadonlyArray<OrderStatus> = [
+    OrderStatus.PENDING,
+    OrderStatus.CONFIRMED,
+  ];
+  // REQ-BE-001: the admin override is documented in the research report
+  // and the CancelOrderDto description but the live OrderStatus enum
+  // does not currently include a 'PROCESSING' value. We use a string
+  // literal so the override still compiles if/when PROCESSING is added;
+  // the runtime check will simply never match a missing value.
+  static readonly ADMIN_CANCELLABLE_STATUSES: ReadonlyArray<OrderStatus> = [
+    OrderStatus.PENDING,
+    OrderStatus.CONFIRMED,
+    'PROCESSING' as OrderStatus,
+  ];
+
+  /**
+   * REQ-BE-001 / REQ-BE-002: Cancel an order.
+   *
+   * Rules:
+   * - Status must be PENDING or CONFIRMED for the customer.
+   * - Admin (req.user.role === ADMIN) may also cancel PROCESSING.
+   * - SHIPPED / DELIVERED / already-CANCELLED orders return 400.
+   * - Caller must own the order OR be an admin (assertOrderOwnership +
+   *   admin bypass).
+   *
+   * Side effects, all wrapped in a single Prisma transaction:
+   * - Order.status → CANCELLED, cancelledAt / cancelledBy /
+   *   cancellationReason fields populated.
+   * - OrderStatusLog entry with actorType and metadata.
+   * - InventorySummary restored for each non-rental OrderItem variant
+   *   (rental items release the InventoryUnit + cancel RentalBooking
+   *   instead).
+   * - If paymentStatus = PAID, a Refund row is created in INITIATED state
+   *   and PaymentsService.refund is called outside the transaction.
+   * - After commit, an OrderCancelledEvent is emitted for downstream
+   *   listeners (notifications, analytics).
+   */
+  async cancel(
+    orderId: string,
+    dto: CancelOrderDto,
+    userId: string | null,
+    guestSessionId: string | null,
+    isAdmin: boolean,
+  ): Promise<{
+    id: string;
+    status: 'CANCELLED';
+    refundId: string | null;
+    cancelledAt: string;
+    orderNumber: string;
+  }> {
+    // Coerce `string | null` -> `string | undefined` for the legacy
+    // ownership helpers. The helpers accept null as "absent" anyway
+    // (their !userId && !guestSessionId guard handles both), so the
+    // null/undefined distinction carries no semantic weight.
+    this.assertOwnerContext(userId ?? undefined, guestSessionId ?? undefined);
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: {
+          select: {
+            id: true,
+            productId: true,
+            variantId: true,
+            quantity: true,
+            type: true,
+            unitPrice: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    // Ownership check — admin bypass is applied here so non-admin callers
+    // still get the existing IDOR-safe assertOrderOwnership behaviour.
+    if (isAdmin) {
+      // Admin can act on any order regardless of userId / guestSessionId.
+      this.logger.log({
+        orderId,
+        adminId: userId,
+        action: 'order.cancel.admin-override',
+      });
+    } else {
+      this.assertOrderOwnership(order, userId ?? undefined, guestSessionId ?? undefined);
+    }
+
+    const cancellableStatuses = isAdmin
+      ? OrdersService.ADMIN_CANCELLABLE_STATUSES
+      : OrdersService.CUSTOMER_CANCELLABLE_STATUSES;
+
+    if (!cancellableStatuses.includes(order.status)) {
+      // SHIPPED / DELIVERED / OUT_FOR_DELIVERY / RETURNED / CANCELLED /
+      // PARTIALLY_CANCELLED — all rejected with a 400.
+      throw new BadRequestException(
+        `Order in status ${order.status} cannot be cancelled (cancellable: ${cancellableStatuses.join(', ')})`,
+      );
+    }
+
+    // Resolve a storeId for inventory restoration. Fall back to first
+    // active store when the order has none (defensive — orders should
+    // always have a storeId in practice).
+    let storeId = order.storeId;
+    if (!storeId) {
+      const defaultStore = await this.prisma.storeLocation.findFirst({
+        where: { isActive: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (!defaultStore) {
+        throw new BadRequestException('No active store found. Please contact support.');
+      }
+      storeId = defaultStore.id;
+    }
+
+    // Snapshot items + rental bookings for the event payload and for the
+    // post-commit refund flow. We also need the rental booking ids up front
+    // so we can cancel them inside the same transaction.
+    const itemSnapshots: OrderCancelledItem[] = order.items.map((item) => ({
+      orderItemId: item.id,
+      productId: item.productId,
+      variantId: item.variantId,
+      quantity: item.quantity,
+      unitPricePaise: Number(item.unitPrice) * 100,
+      isRental: item.type === 'rent',
+    }));
+    const rentalOrderItemIds = itemSnapshots
+      .filter((item) => item.isRental)
+      .map((item) => item.orderItemId);
+
+    const rentalBookings = rentalOrderItemIds.length
+      ? await this.prisma.rentalBooking.findMany({
+          where: { orderItemId: { in: rentalOrderItemIds } },
+          select: { id: true, unitId: true, storeId: true, status: true },
+        })
+      : [];
+
+    const refundShouldFire = order.paymentStatus === PaymentStatus.PAID;
+
+    // Single transaction: status update, audit log, inventory restore, rental
+    // release. Refund is created here as INITIATED (so the row exists even
+    // if the Razorpay call fails) but the Razorpay API call happens outside
+    // the transaction to avoid holding a long lock.
+    const { cancelledOrder, refundId } = await this.prisma.$transaction(async (tx) => {
+      const cancelled = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: OrderStatus.CANCELLED,
+          cancelledAt: new Date(),
+          cancelledBy: userId ?? null,
+          cancellationReason: dto.reason,
+        },
+        select: {
+          id: true,
+          orderNumber: true,
+          cancelledAt: true,
+        },
+      });
+
+      await tx.orderStatusLog.create({
+        data: {
+          orderId,
+          fromStatus: order.status,
+          toStatus: OrderStatus.CANCELLED,
+          changedBy: userId ?? null,
+          note: dto.notes ?? null,
+          actorType: isAdmin ? ActorType.ADMIN : ActorType.USER,
+          reason: dto.reason,
+          metadata: {
+            source: isAdmin ? 'admin-override' : 'customer-cancel',
+            adminOverride: isAdmin,
+            notes: dto.notes ?? null,
+          },
+        },
+      });
+
+      // Restore non-rental inventory.
+      for (const item of order.items) {
+        if (!item.variantId || item.type === 'rent') continue;
+
+        const locked = await tx.$queryRaw<Array<InventorySummaryLock>>`
+          SELECT * FROM inventory_summary
+          WHERE "variantId" = ${item.variantId} AND "storeId" = ${storeId}
+          FOR UPDATE;
+        `;
+        const summary = locked[0];
+        if (!summary) continue;
+
+        // Decrement the side that originally consumed the unit
+        // (reserved during checkout, sold at sale finalization).
+        const decrementField =
+          summary.quantitySold >= item.quantity
+            ? { quantitySold: { decrement: item.quantity } }
+            : { quantityReserved: { decrement: item.quantity } };
+
+        await tx.inventorySummary.update({
+          where: {
+            variantId_storeId: { variantId: item.variantId, storeId: storeId! },
+          },
+          data: {
+            quantityAvailable: { increment: item.quantity },
+            ...decrementField,
+          },
+        });
+      }
+
+      // Release rental units + cancel any open rental bookings.
+      for (const booking of rentalBookings) {
+        if (booking.status === 'CLOSED' || booking.status === 'CANCELLED') continue;
+
+        await tx.rentalBooking.update({
+          where: { id: booking.id },
+          data: { status: 'CANCELLED' },
+        });
+        await tx.inventoryUnit.update({
+          where: { id: booking.unitId },
+          data: { status: 'AVAILABLE' },
+        });
+      }
+
+      // Create the Refund row up front (INITIATED) so the id is available
+      // for the event payload. The actual Razorpay call is best-effort and
+      // happens after commit so the transaction window stays small.
+      let createdRefundId: string | null = null;
+      if (refundShouldFire) {
+        const payment = await tx.payment.findFirst({
+          where: { orderId, status: PaymentStatus.PAID },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (payment?.razorpayPaymentId) {
+          // Reserve a placeholder razorpayRefundId; we'll overwrite with
+          // the real id after the Razorpay API call. Using a UUID v4 keeps
+          // it unique even if the API call fails.
+          const placeholder = `pending-${uuidv4()}`;
+          const refund = await tx.refund.create({
+            data: {
+              orderId,
+              amount: order.totalAmount,
+              razorpayRefundId: placeholder,
+              status: 'INITIATED',
+              reason: `order-cancel:${dto.reason}`,
+            },
+          });
+          createdRefundId = refund.id;
+        }
+      }
+
+      return { cancelledOrder: cancelled, refundId: createdRefundId };
+    });
+
+    // After the DB transaction: kick off the actual Razorpay refund (best-
+    // effort). Failure is logged but does not roll back the cancellation
+    // — the Refund row stays in INITIATED for retry via the webhook path.
+    const finalRefundId: string | null = refundId;
+    if (refundShouldFire) {
+      try {
+        const payment = await this.prisma.payment.findFirst({
+          where: { orderId, status: PaymentStatus.PAID },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (payment && refundId) {
+          const refundResult = await this.paymentsService.refund(payment.id);
+          const refundData = refundResult as { id?: string };
+          if (refundData.id) {
+            await this.prisma.refund.update({
+              where: { id: refundId },
+              data: { razorpayRefundId: refundData.id, status: 'INITIATED' },
+            });
+          }
+        }
+      } catch (error) {
+        this.logger.error(
+          {
+            orderId,
+            refundId,
+            error: (error as Error).message,
+            action: 'order.cancel.refund.failed',
+          },
+          'Razorpay refund call failed during order cancellation; refund row remains INITIATED for retry',
+        );
+        // Intentionally do not throw — the cancellation is committed, the
+        // Refund row is durable, and the webhook will reconcile when the
+        // gateway processes the refund asynchronously.
+      }
+    }
+
+    // REQ-BE-002: emit the OrderCancelledEvent for downstream listeners.
+    // The payload is fully resolved at this point so listeners never need
+    // to re-read the DB for the core fields.
+    const event = new OrderCancelledEvent({
+      orderId: cancelledOrder.id,
+      orderNumber: cancelledOrder.orderNumber,
+      userId: order.userId,
+      guestSessionId: order.guestSessionId,
+      refundId: finalRefundId,
+      cancelledBy: isAdmin ? 'ADMIN' : 'USER',
+      actorId: userId,
+      reason: dto.reason,
+      totalAmountPaise: Number(order.totalAmount) * 100,
+      paymentStatus: order.paymentStatus,
+      items: itemSnapshots,
+      cancelledAt: cancelledOrder.cancelledAt ?? new Date(),
+    });
+    this.eventEmitter.emit(OrderCancelledEvent.eventName, event);
+
+    this.logger.log({
+      orderId,
+      orderNumber: cancelledOrder.orderNumber,
+      userId: order.userId,
+      refundId: finalRefundId,
+      reason: dto.reason,
+      action: 'order.cancelled',
+    });
+
+    return {
+      id: cancelledOrder.id,
+      status: 'CANCELLED',
+      refundId: finalRefundId,
+      cancelledAt: (cancelledOrder.cancelledAt ?? new Date()).toISOString(),
+      orderNumber: cancelledOrder.orderNumber,
     };
   }
 

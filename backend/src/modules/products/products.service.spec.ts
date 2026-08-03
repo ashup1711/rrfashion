@@ -30,6 +30,7 @@ describe('ProductsService', () => {
     },
     productVariant: {
       findMany: jest.fn(),
+      groupBy: jest.fn().mockResolvedValue([]),
     },
   };
 

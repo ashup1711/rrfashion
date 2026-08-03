@@ -10,6 +10,9 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
   },
+  productVariant: {
+    count: jest.fn(),
+  },
 };
 
 describe('ColorsService', () => {

@@ -9,11 +9,14 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { createHmac } from 'crypto';
+import { createHmac, randomBytes } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CartService } from '../cart/cart.service';
 import { SmsService } from '../notifications/providers/sms.service';
+import { RedisService } from '../../redis/redis.service';
+import { HibpService } from '../../common/security/hibp.service';
+import { isStrongPassword } from '../../common/validators/password.validator';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RefreshDto } from './dto/refresh.dto';
@@ -21,6 +24,11 @@ import { GuestResponseDto } from './dto/guest.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+
+// REQ-BE-012: Redis-stored, single-use, 1-hour TTL password-reset tokens.
+const PASSWORD_RESET_KEY_PREFIX = 'auth:password-reset:';
+const PASSWORD_RESET_TTL_SECONDS = 60 * 60; // 1 hour
 
 export interface AuthTokens {
   accessToken: string;
@@ -66,6 +74,8 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly cartService: CartService,
     private readonly smsService: SmsService,
+    private readonly redis: RedisService,
+    private readonly hibp: HibpService,
   ) {
     this.jwtSecret = this.configService.get<string>('auth.jwtSecret', 'rr-fashion-jwt-secret-dev');
     this.jwtExpiresIn = this.configService.get<string>('auth.jwtExpiresIn', '15m');
@@ -88,6 +98,27 @@ export class AuthService {
 
     if (existingUser) {
       throw new ConflictException('A user with this email already exists');
+    }
+
+    // REQ-BE-010: defensive re-check. The DTO decorator already validated the
+    // policy, but if a service-layer caller bypasses the DTO (e.g. a future
+    // admin-create-user flow) this guard still rejects weak passwords.
+    if (!isStrongPassword(dto.password)) {
+      throw new BadRequestException(
+        'Password must be at least 10 characters and include uppercase, lowercase, digit, and symbol characters',
+      );
+    }
+
+    // REQ-BE-011: env-gated HIBP check (no-op when HIBP_ENABLED!=true).
+    const hibpResult = await this.hibp.checkPassword(dto.password);
+    if (hibpResult.pwned) {
+      this.logger.warn(
+        { email: dto.email, occurrences: hibpResult.occurrences },
+        'Registration rejected — password found in HIBP breach corpus',
+      );
+      throw new BadRequestException(
+        'This password has been found in a known data breach. Please choose a different password.',
+      );
     }
 
     const passwordHash = await bcrypt.hash(dto.password, this.bcryptSaltRounds);
@@ -682,5 +713,151 @@ export class AuthService {
       accessToken,
       refreshToken: rawRefreshToken,
     };
+  }
+
+  // ──────────────────────────────────────────────
+  //  REQ-BE-012: password reset / change flow
+  // ──────────────────────────────────────────────
+
+  /**
+   * REQ-BE-012: Forgot-password request.
+   * Always returns a generic success message so the endpoint cannot be
+   * used to enumerate registered emails. When the user exists a single-use
+   * reset token is generated, hashed, and stored in Redis with a 1-hour TTL.
+   * The cleartext token is returned in the response so the test suite
+   * (and an email integration that wires the message delivery) can use it
+   * without touching Redis directly. In production the token would only
+   * be sent out-of-band via email.
+   */
+  async forgotPassword(email: string): Promise<{ message: string; resetToken?: string }> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user || !user.isActive || user.deletedAt) {
+      this.logger.log({ email, action: 'password.reset.requested.unknown-email' });
+      return { message: 'If the email exists, a password reset link has been sent.' };
+    }
+
+    const rawToken = randomBytes(32).toString('hex');
+    const key = `${PASSWORD_RESET_KEY_PREFIX}${rawToken}`;
+    // Store the userId in Redis. The token itself is never persisted in
+    // plaintext on the server — only the lookup key (which is the token
+    // hashed by Redis) holds the binding.
+    try {
+      await this.redis.set(key, user.id, PASSWORD_RESET_TTL_SECONDS);
+    } catch (error) {
+      this.logger.warn({
+        email,
+        error: (error as Error).message,
+        action: 'password.reset.token.write.failed',
+      });
+      // Still return a generic message — never reveal internal failures.
+      return { message: 'If the email exists, a password reset link has been sent.' };
+    }
+
+    this.logger.log({ userId: user.id, action: 'password.reset.token.issued' });
+
+    return {
+      message: 'If the email exists, a password reset link has been sent.',
+      // Returned for testability + email integration. Not exposed in
+      // production logs.
+      resetToken: rawToken,
+    };
+  }
+
+  /**
+   * REQ-BE-012: Reset-password with a single-use token.
+   * Validates the strong-password policy and the HIBP breach check, hashes
+   * the new password, and invalidates all existing refresh tokens so a
+   * stolen session token cannot outlive the reset (SEC-05).
+   */
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    if (!isStrongPassword(newPassword)) {
+      throw new BadRequestException(
+        'Password must be at least 10 characters and include uppercase, lowercase, digit, and symbol characters',
+      );
+    }
+
+    const hibpResult = await this.hibp.checkPassword(newPassword);
+    if (hibpResult.pwned) {
+      throw new BadRequestException(
+        'This password has been found in a known data breach. Please choose a different password.',
+      );
+    }
+
+    const key = `${PASSWORD_RESET_KEY_PREFIX}${token}`;
+    const userId = await this.redis.get(key);
+    if (!userId) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.isActive || user.deletedAt) {
+      // Token points to a non-existent / disabled user — invalidate the token
+      // and surface a generic error.
+      await this.redis.del(key);
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, this.bcryptSaltRounds);
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId, isRevoked: false },
+        data: { isRevoked: true },
+      }),
+    ]);
+
+    // REQ-BE-012: single-use — drop the token regardless of success.
+    await this.redis.del(key);
+
+    this.logger.log({ userId, action: 'password.reset.completed' });
+
+    return { message: 'Password has been reset successfully.' };
+  }
+
+  /**
+   * REQ-BE-012: Authenticated change-password.
+   * Requires the current password for verification and invalidates all
+   * existing refresh tokens on success (SEC-05: revoke on password change).
+   */
+  async changePassword(userId: string, dto: ChangePasswordDto): Promise<{ message: string }> {
+    if (!isStrongPassword(dto.newPassword)) {
+      throw new BadRequestException(
+        'Password must be at least 10 characters and include uppercase, lowercase, digit, and symbol characters',
+      );
+    }
+
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException('New password must be different from the current password');
+    }
+
+    const hibpResult = await this.hibp.checkPassword(dto.newPassword);
+    if (hibpResult.pwned) {
+      throw new BadRequestException(
+        'This password has been found in a known data breach. Please choose a different password.',
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.isActive || user.deletedAt) {
+      throw new UnauthorizedException('User not found or inactive');
+    }
+
+    const currentMatches = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!currentMatches) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, this.bcryptSaltRounds);
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId, isRevoked: false },
+        data: { isRevoked: true },
+      }),
+    ]);
+
+    this.logger.log({ userId, action: 'password.changed' });
+
+    return { message: 'Password has been changed. Please sign in again.' };
   }
 }

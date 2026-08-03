@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CartService } from '../cart/cart.service';
+import { CartItemType } from '../cart/dto/add-cart-item.dto';
 import { GuestSessionService } from '../guest/guest-session.service';
 import { AddWishlistDto } from './dto/add-wishlist.dto';
 
@@ -343,7 +344,7 @@ export class WishlistService {
         await this.cartService.addItem(identifier, {
           variantId: entry.variantId,
           quantity: 1,
-          type: 'sale',
+          type: CartItemType.SALE,
         });
         added++;
       } catch {

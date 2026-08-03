@@ -6,6 +6,8 @@ import { AuthService } from './auth.service';
 import { CartModule } from '../cart/cart.module';
 import { WishlistModule } from '../wishlist/wishlist.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { RedisModule } from '../../redis/redis.module';
+import { HibpService } from '../../common/security/hibp.service';
 
 @Module({
   imports: [
@@ -22,9 +24,10 @@ import { NotificationsModule } from '../notifications/notifications.module';
     CartModule,
     WishlistModule,
     NotificationsModule,
+    RedisModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService],
-  exports: [AuthService, JwtModule],
+  providers: [AuthService, HibpService],
+  exports: [AuthService, JwtModule, HibpService],
 })
 export class AuthModule {}

@@ -6,14 +6,14 @@ import {
   Delete,
   Body,
   Param,
+  BadRequestException,
+  PayloadTooLargeException,
   UseGuards,
   UseInterceptors,
   UploadedFile,
-  ParseFilePipe,
-  MaxFileSizeValidator,
-  FileTypeValidator,
   HttpCode,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { ApiTags, ApiConsumes, ApiBody, ApiAcceptedResponse } from '@nestjs/swagger';
@@ -30,16 +30,33 @@ import { ImageUploadService } from '../upload/image-upload.service';
 import { mkdirSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 
+const DEFAULT_UPLOAD_MAX_PROFILE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB (REQ-BE-014)
+
 const PROFILE_PHOTO_TEMP_DIR = './uploads/temp';
 mkdirSync(PROFILE_PHOTO_TEMP_DIR, { recursive: true });
 
 @ApiTags('Users')
 @Controller()
 export class UsersController {
+  // Cached lazily on first request — the controller is instantiated by
+  // NestJS DI before any handler runs, but the size validator is evaluated
+  // before the constructor, so we resolve the value on demand.
+  private cachedProfilePhotoMaxBytes: number | null = null;
+
   constructor(
     private readonly usersService: UsersService,
     private readonly uploadService: ImageUploadService,
+    private readonly config: ConfigService,
   ) {}
+
+  private getProfilePhotoMaxBytes(): number {
+    if (this.cachedProfilePhotoMaxBytes === null) {
+      const raw = parseInt(this.config.get<string>('UPLOAD_MAX_PROFILE_SIZE_BYTES', '') ?? '', 10);
+      this.cachedProfilePhotoMaxBytes =
+        Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_UPLOAD_MAX_PROFILE_SIZE_BYTES;
+    }
+    return this.cachedProfilePhotoMaxBytes;
+  }
 
   @Post('users')
   @ApiCommonResponse({
@@ -114,6 +131,9 @@ export class UsersController {
           cb(null, `${uuidv4()}.${ext}`);
         },
       }),
+      // REQ-BE-013 / REQ-BE-014: hard ceiling above the per-route cap as a
+      // DoS safety net. The actual env-driven limit is checked after
+      // construction (see below).
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
@@ -129,16 +149,31 @@ export class UsersController {
   @ApiAcceptedResponse({ description: 'Upload accepted, processing in background' })
   async uploadProfilePhoto(
     @CurrentUser('id') userId: string,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: /(jpg|jpeg|png|webp)$/ }),
-        ],
-      }),
-    )
-    file: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File,
   ): Promise<{ uploadId: string; status: string }> {
+    // Manual env-driven size + mime checks (see UploadsController for the
+    // rationale: NestJS evaluates decorator arguments before the controller
+    // is constructed, so `this.config` is not yet available there).
+    if (!file) {
+      throw new BadRequestException('file is required');
+    }
+    const cap = this.getProfilePhotoMaxBytes();
+    if (file.size > cap) {
+      // REQ-BE-013: reject oversized profile uploads with a 413, matching
+      // the product-image route and the ParseFilePipe contract.
+      throw new PayloadTooLargeException(
+        `Profile photo exceeds the maximum allowed size of ${cap} bytes (got ${file.size})`,
+      );
+    }
+    if (
+      file.mimetype !== 'image/jpeg' &&
+      file.mimetype !== 'image/png' &&
+      file.mimetype !== 'image/webp'
+    ) {
+      throw new BadRequestException(
+        `Invalid profile photo type: ${file.mimetype}. Allowed: jpg, jpeg, png, webp`,
+      );
+    }
     return this.uploadService.queueProfilePhotoUpload(userId, file);
   }
 }

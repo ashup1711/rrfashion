@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, Header } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -14,6 +14,13 @@ import { ExportQueryDto } from './dto/export-query.dto';
 @ApiTags('Analytics')
 @UseGuards(AdminJwtAuthGuard, RolesGuard)
 @Roles('SUPER_ADMIN', 'ADMIN')
+/**
+ * SEC-14: every route below carries `Cache-Control: no-store` — admin insights and
+ * export responses are authenticated and commercially sensitive, so no browser or
+ * shared/proxy cache may store them. The global `noStoreMiddleware` allow-list only
+ * covers /api/cart|wishlist|auth|orders|profile|guest, so /api/admin/analytics/*
+ * sets the header explicitly per handler (`@Header` is a method-only decorator).
+ */
 @Controller('admin/analytics')
 export class AnalyticsController {
   constructor(
@@ -22,18 +29,21 @@ export class AnalyticsController {
   ) {}
 
   @Get('dashboard')
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Dashboard aggregation (revenue, orders, growth)' })
   async dashboard(@Query() query: DashboardQueryDto) {
     return this.analyticsService.dashboard(query.view || 'month');
   }
 
   @Get('revenue-chart')
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Revenue trend over time' })
   async revenueChart(@Query() query: DashboardQueryDto) {
     return this.analyticsService.revenueChart(query.view || 'month');
   }
 
   @Get('top-products')
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Top-selling products by revenue/units' })
   async topProducts(@Query() query: TopProductsQueryDto) {
     let startDate: Date;
@@ -59,6 +69,7 @@ export class AnalyticsController {
   }
 
   @Post('export')
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Request async report export (PDF/Excel)' })
   async export(@Body() dto: ExportQueryDto, @CurrentUser('id') adminId: string) {
     const report = await this.analyticsService.createReport(

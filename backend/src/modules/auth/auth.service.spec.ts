@@ -7,6 +7,8 @@ import { AuthService } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CartService } from '../cart/cart.service';
 import { SmsService } from '../notifications/providers/sms.service';
+import { RedisService } from '../../redis/redis.service';
+import { HibpService } from '../../common/security/hibp.service';
 
 jest.mock('bcrypt');
 
@@ -70,6 +72,10 @@ describe('AuthService', () => {
     findCart: jest.fn(),
   };
 
+  const mockHibpService = {
+    checkPassword: jest.fn().mockResolvedValue({ pwned: false }),
+  };
+
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -108,6 +114,18 @@ describe('AuthService', () => {
             send: jest.fn().mockResolvedValue(true),
           },
         },
+        {
+          provide: RedisService,
+          useValue: {
+            get: jest.fn().mockResolvedValue(null),
+            set: jest.fn().mockResolvedValue('OK'),
+            del: jest.fn().mockResolvedValue(1),
+          },
+        },
+        {
+          provide: HibpService,
+          useValue: mockHibpService,
+        },
       ],
     }).compile();
     service = module.get<AuthService>(AuthService);
@@ -123,6 +141,8 @@ describe('AuthService', () => {
     mockCartService.addItem.mockResolvedValue(undefined);
     mockCartService.mergeGuestCartIntoUserCart.mockResolvedValue({ merged: true, mergedItems: 0 });
     mockCartService.findCart.mockResolvedValue(undefined);
+    // REQ-BE-011: default "not pwned" HIBP response (resetAllMocks wipes it).
+    mockHibpService.checkPassword.mockResolvedValue({ pwned: false });
   });
 
   it('should be defined', () => {
@@ -335,6 +355,7 @@ describe('AuthService', () => {
                 { variantId: 'vw1', notifyOnRestock: false, notifyOnPriceDrop: false },
                 { variantId: 'vw2', notifyOnRestock: true, notifyOnPriceDrop: false },
               ],
+              addresses: [],
             }),
             delete: jest.fn(),
           },
@@ -351,6 +372,9 @@ describe('AuthService', () => {
             findMany: jest.fn().mockResolvedValue([]),
             createMany: jest.fn(),
           },
+          order: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          review: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          userAddress: { createMany: jest.fn() },
         });
       });
 
@@ -370,12 +394,21 @@ describe('AuthService', () => {
           cart: { findUnique: jest.fn(), create: jest.fn() },
           cartItem: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
           wishlist: { findMany: jest.fn(), createMany: jest.fn() },
+          order: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          review: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          userAddress: { createMany: jest.fn() },
         });
       });
 
       const result = await service.migrateGuestSessionToUser('missing', 'user-1');
 
-      expect(result).toEqual({ cartItems: 0, wishlistItems: 0 });
+      expect(result).toEqual({
+        cartItems: 0,
+        wishlistItems: 0,
+        addresses: 0,
+        orders: 0,
+        reviews: 0,
+      });
     });
 
     it('returns 0/0 for an empty session', async () => {
@@ -386,18 +419,28 @@ describe('AuthService', () => {
               id: 'guest-1',
               cartItems: [],
               wishlistItems: [],
+              addresses: [],
             }),
             delete: jest.fn(),
           },
           cart: { findUnique: jest.fn(), create: jest.fn() },
           cartItem: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
           wishlist: { findMany: jest.fn(), createMany: jest.fn() },
+          order: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          review: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          userAddress: { createMany: jest.fn() },
         });
       });
 
       const result = await service.migrateGuestSessionToUser('guest-1', 'user-1');
 
-      expect(result).toEqual({ cartItems: 0, wishlistItems: 0 });
+      expect(result).toEqual({
+        cartItems: 0,
+        wishlistItems: 0,
+        addresses: 0,
+        orders: 0,
+        reviews: 0,
+      });
     });
 
     it('merges quantities when user already has the same cart variant', async () => {
@@ -417,6 +460,7 @@ describe('AuthService', () => {
                 },
               ],
               wishlistItems: [],
+              addresses: [],
             }),
             delete: jest.fn(),
           },
@@ -430,6 +474,9 @@ describe('AuthService', () => {
             update: jest.fn(),
           },
           wishlist: { findMany: jest.fn(), createMany: jest.fn() },
+          order: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          review: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          userAddress: { createMany: jest.fn() },
         });
       });
 
@@ -449,6 +496,7 @@ describe('AuthService', () => {
                 { variantId: 'vw1', notifyOnRestock: false, notifyOnPriceDrop: false },
                 { variantId: 'vw2', notifyOnRestock: true, notifyOnPriceDrop: false },
               ],
+              addresses: [],
             }),
             delete: jest.fn(),
           },
@@ -458,6 +506,9 @@ describe('AuthService', () => {
             findMany: jest.fn().mockResolvedValue([{ variantId: 'vw1' }]),
             createMany: jest.fn(),
           },
+          order: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          review: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          userAddress: { createMany: jest.fn() },
         });
       });
 
@@ -485,6 +536,7 @@ describe('AuthService', () => {
                 },
               ],
               wishlistItems: [],
+              addresses: [],
             }),
             delete: jest.fn(),
           },
@@ -498,6 +550,9 @@ describe('AuthService', () => {
             update: jest.fn(),
           },
           wishlist: { findMany: jest.fn(), createMany: jest.fn() },
+          order: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          review: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          userAddress: { createMany: jest.fn() },
         });
       });
 
@@ -543,6 +598,7 @@ describe('AuthService', () => {
               wishlistItems: [
                 { variantId: 'vw1', notifyOnRestock: false, notifyOnPriceDrop: false },
               ],
+              addresses: [],
             }),
             delete: jest.fn(),
           },
@@ -559,6 +615,9 @@ describe('AuthService', () => {
             findMany: jest.fn().mockResolvedValue([]),
             createMany: jest.fn(),
           },
+          order: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          review: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          userAddress: { createMany: jest.fn() },
         });
       });
 
@@ -568,7 +627,13 @@ describe('AuthService', () => {
         guestSessionId: 'guest-session-1',
       });
 
-      expect(result.mergedGuestSession).toEqual({ cartItems: 1, wishlistItems: 1 });
+      expect(result.mergedGuestSession).toEqual({
+        cartItems: 1,
+        wishlistItems: 1,
+        addresses: 0,
+        orders: 0,
+        reviews: 0,
+      });
     });
   });
 

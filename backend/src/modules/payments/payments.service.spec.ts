@@ -10,6 +10,7 @@ import { PaymentsService } from './payments.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { InvoicesService } from '../invoices/invoices.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { register as promRegister } from 'prom-client';
 import { createHmac } from 'crypto';
 
@@ -32,6 +33,12 @@ function createMockPrisma() {
       findUnique: jest.fn(),
       findMany: jest.fn(),
     },
+    invoice: {
+      findFirst: jest.fn(),
+    },
+    storeLocation: {
+      findFirst: jest.fn(),
+    },
     $transaction: jest.fn(),
     processedWebhookEvent: { create: jest.fn() },
   };
@@ -41,6 +48,12 @@ function createMockRedis() {
   return {
     setLock: jest.fn().mockResolvedValue(true),
     get: jest.fn(),
+  };
+}
+
+function createMockEventEmitter() {
+  return {
+    emit: jest.fn(),
   };
 }
 
@@ -88,6 +101,7 @@ describe('PaymentsService', () => {
       mockConfig as unknown as ConfigService,
       mockRedis as unknown as RedisService,
       mockInvoices as unknown as InvoicesService,
+      createMockEventEmitter() as unknown as EventEmitter2,
     );
     configService = mockConfig as unknown as ConfigService;
     await service.onModuleInit();

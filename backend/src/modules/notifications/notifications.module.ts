@@ -9,6 +9,7 @@ import { EmailService } from './providers/email.service';
 import { MailerService } from './mailer.service';
 import { SmsService } from './providers/sms.service';
 import { PushService } from './providers/push.service';
+import { RefundStatusListener } from './listeners/refund-status.listener';
 
 @Module({
   imports: [PrismaModule, BullModule.registerQueue({ name: 'notifications' })],
@@ -21,6 +22,8 @@ import { PushService } from './providers/push.service';
     MailerService,
     SmsService,
     PushService,
+    // REQ-NOTIF-001: subscribes to refund.status.changed (Razorpay webhook).
+    RefundStatusListener,
   ],
   exports: [NotificationsService, NotificationsGateway, SmsService],
 })

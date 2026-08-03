@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/ban-types */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -69,6 +70,10 @@ describe('OrdersService', () => {
     get: jest.fn().mockReturnValue(null),
   };
 
+  const mockEventEmitter = {
+    emit: jest.fn(),
+  };
+
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -100,6 +105,12 @@ describe('OrdersService', () => {
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          // REQ-BE-002: provide a no-op EventEmitter2 so the constructor
+          // can wire it in without a real bus.
+          provide: EventEmitter2,
+          useValue: mockEventEmitter,
         },
       ],
     }).compile();

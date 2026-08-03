@@ -1,14 +1,21 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsUUID } from 'class-validator';
+import { IsEmail, IsString, IsOptional, IsUUID } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsStrongPassword } from '../../../common/validators/password.validator';
 
 export class RegisterDto {
   @ApiProperty({ description: 'User email address', example: 'user@example.com', readOnly: false })
   @IsEmail()
   email!: string;
 
-  @ApiProperty({ description: 'Password (min 6 chars)', example: 'securePass123', readOnly: false })
-  @IsString()
-  @MinLength(6)
+  @ApiProperty({
+    description:
+      'Password — min 10 chars, must include uppercase, lowercase, digit, and symbol (REQ-BE-010)',
+    example: 'Str0ng!Pass',
+    minLength: 10,
+    readOnly: false,
+  })
+  // REQ-BE-010: replace the old MinLength(6) with the strong-password policy.
+  @IsStrongPassword()
   password!: string;
 
   @ApiProperty({ description: 'First name', example: 'John', readOnly: false })

@@ -11,14 +11,21 @@ export class AnalyticsService {
   async dashboard(view: 'day' | 'week' | 'month' | 'year') {
     const { startDate, endDate, previousStart } = this.getDateRange(view);
 
-    const [currentPeriod, previousPeriod, activeRentals, totalCustomers, totalProducts] =
-      await Promise.all([
-        this.aggregateOrders(startDate, endDate),
-        this.aggregateOrders(previousStart, startDate),
-        this.getActiveRentalsCount(),
-        this.getTotalCustomersCount(),
-        this.getTotalProductsCount(),
-      ]);
+    const [
+      currentPeriod,
+      previousPeriod,
+      activeRentals,
+      totalCustomers,
+      totalProducts,
+      abandonedCarts,
+    ] = await Promise.all([
+      this.aggregateOrders(startDate, endDate),
+      this.aggregateOrders(previousStart, startDate),
+      this.getActiveRentalsCount(),
+      this.getTotalCustomersCount(),
+      this.getTotalProductsCount(),
+      this.getAbandonedCarts(),
+    ]);
 
     return {
       totalRevenue: currentPeriod.revenue,
@@ -27,6 +34,7 @@ export class AnalyticsService {
       totalCustomers,
       totalProducts,
       activeRentals,
+      abandonedCarts,
       revenueGrowth: this.calcGrowth(currentPeriod.revenue, previousPeriod.revenue),
       ordersGrowth: this.calcGrowth(currentPeriod.orderCount, previousPeriod.orderCount),
     };
@@ -42,6 +50,39 @@ export class AnalyticsService {
 
   private async getTotalProductsCount(): Promise<number> {
     return this.prisma.product.count({ where: { isActive: true } });
+  }
+
+  /**
+   * Abandoned-cart recovery metric (REQ-INS-001).
+   *
+   * - abandoned: carts flagged as abandoned by the cart-abandonment cron (REQ-BE-004)
+   *   i.e. count(Cart WHERE abandonedAt IS NOT NULL).
+   * - recovered: abandoned carts that came back via the recovery link (REQ-BE-005)
+   *   i.e. count(Cart WHERE recoveredAt IS NOT NULL AND abandonedAt IS NOT NULL).
+   * - recoveryRate: recovered / abandoned as a percentage (0-100) rounded to 1 decimal;
+   *   0 when abandoned is 0 (division-by-zero guard).
+   *
+   * Live count (no rollup yet) — the @@index([abandonedAt]) added in REQ-DB-003
+   * keeps both count queries index-backed. When DailyOrderRollup lands (REQ-DB-013),
+   * this can be pre-aggregated daily.
+   */
+  private async getAbandonedCarts(): Promise<{
+    abandoned: number;
+    recovered: number;
+    recoveryRate: number;
+  }> {
+    const [abandoned, recovered] = await Promise.all([
+      this.prisma.cart.count({
+        where: { abandonedAt: { not: null } },
+      }),
+      this.prisma.cart.count({
+        where: { recoveredAt: { not: null }, abandonedAt: { not: null } },
+      }),
+    ]);
+
+    const recoveryRate = abandoned === 0 ? 0 : Math.round((recovered / abandoned) * 100 * 10) / 10;
+
+    return { abandoned, recovered, recoveryRate };
   }
 
   async revenueChart(
