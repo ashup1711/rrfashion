@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { useMyOrder, useRepurchase, useDownloadInvoice, useInitiateReturn, useOrderTracking } from '../../hooks/useMyOrders';
+import { useMyOrder, useRepurchase, useDownloadInvoice, useOrderTracking } from '../../hooks/useMyOrders';
+import CancelOrderModal from './components/CancelOrderModal';
+import ReturnRequestForm from './components/ReturnRequestForm';
+import RefundTimeline from './components/RefundTimeline';
 import { getPaymentStatus, verifyPayment } from '../../api/payments';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
-import Select from '../../components/ui/Select';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { ROUTES } from '../../utils/constants';
 
@@ -32,15 +34,6 @@ const paymentStatusVariant: Record<string, 'warning' | 'info' | 'success' | 'dan
   PARTIALLY_REFUNDED: 'info',
 };
 
-const RETURN_REASONS = [
-  { value: 'size_issue', label: 'Size issue' },
-  { value: 'damaged', label: 'Damaged or defective' },
-  { value: 'not_as_described', label: 'Not as described' },
-  { value: 'wrong_item', label: 'Wrong item delivered' },
-  { value: 'quality_issue', label: 'Quality issue' },
-  { value: 'other', label: 'Other' },
-];
-
 const trackingSteps = [
   { key: 'SHIPPED', label: 'Shipped' },
   { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery' },
@@ -56,8 +49,10 @@ const OrderDetail = () => {
   const { data: order, isLoading, error, refetch: refetchOrder } = useMyOrder(id || '');
   const repurchaseMutation = useRepurchase();
   const downloadMutation = useDownloadInvoice();
-  const initiateReturnMutation = useInitiateReturn();
   const { data: tracking, isLoading: isTrackingLoading } = useOrderTracking(id || '');
+
+  // REQ-FE-001: cancellation modal state
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Invoice state
   const [invoiceGenerated, setInvoiceGenerated] = useState(false);
@@ -191,11 +186,8 @@ const OrderDetail = () => {
     }
   }, [id, searchParams, setSearchParams, startInvoicePolling]);
 
-  // Return form state
+  // REQ-FE-003: per-item return form visibility
   const [showReturnForm, setShowReturnForm] = useState(false);
-  const [returnItemIds, setReturnItemIds] = useState<string[]>([]);
-  const [returnReason, setReturnReason] = useState('');
-  const [returnRemarks, setReturnRemarks] = useState('');
 
   const handleDownloadInvoice = async () => {
     if (!id) return;
@@ -224,40 +216,6 @@ const OrderDetail = () => {
     }
   };
 
-  const handleReturnItemToggle = (itemId: string) => {
-    setReturnItemIds((prev) =>
-      prev.includes(itemId) ? prev.filter((i) => i !== itemId) : [...prev, itemId],
-    );
-  };
-
-  const handleInitiateReturn = async () => {
-    if (!id) return;
-    if (returnItemIds.length === 0) {
-      toast.error('Please select at least one item to return.');
-      return;
-    }
-    if (!returnReason) {
-      toast.error('Please select a return reason.');
-      return;
-    }
-    try {
-      await initiateReturnMutation.mutateAsync({
-        orderId: id,
-        data: {
-          reason: returnReason,
-          itemIds: returnItemIds,
-          remarks: returnRemarks || undefined,
-        },
-      });
-      setShowReturnForm(false);
-      setReturnItemIds([]);
-      setReturnReason('');
-      setReturnRemarks('');
-    } catch {
-      // Error toast handled by the mutation
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="container-page py-8">
@@ -283,6 +241,8 @@ const OrderDetail = () => {
   }
 
   const isDelivered = order.status === 'DELIVERED';
+  // REQ-FE-001: customer-cancellable statuses (PROCESSING is admin-only)
+  const isCancellable = order.status === 'PENDING' || order.status === 'CONFIRMED';
   const currentTrackingStep = trackingSteps.findIndex((s) => s.key === tracking?.status);
 
   return (
@@ -471,7 +431,10 @@ const OrderDetail = () => {
         </div>
       </Card>
 
-      {/* Return Section (Item C) — only for DELIVERED orders */}
+      {/* Refund timeline (REQ-FE-004) — embedded for orders that have refunds */}
+      <RefundTimeline orderId={order.id} />
+
+      {/* Return Section (REQ-FE-003) — only for DELIVERED orders */}
       {isDelivered && !showReturnForm && (
         <div className="mb-6">
           <Button variant="outline" onClick={() => setShowReturnForm(true)}>
@@ -484,88 +447,11 @@ const OrderDetail = () => {
       )}
 
       {isDelivered && showReturnForm && (
-        <Card className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Initiate Return</h3>
-
-          {/* Item Selection */}
-          <div className="mb-4">
-            <p className="text-sm font-medium text-gray-700 mb-2">Select items to return:</p>
-            <div className="space-y-2">
-              {order.items.map((item) => (
-                <label
-                  key={item.id}
-                  className="flex items-center gap-3 p-3 border border-gray-200 rounded-md hover:bg-gray-50 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={returnItemIds.includes(item.id)}
-                    onChange={() => handleReturnItemToggle(item.id)}
-                    className="h-4 w-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900">
-                      {item.product?.name ?? 'Product'}
-                    </p>
-                    {item.variant && (
-                      <p className="text-xs text-gray-500">
-                        {item.variant.color} / {item.variant.size}
-                      </p>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-900">{formatCurrency(item.totalPrice)}</p>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Reason Dropdown */}
-          <div className="mb-4">
-            <Select
-              label="Return Reason"
-              placeholder="Select a reason"
-              options={RETURN_REASONS}
-              value={returnReason}
-              onChange={(e) => setReturnReason(e.target.value)}
-            />
-          </div>
-
-          {/* Remarks Textarea */}
-          <div className="mb-4">
-            <label htmlFor="return-remarks" className="block text-sm font-medium text-gray-700 mb-1">
-              Additional Remarks (Optional)
-            </label>
-            <textarea
-              id="return-remarks"
-              rows={3}
-              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              placeholder="Describe the issue..."
-              value={returnRemarks}
-              onChange={(e) => setReturnRemarks(e.target.value)}
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3">
-            <Button
-              onClick={handleInitiateReturn}
-              isLoading={initiateReturnMutation.isPending}
-              disabled={returnItemIds.length === 0 || !returnReason}
-            >
-              Submit Return Request
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowReturnForm(false);
-                setReturnItemIds([]);
-                setReturnReason('');
-                setReturnRemarks('');
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
-        </Card>
+        <ReturnRequestForm
+          order={order}
+          onClose={() => setShowReturnForm(false)}
+          onSubmitted={() => refetchOrder()}
+        />
       )}
 
       {/* Invoice Section */}
@@ -611,10 +497,24 @@ const OrderDetail = () => {
 
       {/* Actions */}
       <div className="flex flex-wrap gap-3">
+        {/* REQ-FE-001: cancel button — only for customer-cancellable statuses */}
+        {isCancellable && (
+          <Button variant="danger" onClick={() => setShowCancelModal(true)}>
+            Cancel Order
+          </Button>
+        )}
         <Button onClick={handleRepurchase} isLoading={repurchaseMutation.isPending}>
           Buy Again
         </Button>
       </div>
+
+      {/* REQ-FE-001: reason-picker cancellation modal */}
+      <CancelOrderModal
+        isOpen={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        order={order}
+        onCancelled={() => refetchOrder()}
+      />
     </div>
   );
 };

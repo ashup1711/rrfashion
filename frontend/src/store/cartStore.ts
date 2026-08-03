@@ -5,6 +5,10 @@ import { toast } from 'sonner';
 import type { Cart } from '../api/cart';
 
 const GUEST_CART_KEY = 'guest_cart_items';
+// REQ-FE-002: server cart id is persisted so the next add re-attaches to the
+// same cart instead of creating a new one. Stored separately from the items
+// so an empty cart keeps its identity until cleared/merged.
+const GUEST_CART_ID_KEY = 'guest_cart_id';
 
 function loadGuestCart(): CartItemState[] {
   try {
@@ -21,6 +25,18 @@ function saveGuestCart(items: CartItemState[]) {
 
 function clearGuestCartStorage() {
   localStorage.removeItem(GUEST_CART_KEY);
+}
+
+function loadCartId(): string | null {
+  return localStorage.getItem(GUEST_CART_ID_KEY);
+}
+
+function saveCartId(cartId: string | null) {
+  if (cartId) {
+    localStorage.setItem(GUEST_CART_ID_KEY, cartId);
+  } else {
+    localStorage.removeItem(GUEST_CART_ID_KEY);
+  }
 }
 
 function calculateItemCount(items: CartItemState[]): number {
@@ -51,6 +67,9 @@ interface CartState {
   isGuest: boolean;
   isSynced: boolean; // NEW: Track sync status with backend
   isSyncing: boolean; // NEW: Track if syncing is in progress
+  // REQ-FE-002: server cart id — persisted so subsequent adds re-attach to
+  // the same cart. Null until the first server add/sync.
+  cartId: string | null;
   addItem: (item: CartItemState) => Promise<void>;
   removeItem: (id: string) => Promise<void>;
   updateQuantity: (id: string, quantity: number) => Promise<void>;
@@ -58,6 +77,7 @@ interface CartState {
   setItems: (items: CartItemState[]) => void;
   setGuestCart: (isGuest: boolean) => void;
   syncWithBackend: () => Promise<void>; // NEW: Force sync with backend
+  setCartId: (cartId: string | null) => void; // REQ-FE-002
 }
 
 const initialItems = loadGuestCart();
@@ -69,6 +89,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   isGuest: getIsGuest(), // Reactive — reads from persistent storage each time
   isSynced: false,
   isSyncing: false,
+  cartId: loadCartId(), // REQ-FE-002: persisted server cart id
 
   addItem: async (item) => {
     const state = get();
@@ -99,14 +120,23 @@ export const useCartStore = create<CartState>((set, get) => ({
       return;
     }
     
-    // Sync with backend
+    // Sync with backend — REQ-FE-002: pass the persisted cartId so the first
+    // add re-attaches to the existing server cart (auto-created if missing).
     try {
-      const response = await apiClient.post<Cart>('/cart/add', {
+      const response = await apiClient.post<Cart>('/cart/items', {
         variantId: item.variantId,
         quantity: item.quantity,
         type: item.type || 'sale',
+        cartId: get().cartId || undefined,
       });
-      
+
+      // REQ-FE-002: capture the server cart id + persist it so future adds
+      // (and the recovery flow) keep re-attaching to the same cart.
+      if (response.data?.id) {
+        set({ cartId: response.data.id });
+        saveCartId(response.data.id);
+      }
+
       // Update with confirmed data from server
       if (response.data?.items) {
         const confirmedItems = response.data.items.map(dbItem => ({
@@ -221,12 +251,16 @@ export const useCartStore = create<CartState>((set, get) => ({
     
     if (state.isGuest) {
       clearGuestCartStorage();
+      // Keep cartId — a guest cart may still exist server-side and will be
+      // re-synced/merged on login. The recovery link flow depends on it.
       return;
     }
     
     try {
       await apiClient.delete('/cart');
-      set({ isSynced: true });
+      // REQ-FE-002: server cart is gone — drop the cached id.
+      set({ isSynced: true, cartId: null });
+      saveCartId(null);
     } catch (error) {
       set(state);
       toast.error('Failed to clear cart. Please try again.');
@@ -249,6 +283,13 @@ export const useCartStore = create<CartState>((set, get) => ({
     }
   },
 
+  // REQ-FE-002: set + persist the server cart id (used by the recovery page
+  // and the add-item flow).
+  setCartId: (cartId) => {
+    set({ cartId });
+    saveCartId(cartId);
+  },
+
   syncWithBackend: async () => {
     const state = get();
     if (state.isGuest) return;
@@ -256,6 +297,11 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ isSyncing: true });
     try {
       const response = await apiClient.get<Cart>('/cart');
+      // REQ-FE-002: capture the server cart id + persist it.
+      if (response.data?.id) {
+        set({ cartId: response.data.id });
+        saveCartId(response.data.id);
+      }
       if (response.data?.items) {
         const syncedItems = response.data.items.map(dbItem => ({
           id: dbItem.id,

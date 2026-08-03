@@ -29,9 +29,11 @@ export interface ProductCardProps {
   className?: string;
   style?: React.CSSProperties;
   variant?: 'standard' | 'compact' | 'minimal';
+  /** S-013: Optional custom renderer for the product name (e.g., for search highlighting) */
+  nameRenderer?: (name: string) => React.ReactNode;
 }
 
-const ProductCard = ({ product, className = '', style, variant = 'standard' }: ProductCardProps) => {
+const ProductCard = ({ product, className = '', style, variant = 'standard', nameRenderer }: ProductCardProps) => {
   const navigate = useNavigate();
   const openQuickView = useUIStore((state) => state.openQuickView);
   const { addItem: addToWishlist, items: wishlistItems, removeItem: removeFromWishlist } = useWishlist();
@@ -305,7 +307,7 @@ const ProductCard = ({ product, className = '', style, variant = 'standard' }: P
           className="block w-full mb-2"
         >
           <h3 className="text-product-title font-semibold text-primary-900 line-clamp-2 min-h-[2.5rem] group-hover:text-primary-600 transition-colors">
-            {product.name}
+            {nameRenderer ? nameRenderer(product.name) : product.name}
           </h3>
         </Link>
 

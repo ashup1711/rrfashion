@@ -8,8 +8,9 @@ import {
   initiateReturn,
   getOrderTracking,
   applyCoupon,
+  cancelOrder,
 } from '../api/orders';
-import type { InitiateReturnData, ApplyCouponData } from '../api/orders';
+import type { InitiateReturnData, ApplyCouponData, CancellationReason } from '../api/orders';
 import { QUERY_KEYS } from '../utils/constants';
 
 export const useMyOrders = (filters?: { page?: number; limit?: number; status?: string }) => {
@@ -48,12 +49,42 @@ export const useInitiateReturn = () => {
   return useMutation({
     mutationFn: ({ orderId, data }: { orderId: string; data: InitiateReturnData }) =>
       initiateReturn(orderId, data),
-    onSuccess: () => {
+    onSuccess: (result, variables) => {
+      // REQ-FE-003: invalidate the order + orders list so the updated
+      // return/status state is reflected.
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.myOrders] });
-      toast.success('Return initiated successfully');
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.myOrder, variables.orderId] });
+      toast.success('Return request submitted successfully');
+      return result;
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Failed to initiate return');
+    },
+  });
+};
+
+/**
+ * REQ-FE-001: cancel an order. Backend verifies the status is in
+ * [PENDING, CONFIRMED] for customers (PROCESSING is admin-only) and
+ * auto-refunds when the order is already PAID.
+ */
+export const useCancelOrder = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason, notes }: { id: string; reason: CancellationReason; notes?: string }) =>
+      cancelOrder(id, reason, notes),
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.myOrders] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.myOrder, variables.id] });
+      if (result.refundId) {
+        toast.success('Order cancelled. Refund has been initiated.');
+      } else {
+        toast.success('Order cancelled successfully');
+      }
+      return result;
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to cancel order');
     },
   });
 };

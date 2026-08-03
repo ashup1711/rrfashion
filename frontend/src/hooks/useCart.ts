@@ -84,8 +84,13 @@ export const useCart = () => {
 
   const addItemMutation = useMutation({
     mutationFn: ({ variantId, quantity, type }: { variantId: string; quantity: number; type?: string }) =>
-      addCartItem(variantId, quantity, type),
-    onSuccess: () => {
+      addCartItem(variantId, quantity, type, useCartStore.getState().cartId),
+    onSuccess: (data) => {
+      // REQ-FE-002: capture + persist the server cart id so subsequent adds
+      // and the recovery flow re-attach to the same cart.
+      if (data?.id) {
+        useCartStore.getState().setCartId(data.id);
+      }
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.cart] });
       toast.success('Item added to cart', {
         action: {

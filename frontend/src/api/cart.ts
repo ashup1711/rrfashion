@@ -34,8 +34,38 @@ export const addToCart = async (productId: string, quantity: number, type?: stri
   return data;
 };
 
-export const addCartItem = async (variantId: string, quantity: number, type?: string): Promise<Cart> => {
-  const { data } = await apiClient.post<Cart>('/cart/add', { variantId, quantity, type: type || 'sale' });
+export const addCartItem = async (
+  variantId: string,
+  quantity: number,
+  type?: string,
+  cartId?: string | null,
+  rent?: { rentStart?: string; rentEnd?: string },
+): Promise<Cart> => {
+  const { data } = await apiClient.post<Cart>('/cart/items', {
+    variantId,
+    quantity,
+    type: type || 'sale',
+    cartId: cartId || undefined,
+    ...(rent?.rentStart ? { rentStart: rent.rentStart } : {}),
+    ...(rent?.rentEnd ? { rentEnd: rent.rentEnd } : {}),
+  });
+  return data;
+};
+
+/**
+ * REQ-BE-005 / REQ-FE-002: recover an abandoned cart from a signed 7-day
+ * recovery link. Public endpoint — works for authenticated customers (cookie
+ * auth via withCredentials) and guests (guest Bearer via the apiClient
+ * request interceptor). Response: `{ cart, items, recoveredAt }`.
+ */
+export interface RecoverCartResponse {
+  cart: Cart;
+  items: CartItem[];
+  recoveredAt: string;
+}
+
+export const recover = async (token: string): Promise<RecoverCartResponse> => {
+  const { data } = await apiClient.get<RecoverCartResponse>(`/cart/recover/${token}`);
   return data;
 };
 
