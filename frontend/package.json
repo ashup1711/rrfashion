@@ -28,7 +28,7 @@
     "react-router-dom": "^6.28.0",
     "react-to-print": "^3.3.0",
     "sonner": "^2.0.7",
-    "swiper": "^14.0.2",
+    "swiper": "^11.2.6",
     "vite-plugin-pwa": "^0.21.2",
     "zustand": "^5.0.0"
   },

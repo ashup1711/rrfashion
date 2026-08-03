@@ -3,16 +3,11 @@ import ReactDOM from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import { QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster, toast } from 'sonner';
-import Swiper from 'swiper';
-import { Navigation, Pagination, Autoplay, FreeMode, Thumbs, A11y, EffectFade } from 'swiper/modules';
 import App from './App';
 import { AuthInitializer } from './components/auth/AuthInitializer';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import { purgeLegacyGuestCookies } from './utils/persistentStorage';
 import './styles/globals.css';
-
-// Register Swiper modules globally
-Swiper.use([Navigation, Pagination, Autoplay, FreeMode, Thumbs, A11y, EffectFade]);
 
 // REQ-SEC-FE-002: purge legacy guest-token cookie mirrors written by older
 // builds (1-year non-httpOnly SameSite=Lax — unnecessary XSS/CSRF surface).
