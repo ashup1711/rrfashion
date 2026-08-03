@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import { QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { HelmetProvider } from 'react-helmet-async';
 import { Toaster, toast } from 'sonner';
 import App from './App';
 import { AuthInitializer } from './components/auth/AuthInitializer';
@@ -57,14 +58,16 @@ const queryClient = new QueryClient({
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <HashRouter>
-          <AuthInitializer>
-            <App />
-          </AuthInitializer>
-          <Toaster richColors position="top-right" duration={4000} />
-        </HashRouter>
-      </QueryClientProvider>
+      <HelmetProvider>
+        <QueryClientProvider client={queryClient}>
+          <HashRouter>
+            <AuthInitializer>
+              <App />
+            </AuthInitializer>
+            <Toaster richColors position="top-right" duration={4000} />
+          </HashRouter>
+        </QueryClientProvider>
+      </HelmetProvider>
     </ErrorBoundary>
   </React.StrictMode>,
 );
