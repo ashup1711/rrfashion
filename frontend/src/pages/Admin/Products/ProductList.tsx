@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import DataTable from '../../../components/ui/DataTable';
 import Button from '../../../components/ui/Button';
@@ -57,14 +57,6 @@ const ProductList = () => {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   }, []);
-
-  const handleSelectAll = useCallback(() => {
-    if (!productsData?.items) return;
-    const allIds = productsData.items.map((p) => p.id);
-    setSelectedIds((prev) =>
-      prev.length === allIds.length ? [] : allIds
-    );
-  }, [productsData?.items]);
 
   const columns: Column<Product>[] = [
     {

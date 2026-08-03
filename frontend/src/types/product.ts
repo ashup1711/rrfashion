@@ -58,6 +58,10 @@ export interface Product {
   brand?: Brand;
   variants: ProductVariant[];
   version?: number;
+  metaTitle?: string;
+  metaDescription?: string;
+  canonicalUrl?: string;
+  ogImage?: string;
   createdAt: string;
   updatedAt: string;
 }

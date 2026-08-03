@@ -7,8 +7,6 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
 import Button from '../../components/ui/Button';
 import { ROUTES } from '../../utils/constants';
-import { formatCurrencyCompact } from '../../utils/formatCurrency';
-import { imageUrl } from '../../utils/imageUrl';
 import type { Product } from '../../types/product';
 import type { SearchResultItem } from '../../api/search';
 

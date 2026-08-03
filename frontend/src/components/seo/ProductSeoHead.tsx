@@ -36,34 +36,6 @@ const ProductSeoHead = ({ product }: ProductSeoHeadProps) => {
   const ogImageUrl = product.ogImage
     || (product.images?.[0] ? resolveImageUrl(product.images[0]) : '');
 
-  // Build JSON-LD structured data
-  const jsonLd: Record<string, unknown> = {
-    '@context': 'https://schema.org',
-    '@type': 'Product',
-    name: product.name,
-    description: product.description || '',
-    sku: product.variants?.[0]?.sku || product.slug,
-    brand: product.brand
-      ? { '@type': 'Brand', name: product.brand.name }
-      : undefined,
-    category: product.category?.name || undefined,
-    image: ogImageUrl ? [ogImageUrl] : undefined,
-    offers: {
-      '@type': 'Offer',
-      priceCurrency: 'INR',
-      price: product.salePrice || product.basePrice,
-      availability: product.stock > 0
-        ? 'https://schema.org/InStock'
-        : 'https://schema.org/OutOfStock',
-      url: canonicalUrl,
-      seller: {
-        '@type': 'Organization',
-        name: 'RR Fashion',
-      },
-    },
-    aggregateRating: undefined, // Will be populated if reviews exist
-  };
-
   return (
     <Helmet>
       {/* Primary Meta Tags */}

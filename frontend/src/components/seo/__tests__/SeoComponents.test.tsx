@@ -2,9 +2,9 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import ProductSeoHead from './ProductSeoHead';
-import JsonLd from './JsonLd';
-import type { Product } from '../../types/product';
+import ProductSeoHead from '../ProductSeoHead';
+import JsonLd from '../JsonLd';
+import type { Product } from '../../../types/product';
 
 // Mock react-helmet-async
 vi.mock('react-helmet-async', () => ({
@@ -40,9 +40,9 @@ const mockProduct: Product = {
   isSellable: true,
   sortPriority: 1,
   categoryId: 'cat-1',
-  category: { id: 'cat-1', name: 'Kurtis', slug: 'kurtis' },
+  category: { id: 'cat-1', name: 'Kurtis', slug: 'kurtis', sortOrder: 1, isActive: true, createdAt: '2024-01-01', updatedAt: '2024-01-01' },
   brandId: 'brand-1',
-  brand: { id: 'brand-1', name: 'RR Fashion' },
+  brand: { id: 'brand-1', name: 'RR Fashion', isActive: true },
   variants: [
     {
       id: 'var-1',
