@@ -45,7 +45,7 @@ export const addCartItem = async (
     variantId,
     quantity,
     type: type || 'sale',
-    cartId: cartId || undefined,
+    // Don't send cartId — backend resolves cart from the auth token
     ...(rent?.rentStart ? { rentStart: rent.rentStart } : {}),
     ...(rent?.rentEnd ? { rentEnd: rent.rentEnd } : {}),
   });
