@@ -17,3 +17,4 @@ data:
   JWT_ADMIN_EXPIRES_IN: "15m"
   REFRESH_EXPIRES_IN: "7d"
   BCRYPT_SALT_ROUNDS: "12"
+  CORS_ORIGINS: "https://15cf-2409-40c1-5024-1636-5dad-b2fa-6542-45da.ngrok-free.app"
