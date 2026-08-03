@@ -12,6 +12,7 @@ const Home = lazy(() => import('../pages/Home'));
 const Shop = lazy(() => import('../pages/Shop'));
 const ProductDetail = lazy(() => import('../pages/ProductDetail'));
 const Cart = lazy(() => import('../pages/Cart'));
+const CartRecover = lazy(() => import('../pages/Cart/Recover'));
 const Checkout = lazy(() => import('../pages/Checkout'));
 const Orders = lazy(() => import('../pages/Orders'));
 const Login = lazy(() => import('../pages/Auth/Login'));
@@ -25,6 +26,7 @@ const Contact = lazy(() => import('../pages/Contact'));
 const FAQ = lazy(() => import('../pages/FAQ'));
 const ShippingReturns = lazy(() => import('../pages/ShippingReturns'));
 const Compare = lazy(() => import('../pages/Compare'));
+const SearchResults = lazy(() => import('../pages/Search/SearchResultsPage'));
 
 // Admin pages
 const AdminLogin = lazy(() => import('../pages/Admin/Login'));
@@ -50,7 +52,9 @@ const AdminReminders = lazy(() => import('../pages/Admin/Reminders'));
 const AdminReports = lazy(() => import('../pages/Admin/Reports'));
 const AdminOrders = lazy(() => import('../pages/Admin/Orders'));
 const AdminOrderDetail = lazy(() => import('../pages/Admin/Orders/OrderDetail'));
+const AdminReturns = lazy(() => import('../pages/Admin/Returns'));
 const AdminConflicts = lazy(() => import('../pages/Admin/Conflicts/ConflictList'));
+const AdminAuditLogs = lazy(() => import('../pages/Admin/AuditLogs/AuditLogsPage'));
 const PosPage = lazy(() => import('../pages/POS/PosPage'));
 
 export const AppRoutes = () => {
@@ -67,6 +71,7 @@ export const AppRoutes = () => {
           <Route path="/shop" element={<Shop />} />
           <Route path="/products/:id" element={<ProductDetail />} />
           <Route path="/cart" element={<Cart />} />
+          <Route path="/cart/recover/:token" element={<CartRecover />} />
           <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
           <Route path="/auth/login" element={<Login />} />
@@ -80,6 +85,7 @@ export const AppRoutes = () => {
           <Route path="/faq" element={<FAQ />} />
           <Route path="/shipping-returns" element={<ShippingReturns />} />
           <Route path="/compare" element={<Compare />} />
+          <Route path="/search" element={<SearchResults />} />
 
           {/* POS Route */}
           <Route path="/pos" element={<PosPage />} />
@@ -109,7 +115,9 @@ export const AppRoutes = () => {
           <Route path="/admin/reports" element={<ProtectedRoute requireAdmin><AdminReports /></ProtectedRoute>} />
           <Route path="/admin/orders" element={<ProtectedRoute requireAdmin><AdminOrders /></ProtectedRoute>} />
           <Route path="/admin/orders/:id" element={<ProtectedRoute requireAdmin><AdminOrderDetail /></ProtectedRoute>} />
+          <Route path="/admin/returns" element={<ProtectedRoute requireAdmin><AdminReturns /></ProtectedRoute>} />
           <Route path="/admin/pos/conflicts" element={<ProtectedRoute requireAdmin><AdminConflicts /></ProtectedRoute>} />
+          <Route path="/admin/audit-logs" element={<ProtectedRoute requireAdmin><AdminAuditLogs /></ProtectedRoute>} />
         </Routes>
       </Suspense>
     </ErrorBoundary>

@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerModuleOptions } from '@nestjs/throttler';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { APP_GUARD } from '@nestjs/core';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { PrismaModule } from './prisma/prisma.module';
@@ -45,6 +46,10 @@ import { SiteRemindersModule } from './modules/site-reminders/site-reminders.mod
 import { AddressesModule } from './modules/addresses/addresses.module';
 import { ImageUploadModule } from './modules/upload/image-upload.module';
 import { ImagesModule } from './modules/images/images.module';
+import { ReturnsModule } from './modules/returns/returns.module';
+import { RefundsModule } from './modules/refunds/refunds.module';
+import { SearchModule } from './modules/search/search.module';
+import { SeoModule } from './modules/seo/seo.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { AdminJwtStrategy } from './common/strategies/admin-jwt.strategy';
 import { ThrottlerProxyGuard } from './common/guards/throttler-proxy.guard';
@@ -65,6 +70,16 @@ import { StorageModule } from './storage/storage.module';
       load: [envConfig, databaseConfig, authConfig, redisConfig, storageConfig],
     }),
     ScheduleModule.forRoot(),
+    // REQ-BE-002 / REQ-ARCH-001: enable EventEmitter2 for cross-module
+    // domain events. The defaults (verbose: false, wildcard: false,
+    // delimiter: '.', maxListeners: 10) are appropriate for an in-process
+    // bus; per-event @OnEvent subscriptions are used throughout the app.
+    EventEmitterModule.forRoot({
+      wildcard: false,
+      delimiter: '.',
+      maxListeners: 32,
+      verboseMemoryLeak: false,
+    }),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule, RedisModule],
@@ -173,6 +188,10 @@ import { StorageModule } from './storage/storage.module';
     ImageUploadModule,
     ImagesModule, // REQ-BE-012: Image proxy endpoint
     StoreAuthModule,
+    ReturnsModule,
+    RefundsModule,
+    SearchModule,
+    SeoModule,
   ],
   providers: [
     JwtStrategy,

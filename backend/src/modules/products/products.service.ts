@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
@@ -6,6 +6,11 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { OnSaleQueryDto } from './dto/on-sale-query.dto';
 import { SetSaleDto } from './dto/set-sale.dto';
+import {
+  BulkUpdateDto,
+  BulkImportResult,
+  BulkUpdateResult,
+} from './dto/bulk-operations.dto';
 import { slugify } from '../../common/utils/slugify';
 
 export interface ProductFilters {
@@ -611,5 +616,207 @@ export class ProductsService {
       productId: product.id,
       variants: formattedVariants,
     };
+  }
+
+  // ── REQ-BE-013: Bulk Import / Export ──────────────────────────────
+
+  /**
+   * REQ-BE-013: Bulk import products from a parsed CSV row array.
+   *
+   * Expected CSV columns: name, description, basePrice, salePrice, stock,
+   * categoryId, isRentable, isSellable, isFeatured, fabric, hsnCode.
+   *
+   * Each row is validated individually; errors are collected and returned
+   * alongside the count of successfully imported products.
+   */
+  async bulkImport(
+    rows: Array<Record<string, string>>,
+    adminId: string,
+  ): Promise<BulkImportResult> {
+    const errors: Array<{ row: number; message: string }> = [];
+    let imported = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNum = i + 2; // +2 for 1-based + header row
+
+      try {
+        const name = row.name?.trim();
+        if (!name) {
+          errors.push({ row: rowNum, message: 'name is required' });
+          continue;
+        }
+
+        const basePrice = parseFloat(row.basePrice);
+        if (Number.isNaN(basePrice) || basePrice < 0) {
+          errors.push({ row: rowNum, message: 'basePrice must be a non-negative number' });
+          continue;
+        }
+
+        const categoryId = row.categoryId?.trim();
+        if (!categoryId) {
+          errors.push({ row: rowNum, message: 'categoryId is required' });
+          continue;
+        }
+
+        // Verify category exists
+        const category = await this.prisma.category.findUnique({
+          where: { id: categoryId },
+        });
+        if (!category) {
+          errors.push({ row: rowNum, message: `Category ${categoryId} not found` });
+          continue;
+        }
+
+        const slug = slugify(name);
+        const salePrice = row.salePrice ? parseFloat(row.salePrice) : null;
+        const stock = row.stock ? parseInt(row.stock, 10) : 0;
+
+        await this.prisma.product.create({
+          data: {
+            name,
+            slug,
+            description: row.description?.trim() ?? null,
+            basePrice,
+            salePrice: salePrice && !Number.isNaN(salePrice) ? salePrice : null,
+            stock: Number.isNaN(stock) ? 0 : stock,
+            categoryId,
+            isRentable: row.isRentable?.toLowerCase() === 'true',
+            isSellable: row.isSellable?.toLowerCase() !== 'false',
+            isFeatured: row.isFeatured?.toLowerCase() === 'true',
+            fabric: row.fabric?.trim() ?? null,
+            hsnCode: row.hsnCode?.trim() ?? null,
+            images: [],
+            isActive: true,
+          },
+        });
+
+        imported++;
+        this.logger.log({
+          row: rowNum,
+          name,
+          adminId,
+          action: 'product.bulk_import.row_imported',
+        });
+      } catch (error) {
+        errors.push({
+          row: rowNum,
+          message: (error as Error).message ?? 'Unknown error',
+        });
+      }
+    }
+
+    this.logger.log({
+      imported,
+      errors: errors.length,
+      total: rows.length,
+      adminId,
+      action: 'product.bulk_import.complete',
+    });
+
+    return { imported, errors, total: rows.length };
+  }
+
+  /**
+   * REQ-BE-013: Bulk update products (price, stock, status changes).
+   */
+  async bulkUpdate(dto: BulkUpdateDto, adminId: string): Promise<BulkUpdateResult> {
+    const errors: Array<{ productId: string; message: string }> = [];
+    let updated = 0;
+
+    for (const item of dto.updates) {
+      try {
+        const product = await this.prisma.product.findUnique({
+          where: { id: item.productId },
+        });
+        if (!product) {
+          errors.push({ productId: item.productId, message: 'Product not found' });
+          continue;
+        }
+
+        const data: Prisma.ProductUpdateInput = {};
+        if (item.basePrice !== undefined) data.basePrice = item.basePrice;
+        if (item.salePrice !== undefined) data.salePrice = item.salePrice;
+        if (item.stock !== undefined) data.stock = item.stock;
+        if (item.isActive !== undefined) data.isActive = item.isActive;
+        if (item.isFeatured !== undefined) data.isFeatured = item.isFeatured;
+
+        await this.prisma.product.update({
+          where: { id: item.productId },
+          data,
+        });
+
+        updated++;
+      } catch (error) {
+        errors.push({
+          productId: item.productId,
+          message: (error as Error).message ?? 'Unknown error',
+        });
+      }
+    }
+
+    this.logger.log({
+      updated,
+      errors: errors.length,
+      total: dto.updates.length,
+      adminId,
+      action: 'product.bulk_update.complete',
+    });
+
+    return { updated, errors, total: dto.updates.length };
+  }
+
+  /**
+   * REQ-BE-013: Export all products as a flat array for CSV/Excel generation.
+   * Returns raw rows — the controller handles file format conversion.
+   */
+  async exportAll(): Promise<
+    Array<{
+      id: string;
+      name: string;
+      slug: string;
+      description: string | null;
+      basePrice: number;
+      salePrice: number | null;
+      stock: number;
+      isActive: boolean;
+      isFeatured: boolean;
+      isRentable: boolean;
+      isSellable: boolean;
+      categoryId: string;
+      brandId: string | null;
+      fabric: string | null;
+      hsnCode: string | null;
+      createdAt: Date;
+    }>
+  > {
+    const products = await this.prisma.product.findMany({
+      where: { deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        basePrice: true,
+        salePrice: true,
+        stock: true,
+        isActive: true,
+        isFeatured: true,
+        isRentable: true,
+        isSellable: true,
+        categoryId: true,
+        brandId: true,
+        fabric: true,
+        hsnCode: true,
+        createdAt: true,
+      },
+    });
+
+    return products.map((p) => ({
+      ...p,
+      basePrice: Number(p.basePrice),
+      salePrice: p.salePrice ? Number(p.salePrice) : null,
+    }));
   }
 }

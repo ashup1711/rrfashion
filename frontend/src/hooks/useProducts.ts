@@ -10,6 +10,12 @@ import {
   createVariant,
   updateVariant,
   deleteVariant,
+  bulkImportProducts,
+  bulkUpdateProducts,
+  exportProducts,
+  type BulkImportResult,
+  type BulkUpdateResult,
+  type BulkUpdateItem,
 } from '../api/products';
 import { QUERY_KEYS } from '../utils/constants';
 import type { ProductFilters, CreateProductData, ProductCountsResponse } from '../types/product';
@@ -153,5 +159,35 @@ export const useDeleteVariant = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.productVariants] });
     },
+  });
+};
+
+// ─── Bulk Operations Hooks (REQ-FE-010) ───────────────────────────────────
+
+export const useBulkImportProducts = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<BulkImportResult, Error, File>({
+    mutationFn: (file: File) => bulkImportProducts(file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.products] });
+    },
+  });
+};
+
+export const useBulkUpdateProducts = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<BulkUpdateResult, Error, BulkUpdateItem[]>({
+    mutationFn: (updates: BulkUpdateItem[]) => bulkUpdateProducts(updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.products] });
+    },
+  });
+};
+
+export const useExportProducts = () => {
+  return useMutation<Blob, Error, void>({
+    mutationFn: () => exportProducts(),
   });
 };

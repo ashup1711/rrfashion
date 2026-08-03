@@ -90,3 +90,65 @@ export const deleteVariant = async (id: string): Promise<{ message: string }> =>
   const { data } = await adminClient.delete<{ message: string }>(`/variants/${id}`);
   return data;
 };
+
+// ─── Bulk Operations (REQ-FE-010 / REQ-BE-013) ───────────────────────────
+
+export interface BulkImportResult {
+  imported: number;
+  errors: number;
+  total: number;
+  details?: { row: number; message: string }[];
+}
+
+export interface BulkUpdateItem {
+  productId: string;
+  basePrice?: number;
+  salePrice?: number | null;
+  stock?: number;
+  isActive?: boolean;
+  isFeatured?: boolean;
+}
+
+export interface BulkUpdateResult {
+  updated: number;
+  errors: number;
+  total: number;
+  details?: { productId: string; message: string }[];
+}
+
+/**
+ * Bulk import products from a CSV file.
+ * POST /api/products/bulk/import (multipart form-data).
+ * SEC-09: File validated server-side (MIME type, 5MB limit).
+ */
+export async function bulkImportProducts(file: File): Promise<BulkImportResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await adminClient.post<BulkImportResult>('/products/bulk/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60_000, // 60s for large CSV uploads
+  });
+  return data;
+}
+
+/**
+ * Bulk update multiple products at once (price, stock, status).
+ * POST /api/products/bulk/update (JSON body).
+ * Backend contract: { updates: [{ productId, basePrice?, salePrice?, stock?, isActive?, isFeatured? }] }
+ */
+export async function bulkUpdateProducts(updates: BulkUpdateItem[]): Promise<BulkUpdateResult> {
+  const { data } = await adminClient.post<BulkUpdateResult>('/products/bulk/update', { updates });
+  return data;
+}
+
+/**
+ * Export products as Excel file (Blob download).
+ * GET /api/products/export
+ */
+export async function exportProducts(): Promise<Blob> {
+  const { data } = await adminClient.get('/products/export', {
+    responseType: 'blob',
+    timeout: 30_000,
+  });
+  return data;
+}

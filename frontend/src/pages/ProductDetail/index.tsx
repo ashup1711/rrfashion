@@ -8,6 +8,8 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ProductCard from '../../components/common/ProductCard';
 import RecentlyViewed from '../../components/common/RecentlyViewed';
 import Breadcrumb from '../../components/common/Breadcrumb';
+import ProductSeoHead from '../../components/seo/ProductSeoHead';
+import JsonLd from '../../components/seo/JsonLd';
 import type { Category } from '../../types/category';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Autoplay } from 'swiper/modules';
@@ -54,6 +56,35 @@ const ProductDetail = () => {
 
   return (
     <div className="container-page py-page-section">
+      {/* SEO Meta Tags (REQ-FE-011) */}
+      <ProductSeoHead product={product} />
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'Product',
+          name: product.name,
+          description: product.description || '',
+          sku: product.variants?.[0]?.sku || product.slug,
+          brand: product.brand
+            ? { '@type': 'Brand', name: product.brand.name }
+            : undefined,
+          category: product.category?.name || undefined,
+          image: product.images?.[0] ? imageUrl(product.images[0], product.version) : undefined,
+          offers: {
+            '@type': 'Offer',
+            priceCurrency: 'INR',
+            price: product.salePrice || product.basePrice,
+            availability: product.stock > 0
+              ? 'https://schema.org/InStock'
+              : 'https://schema.org/OutOfStock',
+            seller: {
+              '@type': 'Organization',
+              name: 'RR Fashion',
+            },
+          },
+        }}
+      />
+
       <Breadcrumb items={buildBreadcrumbItems(product.category, product.name)} />
 
       <div className="lg:grid lg:grid-cols-12 lg:gap-12">

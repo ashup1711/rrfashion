@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import DataTable from '../../../components/ui/DataTable';
 import Button from '../../../components/ui/Button';
 import Badge from '../../../components/ui/Badge';
 import Input from '../../../components/ui/Input';
-import { useProducts } from '../../../hooks/useProducts';
+import BulkImportModal from './BulkImportModal';
+import BulkActionBar from './BulkActionBar';
+import { useProducts, useExportProducts } from '../../../hooks/useProducts';
 import { useCategories } from '../../../hooks/useCategories';
 import { useBrands } from '../../../hooks/useBrands';
 import { ROUTES } from '../../../utils/constants';
@@ -19,6 +21,10 @@ const ProductList = () => {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [brandFilter, setBrandFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+
+  const { mutate: doExport, isPending: isExporting } = useExportProducts();
 
   const { data: productsData, isLoading, error } = useProducts({
     page,
@@ -31,7 +37,50 @@ const ProductList = () => {
   const { data: categories } = useCategories();
   const { data: brands } = useBrands();
 
+  const handleExport = useCallback(() => {
+    doExport(undefined, {
+      onSuccess: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `products-${new Date().toISOString().slice(0, 10)}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      },
+    });
+  }, [doExport]);
+
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    if (!productsData?.items) return;
+    const allIds = productsData.items.map((p) => p.id);
+    setSelectedIds((prev) =>
+      prev.length === allIds.length ? [] : allIds
+    );
+  }, [productsData?.items]);
+
   const columns: Column<Product>[] = [
+    {
+      key: 'select',
+      header: '',
+      render: (product) => (
+        <input
+          type="checkbox"
+          checked={selectedIds.includes(product.id)}
+          onChange={() => handleToggleSelect(product.id)}
+          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          aria-label={`Select ${product.name}`}
+        />
+      ),
+      className: 'w-10',
+    },
     {
       key: 'name',
       header: 'Product',
@@ -153,9 +202,25 @@ const ProductList = () => {
             Manage your product catalog
           </p>
         </div>
-        <Link to={ROUTES.ADMIN_PRODUCT_NEW}>
-          <Button>+ Add Product</Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            isLoading={isExporting}
+            disabled={isExporting}
+          >
+            {isExporting ? 'Exporting...' : 'Export Excel'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setShowBulkImport(true)}
+          >
+            Bulk Import
+          </Button>
+          <Link to={ROUTES.ADMIN_PRODUCT_NEW}>
+            <Button>+ Add Product</Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -232,6 +297,18 @@ const ProductList = () => {
               }
             : undefined
         }
+      />
+
+      {/* Bulk Import Modal (REQ-FE-010) */}
+      <BulkImportModal
+        isOpen={showBulkImport}
+        onClose={() => setShowBulkImport(false)}
+      />
+
+      {/* Bulk Action Bar (REQ-FE-010) */}
+      <BulkActionBar
+        selectedIds={selectedIds}
+        onClearSelection={() => setSelectedIds([])}
       />
     </div>
   );

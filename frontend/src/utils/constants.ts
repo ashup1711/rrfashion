@@ -20,6 +20,7 @@ export const ROUTES = {
   // Customer routes
   HOME: '/',
   SHOP: '/shop',
+  SEARCH: '/search',
   SHOP_CATEGORY: (slug: string) => `/shop?category=${slug}`,
   PRODUCT_DETAIL: (id: string) => `/products/${id}`,
   CART: '/cart',
@@ -30,6 +31,7 @@ export const ROUTES = {
   PROFILE: '/profile',
   SALE: '/sale',
   ORDER_DETAIL: (id: string) => `/orders/${id}`,
+  CART_RECOVER: (token: string) => `/cart/recover/${token}`,
   GUEST_CHECKOUT: '/checkout/guest',
   WISHLIST: '/wishlist',
   CONTACT: '/contact',
@@ -62,6 +64,8 @@ export const ROUTES = {
   ADMIN_REPORTS: '/admin/reports',
   ADMIN_ORDERS: '/admin/orders',
   ADMIN_ORDER_DETAIL: (id: string) => `/admin/orders/${id}`,
+  ADMIN_RETURNS: '/admin/returns',
+  ADMIN_AUDIT_LOGS: '/admin/audit-logs',
 } as const;
 
 export const QUERY_KEYS = {
@@ -154,8 +158,19 @@ export const QUERY_KEYS = {
   adminOrder: 'adminOrder',
   orderStatusLogs: 'orderStatusLogs',
 
+  // Returns & Refunds
+  refunds: 'refunds',
+  adminReturns: 'adminReturns',
+  returnRequest: 'returnRequest',
+
   // POS Conflicts
   posConflicts: 'posConflicts',
+
+  // Search
+  search: 'search',
+
+  // Audit Logs (admin)
+  auditLogs: 'auditLogs',
 
   // Wishlist
   wishlist: 'wishlist',
@@ -187,6 +202,8 @@ export const STALE_TIMES = {
   permissions: 1000 * 60 * 30,
   adminUsers: 1000 * 60 * 5,
   inventory: 1000 * 60 * 2,
+  search: 1000 * 60 * 2,
+  auditLogs: 1000 * 60, // 1 minute — audit data changes frequently
 } as const;
 
 export const FREE_SHIPPING_THRESHOLD = 999;
