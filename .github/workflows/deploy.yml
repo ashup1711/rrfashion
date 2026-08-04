@@ -29,11 +29,29 @@ jobs:
         uses: actions/checkout@v4
 
       # ── Docker Compose Lifecycle ────────────────────────────
+      - name: Ensure Docker is running
+        run: |
+          if ! docker info >/dev/null 2>&1; then
+            echo "Docker daemon not running — starting Docker Desktop..."
+            open -a Docker
+            echo "Waiting for Docker daemon..."
+            for i in $(seq 1 30); do
+              if docker info >/dev/null 2>&1; then
+                echo "Docker ready after ${i}s"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "Docker failed to start within 60s"
+            exit 1
+          fi
+          echo "Docker is already running"
+
       - name: Docker Compose — clean shutdown
         working-directory: ${{ github.workspace }}
         run: |
           echo "=== Stopping any running containers... ==="
-          docker compose down --remove-orphans
+          docker compose down --remove-orphans || true
           echo "=== All containers stopped. Volumes preserved. ==="
 
       - name: Docker Compose — rebuild and start
