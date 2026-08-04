@@ -1,4 +1,4 @@
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
 import type { ApiError, ApiErrorResponse } from '../types/api';
 import { GUEST_TOKEN_KEY } from '../utils/guestConstants';
 import { navigate } from '../utils/navigation';
@@ -37,6 +37,20 @@ apiClient.interceptors.request.use((config) => {
 });
 
 // Response interceptor — only unwrap envelope and normalize errors
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: (value?: unknown) => void; reject: (err: unknown) => void }> = [];
+
+const processQueue = (error: unknown) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve();
+    }
+  });
+  failedQueue = [];
+};
+
 apiClient.interceptors.response.use(
   (response) => {
     // Unwrap { data, timestamp } envelope from TransformInterceptor
@@ -61,11 +75,34 @@ apiClient.interceptors.response.use(
     return response;
   },
   async (error: AxiosError<ApiErrorResponse | ApiError>) => {
-    // For 401 errors with cookie auth, SPA-navigate to login (REQ-FE-RC-003)
-    if (error.response?.status === 401) {
-      const isAdminRoute = window.location.hash.startsWith('#/admin');
-      navigate(isAdminRoute ? '/admin/login' : '/auth/login');
-      return Promise.reject(error);
+    const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
+
+    // Auto-refresh: on 401, try refresh_token cookie before navigating to login
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // Queue concurrent requests while refresh is in progress
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then(() => apiClient(originalRequest));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        // Try refresh — refresh_token cookie is sent automatically
+        await apiClient.post('/auth/refresh');
+        processQueue(null);
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError);
+        // Refresh failed — navigate to login
+        const isAdminRoute = window.location.hash.startsWith('#/admin');
+        navigate(isAdminRoute ? '/admin/login' : '/auth/login');
+        return Promise.reject(error);
+      } finally {
+        isRefreshing = false;
+      }
     }
 
     // Transform structured error from backend
