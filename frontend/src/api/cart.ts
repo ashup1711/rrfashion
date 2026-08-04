@@ -38,7 +38,7 @@ export const addCartItem = async (
   variantId: string,
   quantity: number,
   type?: string,
-  cartId?: string | null,
+  _cartId?: string | null,
   rent?: { rentStart?: string; rentEnd?: string },
 ): Promise<Cart> => {
   const { data } = await apiClient.post<Cart>('/cart/items', {

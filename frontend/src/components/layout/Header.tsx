@@ -86,6 +86,7 @@ const Header = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [openMegaMenu, setOpenMegaMenu] = useState<string | null>(null);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [openMobileSubmenu, setOpenMobileSubmenu] = useState<string | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
@@ -110,17 +111,21 @@ const Header = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Close mega menu when clicking outside
+  // Close mega menu and user dropdown when clicking outside
+  // BUG-FIX: Use `mousedown` instead of `click` to fire before React18's synthetic
+  // event delegation. With `click`, the document listener fires AFTER React commits
+  // the button's onClick state change, causing the dropdown to close immediately.
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleMouseDownOutside = (event: MouseEvent) => {
       const target = event.target as Element;
       if (!target.closest('.mega-menu-wrapper')) {
         setOpenMegaMenu(null);
+        setIsUserMenuOpen(false);
       }
     };
 
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    document.addEventListener('mousedown', handleMouseDownOutside);
+    return () => document.removeEventListener('mousedown', handleMouseDownOutside);
   }, []);
 
   // Close mobile menu on route change
@@ -393,9 +398,10 @@ const Header = () => {
               {isAuthenticated ? (
                 <div className="relative mega-menu-wrapper">
                   <button
-                    onClick={() => setOpenMegaMenu(openMegaMenu === 'user' ? null : 'user')}
+                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                     className="flex items-center gap-2 text-neutral-nearBlack hover:text-primary-500 transition-colors p-2 hover:bg-neutral-light rounded-full"
                     aria-label="User menu"
+                    aria-expanded={isUserMenuOpen}
                   >
                     {/* User Avatar */}
                     <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center overflow-hidden">
@@ -416,28 +422,33 @@ const Header = () => {
                   
                   {/* User Dropdown Menu */}
                   <AnimatePresence>
-                    {openMegaMenu === 'user' && (
+                    {isUserMenuOpen && (
                       <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.2 }}
-                        className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-100 py-2 min-w-[180px] z-50"
+                        className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-100 py-2 min-w-[180px] z-[60]"
                       >
                         <Link
                           to={ROUTES.PROFILE}
+                          onClick={() => setIsUserMenuOpen(false)}
                           className="block px-4 py-2 text-sm text-neutral-nearBlack hover:bg-neutral-light hover:text-primary-500 transition-colors"
                         >
                           My Profile
                         </Link>
                         <Link
                           to={ROUTES.ORDERS}
+                          onClick={() => setIsUserMenuOpen(false)}
                           className="block px-4 py-2 text-sm text-neutral-nearBlack hover:bg-neutral-light hover:text-primary-500 transition-colors"
                         >
                           My Orders
                         </Link>
                         <button
-                          onClick={logout}
+                          onClick={() => {
+                            logout();
+                            setIsUserMenuOpen(false);
+                          }}
                           className="block w-full text-left px-4 py-2 text-sm text-neutral-nearBlack hover:bg-neutral-light hover:text-red-600 transition-colors"
                         >
                           Logout

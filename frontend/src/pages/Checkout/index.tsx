@@ -38,6 +38,13 @@ const Checkout = () => {
   // when the cart query resolves multiple times during navigation
   const hasResolvedOnce = useRef(false);
 
+  // BUG-FIX: Prevent downgrading pageState from 'ready' back to 'redirecting'.
+  // When child components (CheckoutForm, OrderSummary) mount, they call useCart()
+  // which triggers cartStore.setItems(), changing the `items` reference. This
+  // re-triggers this useEffect. Without the guard, pageState flips from 'ready'
+  // to 'redirecting' mid-render, unmounting the lazy-loaded CheckoutForm → React error #300.
+  const hasReachedReady = useRef(false);
+
   // Drive page state transitions based on cart loading status and items
   useEffect(() => {
     // Skip until the cart query has resolved (serverItems is defined)
@@ -49,15 +56,16 @@ const Checkout = () => {
     if (hasItems) {
       // Cart has items — show checkout (stable state)
       hasResolvedOnce.current = true;
+      hasReachedReady.current = true;
       setPageState('ready');
-    } else if (!hasResolvedOnce.current && !hasTriggeredRedirect.current) {
-      // ONLY redirect on the first resolution with empty items
-      // If items arrive later (via mutation callback), don't cycle back to redirecting
+    } else if (!hasReachedReady.current && !hasTriggeredRedirect.current) {
+      // ONLY redirect on the first resolution with empty items, and ONLY if
+      // we never reached 'ready'. Once 'ready' was shown, never downgrade.
       hasTriggeredRedirect.current = true;
       setPageState('redirecting');
     }
-    // If hasResolvedOnce is true but items are empty now (e.g., after mutation),
-    // stay in the current state instead of cycling
+    // If hasReachedReady is true but items are empty now (e.g. after mutation),
+    // stay in 'ready' — never cycle back to 'redirecting'.
   }, [serverItems, items]);
 
   // Perform the actual navigation in a separate effect so the loading spinner

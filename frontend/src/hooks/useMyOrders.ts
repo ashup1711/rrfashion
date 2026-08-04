@@ -12,11 +12,17 @@ import {
 } from '../api/orders';
 import type { InitiateReturnData, ApplyCouponData, CancellationReason } from '../api/orders';
 import { QUERY_KEYS } from '../utils/constants';
+import { useAuthStore } from '../store/authStore';
 
 export const useMyOrders = (filters?: { page?: number; limit?: number; status?: string }) => {
+  // BUG-FIX: Only fire the orders query after auth has resolved.
+  // Without this guard the query fires before initializeAuth() completes,
+  // hitting the API with no session → empty result → blank orders page.
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   return useQuery({
     queryKey: [QUERY_KEYS.myOrders, filters],
     queryFn: () => getMyOrders(filters),
+    enabled: isAuthenticated,
   });
 };
 
