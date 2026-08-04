@@ -24,7 +24,7 @@
 -- 1. REQ-DB-001: Composite index on GuestSession for efficient cleanup
 -- ============================================================================
 CREATE INDEX IF NOT EXISTS "guest_sessions_expires_at_last_activity_at_idx"
-  ON "guest_sessions"("expires_at", "last_activity_at");
+  ON "guest_sessions"("expiresAt", "lastActivityAt");
 
 -- ============================================================================
 -- 2-4. REQ-DB-002: Backfill and enforce NOT NULL on file_size and mime_type
@@ -48,7 +48,7 @@ ALTER TABLE "product_images" ALTER COLUMN "mime_type" SET NOT NULL;
 -- 5. REQ-DB-002: Composite index for product image queries by variant + type
 -- ============================================================================
 CREATE INDEX IF NOT EXISTS "product_images_variant_id_variant_type_idx"
-  ON "product_images"("variant_id", "variant_type");
+  ON "product_images"("variantId", "variant_type");
 
 -- ============================================================================
 -- 6. REQ-DB-003: Unique constraint on storageKey
@@ -94,21 +94,21 @@ BEGIN
   -- Delete guest addresses first (FK to guest_sessions)
   DELETE FROM "guest_addresses"
   WHERE "guest_session_id" IN (
-    SELECT "id" FROM "guest_sessions" WHERE "expires_at" < NOW()
+    SELECT "id" FROM "guest_sessions" WHERE "expiresAt" < NOW()
   );
   GET DIAGNOSTICS v_deleted_addresses = ROW_COUNT;
 
   -- Delete guest wishlist items (FK to guest_sessions)
   DELETE FROM "guest_wishlist_items"
   WHERE "guest_session_id" IN (
-    SELECT "id" FROM "guest_sessions" WHERE "expires_at" < NOW()
+    SELECT "id" FROM "guest_sessions" WHERE "expiresAt" < NOW()
   );
   GET DIAGNOSTICS v_deleted_wishlist_items = ROW_COUNT;
 
   -- Delete guest cart items (FK to guest_sessions)
   DELETE FROM "guest_cart_items"
   WHERE "guest_session_id" IN (
-    SELECT "id" FROM "guest_sessions" WHERE "expires_at" < NOW()
+    SELECT "id" FROM "guest_sessions" WHERE "expiresAt" < NOW()
   );
   GET DIAGNOSTICS v_deleted_cart_items = ROW_COUNT;
 
@@ -116,19 +116,19 @@ BEGIN
   UPDATE "orders"
   SET "guest_session_id" = NULL
   WHERE "guest_session_id" IN (
-    SELECT "id" FROM "guest_sessions" WHERE "expires_at" < NOW()
+    SELECT "id" FROM "guest_sessions" WHERE "expiresAt" < NOW()
   );
 
   -- Set guest_session_id to NULL on reviews (FK with onDelete: SetNull)
   UPDATE "reviews"
   SET "guest_session_id" = NULL
   WHERE "guest_session_id" IN (
-    SELECT "id" FROM "guest_sessions" WHERE "expires_at" < NOW()
+    SELECT "id" FROM "guest_sessions" WHERE "expiresAt" < NOW()
   );
 
   -- Delete expired guest sessions themselves
   DELETE FROM "guest_sessions"
-  WHERE "expires_at" < NOW();
+  WHERE "expiresAt" < NOW();
   GET DIAGNOSTICS v_deleted_sessions = ROW_COUNT;
 
   RETURN QUERY SELECT
