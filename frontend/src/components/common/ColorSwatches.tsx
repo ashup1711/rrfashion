@@ -17,11 +17,12 @@ const ColorSwatches = ({
   onColorSelect, 
   className = '' 
 }: ColorSwatchesProps) => {
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+
   if (!colors || colors.length === 0) return null;
 
   const displayColors = colors.slice(0, 5);
   const remainingCount = Math.max(0, colors.length - 5);
-  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
 
   const handleColorClick = (index: number, color: ColorSwatch) => {
     setSelectedIndex(index === selectedIndex ? -1 : index);

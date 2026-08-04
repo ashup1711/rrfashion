@@ -50,7 +50,7 @@ const PWAInstallPrompt = () => {
   const location = useLocation();
   const [visible, setVisible] = useState(false);
 
-  if (isHiddenPath(location.pathname)) return null;
+  const hidden = isHiddenPath(location.pathname);
 
   useEffect(() => {
     if (isDismissedRecently()) return;
@@ -100,6 +100,8 @@ const PWAInstallPrompt = () => {
     }
     setVisible(false);
   };
+
+  if (hidden) return null;
 
   return (
     <AnimatePresence>
