@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import OrderCard from './components/OrderCard';
 import EmptyState from '../../components/common/EmptyState';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Button from '../../components/ui/Button';
 import { useMyOrders, useRepurchase, useDownloadInvoice } from '../../hooks/useMyOrders';
 import { ROUTES } from '../../utils/constants';
