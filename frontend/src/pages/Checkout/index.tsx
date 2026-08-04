@@ -45,6 +45,10 @@ const Checkout = () => {
   // to 'redirecting' mid-render, unmounting the lazy-loaded CheckoutForm → React error #300.
   const hasReachedReady = useRef(false);
 
+  // REQ-FE-001: Use a ref to track the previous serverItems length to prevent
+  // unnecessary re-evaluations when the same data refetches.
+  const prevServerItemsLen = useRef<number | undefined>(undefined);
+
   // Drive page state transitions based on cart loading status and items
   useEffect(() => {
     // Skip until the cart query has resolved (serverItems is defined)
@@ -52,7 +56,15 @@ const Checkout = () => {
     // even if `isLoading` is already `false` (e.g. query disabled or cached).
     if (serverItems === undefined) return;
 
-    const hasItems = items.length > 0 || serverItems.length > 0;
+    // REQ-FE-001: Skip re-evaluation if serverItems length hasn't changed.
+    // This prevents the cycle: serverItems refetch → useEffect → setItems → re-render
+    const currentLen = serverItems.length;
+    if (prevServerItemsLen.current === currentLen && hasReachedReady.current) {
+      return;
+    }
+    prevServerItemsLen.current = currentLen;
+
+    const hasItems = currentLen > 0 || items.length > 0;
     if (hasItems) {
       // Cart has items — show checkout (stable state)
       hasResolvedOnce.current = true;
@@ -66,7 +78,7 @@ const Checkout = () => {
     }
     // If hasReachedReady is true but items are empty now (e.g. after mutation),
     // stay in 'ready' — never cycle back to 'redirecting'.
-  }, [serverItems, items]);
+  }, [serverItems, items.length]); // REQ-FE-001: Use items.length (primitive) instead of items (new ref on every render)
 
   // Perform the actual navigation in a separate effect so the loading spinner
   // renders in this cycle before the route changes

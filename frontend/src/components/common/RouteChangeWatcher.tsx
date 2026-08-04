@@ -9,7 +9,7 @@ const ROUTE_QUERY_KEYS: Record<string, string[]> = {
   '/products/': [QUERY_KEYS.products],
   '/cart': [QUERY_KEYS.cart],
   '/wishlist': [QUERY_KEYS.wishlist],
-  '/orders': [QUERY_KEYS.orders],
+  '/orders': [QUERY_KEYS.orders, QUERY_KEYS.myOrders],
   '/': [QUERY_KEYS.products, QUERY_KEYS.categories],
 };
 

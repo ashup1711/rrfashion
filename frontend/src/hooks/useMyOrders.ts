@@ -11,7 +11,7 @@ import {
   cancelOrder,
 } from '../api/orders';
 import type { InitiateReturnData, ApplyCouponData, CancellationReason } from '../api/orders';
-import { QUERY_KEYS } from '../utils/constants';
+import { QUERY_KEYS, STALE_TIMES } from '../utils/constants';
 import { useAuthStore } from '../store/authStore';
 
 export const useMyOrders = (filters?: { page?: number; limit?: number; status?: string }) => {
@@ -23,6 +23,10 @@ export const useMyOrders = (filters?: { page?: number; limit?: number; status?: 
     queryKey: [QUERY_KEYS.myOrders, filters],
     queryFn: () => getMyOrders(filters),
     enabled: isAuthenticated,
+    // REQ-FE-002: Add staleTime to prevent showing stale empty cache.
+    // Without this, navigating away and back shows cached empty data briefly
+    // before the background refetch completes.
+    staleTime: STALE_TIMES.orders,
   });
 };
 
