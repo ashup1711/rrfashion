@@ -14,7 +14,10 @@ export const isApiWishlistItem = (item: WishlistEntry): item is ApiWishlistItem 
 
 export const useWishlist = () => {
   const queryClient = useQueryClient();
-  const { setGuestItems, guestItems, addGuestItem, removeGuestItem } = useWishlistStore();
+  const setGuestItems = useWishlistStore((s) => s.setGuestItems);
+  const guestItems = useWishlistStore((s) => s.guestItems);
+  const addGuestItem = useWishlistStore((s) => s.addGuestItem);
+  const removeGuestItem = useWishlistStore((s) => s.removeGuestItem);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { hasGuestToken } = useGuestSession();
   const hasCredentials = hasGuestToken || isAuthenticated;

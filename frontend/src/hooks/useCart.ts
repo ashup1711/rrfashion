@@ -12,9 +12,16 @@ import type { CartItemState } from '../store/cartStore';
 export const useCart = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { setItems, items, syncWithBackend, isSynced, isSyncing, addItem: addItemToStore, removeItem: removeItemFromStore, updateQuantity: updateQuantityInStore } = useCartStore();
-  const itemCount = useCartStore((state) => state.itemCount);
-  const total = useCartStore((state) => state.total);
+  const setItems = useCartStore((s) => s.setItems);
+  const items = useCartStore((s) => s.items);
+  const syncWithBackend = useCartStore((s) => s.syncWithBackend);
+  const isSynced = useCartStore((s) => s.isSynced);
+  const isSyncing = useCartStore((s) => s.isSyncing);
+  const addItemToStore = useCartStore((s) => s.addItem);
+  const removeItemFromStore = useCartStore((s) => s.removeItem);
+  const updateQuantityInStore = useCartStore((s) => s.updateQuantity);
+  const itemCount = useCartStore((s) => s.itemCount);
+  const total = useCartStore((s) => s.total);
 
   // Interceptor always provides the best available token (admin_token > auth_token > guest_token)
   // via Authorization: Bearer header, so the request is always credentials-ready.
@@ -143,7 +150,8 @@ export const useCart = () => {
   const handleAddItem = useCallback(
     async (variantId: string, quantity: number, type?: string): Promise<void> => {
       const normalizedType = type || 'sale';
-      const alreadyInCart = items.some(
+      const currentItems = useCartStore.getState().items;
+      const alreadyInCart = currentItems.some(
         (i) => i.variantId === variantId && (i.type ?? 'sale') === normalizedType,
       );
       if (alreadyInCart) {
@@ -178,7 +186,7 @@ export const useCart = () => {
         throw error;
       }
     },
-    [items, addItemMutation, isAuthenticated, addItemToStore],
+    [addItemMutation, isAuthenticated, addItemToStore],
   );
 
   const handleRemoveItem = useCallback(
