@@ -19,7 +19,7 @@ export class ThrottlerProxyGuard extends ThrottlerGuard {
     // REQ-SEC-10: per-user tracking — authenticated requests key by userId,
     // guest requests key by guestSessionId. This prevents all ngrok users
     // from sharing one 120/min bucket.
-    const user = (req as any).user;
+    const user = (req as Request & { user?: { sub?: string; guestSessionId?: string } }).user;
     if (user?.sub) {
       const tracker = `user:${user.sub}`;
       this.logger.debug(`[RateLimit] ${req.method} ${req.url} — tracker: ${tracker}`);

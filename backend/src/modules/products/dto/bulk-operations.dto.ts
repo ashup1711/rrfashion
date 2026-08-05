@@ -1,7 +1,6 @@
 import {
   IsArray,
   ValidateNested,
-  IsString,
   IsNumber,
   IsOptional,
   IsBoolean,

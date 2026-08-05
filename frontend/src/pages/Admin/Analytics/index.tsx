@@ -68,7 +68,7 @@ const AnalyticsDashboard = () => {
           <p className="text-3xl font-bold text-gray-900 mt-1">
             ₹{(dashboard?.totalRevenue ?? 0).toLocaleString()}
           </p>
-          {dashboard?.revenueGrowth !== undefined && (
+          {dashboard?.revenueGrowth != null && (
             <p
               className={`text-xs mt-1 ${
                 dashboard.revenueGrowth >= 0
@@ -86,7 +86,7 @@ const AnalyticsDashboard = () => {
           <p className="text-3xl font-bold text-gray-900 mt-1">
             {dashboard?.totalOrders ?? 0}
           </p>
-          {dashboard?.ordersGrowth !== undefined && (
+          {dashboard?.ordersGrowth != null && (
             <p
               className={`text-xs mt-1 ${
                 dashboard.ordersGrowth >= 0

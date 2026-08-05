@@ -107,12 +107,6 @@ export class SearchService {
     category?: string,
     inStock?: boolean,
   ): Promise<SearchResponseDto> {
-    const tsQuery = q
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((t) => `${t}:*`)
-      .join(' & ');
-
     const conditions: string[] = [];
     const params: unknown[] = [q]; // $1 = search query
     let paramIndex = 2;
