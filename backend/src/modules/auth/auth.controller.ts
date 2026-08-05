@@ -1,5 +1,15 @@
-import { Controller, Post, Get, Patch, Body, UseGuards, Res } from '@nestjs/common';
-import { Response } from 'express';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import { Request, Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { ApiCommonResponse } from '../../common/decorators/api-response.decorator';
@@ -60,9 +70,18 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @ApiCommonResponse({ summary: 'Refresh access token', auth: false })
-  async refresh(@Body() refreshDto: RefreshDto, @Res({ passthrough: true }) res: Response) {
-    const tokens = await this.authService.refresh(refreshDto);
-    // Cookies carry the old refresh token — we still need it from body for backward compat
+  async refresh(
+    @Body() refreshDto: RefreshDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // SEC-03: the refresh token travels in an httpOnly cookie, so the body is optional.
+    // Prefer the body token when present (backward compat with older clients).
+    const refreshToken = refreshDto.refreshToken ?? req.cookies?.refresh_token;
+    if (!refreshToken || typeof refreshToken !== 'string') {
+      throw new BadRequestException('refreshToken is required');
+    }
+    const tokens = await this.authService.refresh({ refreshToken });
     this.setAuthCookies(res, tokens.accessToken, tokens.refreshToken);
     return { message: 'Token refreshed' };
   }

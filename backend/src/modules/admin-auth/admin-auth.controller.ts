@@ -1,5 +1,14 @@
-import { Controller, Post, Get, Body, UseGuards, Res } from '@nestjs/common';
-import { Response } from 'express';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import { Request, Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiCommonResponse } from '../../common/decorators/api-response.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -26,8 +35,18 @@ export class AdminAuthController {
   @Public()
   @Post('refresh')
   @ApiCommonResponse({ summary: 'Admin refresh access token', auth: false })
-  async refresh(@Body() refreshDto: AdminRefreshDto, @Res({ passthrough: true }) res: Response) {
-    const tokens = await this.adminAuthService.refresh(refreshDto);
+  async refresh(
+    @Body() refreshDto: AdminRefreshDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // SEC-03: the admin refresh token travels in an httpOnly cookie, so the body is
+    // optional. Prefer the body token when present (backward compat with older clients).
+    const refreshToken = refreshDto.refreshToken ?? req.cookies?.admin_refresh_token;
+    if (!refreshToken || typeof refreshToken !== 'string') {
+      throw new BadRequestException('refreshToken is required');
+    }
+    const tokens = await this.adminAuthService.refresh({ refreshToken });
     this.setAdminAuthCookies(res, tokens.accessToken, tokens.refreshToken);
     return { message: 'Token refreshed' };
   }
