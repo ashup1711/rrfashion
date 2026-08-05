@@ -11,7 +11,6 @@ import TopBar from './TopBar';
 import ReminderBanner from '../common/ReminderBanner';
 import PWAInstallPrompt from '../common/PWAInstallPrompt';
 import ExitIntentPopup from '../common/ExitIntentPopup';
-import SaleCountdownBanner from '../common/SaleCountdownBanner';
 
 interface LayoutProps {
   children: ReactNode;
@@ -23,7 +22,6 @@ const Layout = ({ children }: LayoutProps) => {
       <ReminderBanner />
       <TopBar />
       <AnnouncementBar />
-      <SaleCountdownBanner />
       <Header />
       <main className="flex-1 pb-16 lg:pb-0">{children}</main>
       <Footer />

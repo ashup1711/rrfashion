@@ -26,6 +26,11 @@ export const useProducts = (filters?: ProductFilters) => {
     queryKey: [QUERY_KEYS.products, filters],
     queryFn: () => getProducts(filters),
     refetchOnWindowFocus: false,
+    // Prevent duplicate API calls when multiple components mount with the same
+    // query key (e.g. useLandingPageData + ProductCollectionTabs + ProductCollection).
+    // With staleTime > 0, React Query serves cached data to new observers instead
+    // of firing a background refetch for an already-in-flight or fresh query.
+    staleTime: 60_000, // 60 seconds
   });
 };
 

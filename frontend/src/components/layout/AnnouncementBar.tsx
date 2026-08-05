@@ -6,7 +6,6 @@ const MESSAGES = [
   'Free shipping on orders over ₹999',
   'Cash on Delivery available',
   'Use code FIRST10 for 10% off your first order',
-  'New Diwali collection now live',
 ];
 
 const STORAGE_KEY = 'announcement_bar_dismissed';

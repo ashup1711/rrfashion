@@ -200,7 +200,7 @@ const Footer = () => {
           <div className="mt-8 lg:mt-0">
             <h3 className="font-display text-section-subtitle text-neutral-white font-semibold mb-6">Newsletter</h3>
             <p className="text-body-small text-primary-300 mb-6 leading-relaxed">
-              Subscribe for exclusive offers, new collection alerts, and Diwali/Navratri specials.
+              Subscribe for exclusive offers, new collection alerts, and festival specials.
             </p>
             <form onSubmit={handleSubscribe} className="space-y-3" noValidate>
               <div className="relative">
