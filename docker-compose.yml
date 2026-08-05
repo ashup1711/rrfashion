@@ -76,6 +76,12 @@ services:
       JWT_ADMIN_EXPIRES_IN: "15m"
       REFRESH_EXPIRES_IN: "7d"
       BCRYPT_SALT_ROUNDS: "12"
+      # Rate limits — raised above code defaults for ngrok usage (all traffic
+      # arrives through a single tunnel IP). Matches k8s/configmap.yaml.
+      RATE_LIMIT_GENERAL: "500"
+      RATE_LIMIT_AUTH: "30"
+      RATE_LIMIT_UPLOAD: "50"
+      RATE_LIMIT_GUEST: "50"
       # REQ-SEC-009: Swagger is served in dev; gate it in prod via SWAGGER_ENABLED=true
       # SWAGGER_ENABLED: "false"
       # Razorpay
