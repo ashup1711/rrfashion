@@ -13,7 +13,7 @@ export interface AdminReview {
     firstName: string;
     lastName: string;
     email: string;
-  };
+  } | null;
   product: {
     id: string;
     name: string;

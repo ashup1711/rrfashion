@@ -121,11 +121,14 @@ const ReviewList = () => {
     {
       key: 'user',
       header: 'Customer',
-      render: (review) => (
-        <span className="text-gray-700">
-          {review.user.firstName} {review.user.lastName}
-        </span>
-      ),
+      render: (review) =>
+        review.user ? (
+          <span className="text-gray-700">
+            {review.user.firstName} {review.user.lastName}
+          </span>
+        ) : (
+          <span className="text-gray-400 italic">Guest</span>
+        ),
     },
     {
       key: 'rating',
@@ -295,8 +298,9 @@ const ReviewList = () => {
             </p>
             <div className="p-3 bg-gray-50 rounded-md">
               <p className="text-sm font-medium text-gray-900">
-                {moderateModal.review.user.firstName}{' '}
-                {moderateModal.review.user.lastName}
+                {moderateModal.review.user
+                  ? `${moderateModal.review.user.firstName} ${moderateModal.review.user.lastName}`
+                  : 'Guest'}
               </p>
               <div className="flex items-center gap-2 mt-1">
                 {renderStars(moderateModal.review.rating)}
