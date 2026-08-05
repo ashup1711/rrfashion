@@ -88,7 +88,7 @@ const BlogList = () => {
       header: 'Created',
       render: (blog) => (
         <span className="text-xs text-gray-500">
-          {new Date(blog.date).toLocaleDateString()}
+          {blog.createdAt ? new Date(blog.createdAt).toLocaleDateString() : '—'}
         </span>
       ),
     },
@@ -113,7 +113,7 @@ const BlogList = () => {
     },
   ];
 
-  const blogItems = data?.data ?? [];
+  const blogItems = data?.items ?? [];
   const meta = data?.meta;
 
   return (

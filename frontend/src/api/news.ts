@@ -13,7 +13,9 @@ export const adminGetAllNews = async (
   limit = 20,
 ): Promise<PaginatedResponse<NewsItem>> => {
   const { data } = await adminClient.get('/admin/news', { params: { page, limit } });
-  return data;
+  // Backend returns { data, meta }; map to { items, meta } for frontend convention
+  const resp = data as unknown as { data: NewsItem[]; meta: { page: number; limit: number; total: number; totalPages: number } };
+  return { items: resp.data, meta: resp.meta };
 };
 
 export const adminCreateNews = async (formData: CreateNewsData): Promise<NewsItem> => {

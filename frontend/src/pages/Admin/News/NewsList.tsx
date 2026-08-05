@@ -79,10 +79,10 @@ const NewsList = () => {
     {
       key: 'dates',
       header: 'Schedule',
-      render: (news) => (
+       render: (news) => (
         <div className="text-xs text-gray-500">
-          <p>{new Date(news.startDate).toLocaleDateString()}</p>
-          <p>→ {new Date(news.endDate).toLocaleDateString()}</p>
+          <p>{news.startDate ? new Date(news.startDate).toLocaleDateString() : '—'}</p>
+          <p>→ {news.endDate ? new Date(news.endDate).toLocaleDateString() : '—'}</p>
         </div>
       ),
     },
@@ -107,7 +107,7 @@ const NewsList = () => {
     },
   ];
 
-  const newsItems = data?.data ?? [];
+  const newsItems = data?.items ?? [];
   const meta = data?.meta;
 
   return (

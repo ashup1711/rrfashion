@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
@@ -5,7 +6,9 @@ import { toast } from 'sonner';
 import { getBlogs } from '../../../api/blog';
 import type { BlogPost } from '../../../types/blog';
 
-const BlogCard: React.FC<{ post: BlogPost; index: number }> = ({ post, index }) => {
+type BlogCardPost = BlogPost & { date: string };
+
+const BlogCard: React.FC<{ post: BlogCardPost; index: number }> = ({ post, index }) => {
   return (
     <motion.article
       initial={{ opacity: 0, y: 20 }}
@@ -29,8 +32,8 @@ const BlogCard: React.FC<{ post: BlogPost; index: number }> = ({ post, index }) 
            </div>
         </div>
 
-        <div className="space-y-2">
-           <time className="text-caption text-neutral-dark">{new Date(post.date).toLocaleDateString()}</time>
+         <div className="space-y-2">
+             <time className="text-caption text-neutral-dark">{new Date(post.date).toLocaleDateString()}</time>
           <h3 className="font-display text-lg font-semibold text-neutral-nearBlack group-hover:text-primary-500 transition-colors line-clamp-2">
             {post.title}
           </h3>
@@ -62,12 +65,15 @@ const BlogSection: React.FC = () => {
     staleTime: 1000 * 60 * 5,
     retry: 2,
     retryDelay: 1000,
-    onError: () => toast.error('Failed to load blog posts.'),
   });
 
-  const posts = (data?.data ?? []).map((post) => ({
+  useEffect(() => {
+    if (error) toast.error('Failed to load blog posts.');
+  }, [error]);
+
+  const posts = (data?.items ?? []).map((post) => ({
     ...post,
-    date: post.publishedAt || post.createdAt,
+    date: post.publishedAt ?? post.createdAt ?? '',
   }));
 
   return (

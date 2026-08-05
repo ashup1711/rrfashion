@@ -1,9 +1,13 @@
 import apiClient from './client';
 import type { Order, CreateOrderData } from '../types/order';
-import type { PaginatedResponse } from '../types/api';
 
-export const getOrders = async (filters?: { page?: number; limit?: number; status?: string }): Promise<PaginatedResponse<Order>> => {
-  const { data } = await apiClient.get<PaginatedResponse<Order>>('/orders/my', { params: filters });
+export interface OrdersListResponse {
+  items: Order[];
+  meta: { page: number; limit: number; total: number; totalPages: number; };
+}
+
+export const getOrders = async (filters?: { page?: number; limit?: number; status?: string }): Promise<OrdersListResponse> => {
+  const { data } = await apiClient.get<OrdersListResponse>('/orders/my', { params: filters });
   return data;
 };
 
@@ -22,8 +26,8 @@ export const updateOrder = async (id: string, orderData: Partial<Order>): Promis
   return data;
 };
 
-export const getMyOrders = async (filters?: { page?: number; limit?: number; status?: string }): Promise<PaginatedResponse<Order>> => {
-  const { data } = await apiClient.get<PaginatedResponse<Order>>('/orders/my', { params: filters });
+export const getMyOrders = async (filters?: { page?: number; limit?: number; status?: string }): Promise<OrdersListResponse> => {
+  const { data } = await apiClient.get<OrdersListResponse>('/orders/my', { params: filters });
   return data;
 };
 

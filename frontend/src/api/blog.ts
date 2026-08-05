@@ -4,8 +4,8 @@ import type { BlogPost, BlogListResponse } from '../types/blog';
 import type { PaginatedResponse } from '../types/api';
 
 export const getBlogs = async (params?: { page?: number; limit?: number; category?: string }): Promise<BlogListResponse> => {
-  const { data } = await apiClient.get<BlogListResponse>('/blogs', { params });
-  return data;
+  const { data } = await apiClient.get<{ data: BlogPost[]; meta: { page: number; limit: number; total: number; totalPages: number } }>('/blogs', { params });
+  return { items: data.data, meta: data.meta };
 };
 
 export const getBlogBySlug = async (slug: string): Promise<BlogPost> => {

@@ -317,11 +317,17 @@ export class InvoicesService {
         buffer = await this.storage.download(key);
       }
     } catch {
-      buffer = await this.storage.download(invoice.pdfUrl);
+      try {
+        buffer = await this.storage.download(invoice.pdfUrl);
+      } catch {
+        // fall through to regeneration
+      }
     }
 
+    // Fallback: regenerate PDF if missing from storage
     if (!buffer) {
-      throw new NotFoundException('Invoice PDF file not found in storage');
+      this.logger.warn({ invoiceId: invoice.id, orderId }, 'Invoice PDF missing from storage — regenerating');
+      buffer = await this.regeneratePdfBuffer(invoice.id);
     }
 
     const filename = `invoice-${invoice.invoiceNumber}.pdf`;
@@ -371,16 +377,87 @@ export class InvoicesService {
         buffer = await this.storage.download(key);
       }
     } catch {
-      buffer = await this.storage.download(invoice.pdfUrl);
+      try {
+        buffer = await this.storage.download(invoice.pdfUrl);
+      } catch {
+        // fall through to regeneration
+      }
     }
 
+    // Fallback: regenerate PDF if missing from storage
     if (!buffer) {
-      throw new NotFoundException('Invoice PDF file not found in storage');
+      this.logger.warn({ invoiceId: invoice.id, orderId }, 'Invoice PDF missing from storage — regenerating');
+      buffer = await this.regeneratePdfBuffer(invoice.id);
     }
 
     const filename = `invoice-${invoice.invoiceNumber}.pdf`;
 
     return { buffer, filename };
+  }
+
+  /**
+   * Regenerate a PDF buffer from an existing invoice record.
+   * Used as a fallback when the stored PDF file is missing.
+   * Does NOT create a new invoice record — reuses existing invoiceNumber.
+   */
+  async regeneratePdfBuffer(invoiceId: string): Promise<Buffer> {
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: {
+        order: {
+          include: {
+            items: { include: { product: { select: { name: true, hsnCode: true } } } },
+            user: { select: { firstName: true, lastName: true, email: true } },
+          },
+        },
+        store: true,
+      },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException('Invoice not found');
+    }
+
+    const { order, store } = invoice;
+    const financialYear = invoice.financialYear;
+
+    // Recompute tax totals from order items
+    let taxableValue = 0;
+    let totalCgst = 0;
+    let totalSgst = 0;
+    let totalIgst = 0;
+    for (const item of order.items) {
+      taxableValue += item.unitPrice.toNumber() * item.quantity;
+      totalCgst += item.cgstAmount?.toNumber() || 0;
+      totalSgst += item.sgstAmount?.toNumber() || 0;
+      totalIgst += item.igstAmount?.toNumber() || 0;
+    }
+    const totalAmount = taxableValue + totalCgst + totalSgst + totalIgst;
+    const amountInWords = invoice.amountInWords || numberToWordsInr(totalAmount);
+
+    return this.generatePdf({
+      invoiceNumber: invoice.invoiceNumber,
+      store: { name: store.name, address: store.address, gstin: store.gstin, state: store.state },
+      order: {
+        orderNumber: order.orderNumber,
+        createdAt: order.createdAt,
+        user: order.user,
+        items: order.items.map((item) => ({
+          id: item.id,
+          product: { name: item.product.name, hsnCode: item.product.hsnCode },
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+        })),
+      },
+      financialYear,
+      taxableValue,
+      cgst: totalCgst,
+      sgst: totalSgst,
+      igst: totalIgst,
+      totalAmount,
+      amountInWords,
+    });
   }
 
   async getByOrder(orderId: string, userId?: string, guestSessionId?: string) {

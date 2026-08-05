@@ -27,8 +27,8 @@ const NewsFormPage = () => {
   const { data: existingNews } = useQuery({
     queryKey: ['adminNewsItem', id],
     queryFn: async () => {
-      const res = await adminGetAllNews(1, 100);
-      return res.data.find((n: NewsItem) => n.id === id);
+       const res = await adminGetAllNews(1, 100);
+      return res.items.find((n: NewsItem) => n.id === id);
     },
     enabled: isEdit,
   });
