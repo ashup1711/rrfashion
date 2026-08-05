@@ -17,7 +17,12 @@ permissions:
 
 jobs:
   # ──────────────────────────────────────────────────────────────
-  # JOB 1: Start backend Docker stack + ngrok tunnel on Mac Mini
+  # JOB 1: Start backend k8s/minikube stack + ngrok tunnel on Mac Mini
+  # NOTE: The backend is served EXCLUSIVELY through the minikube
+  # (Kubernetes) deployment. docker-compose is NOT used as the serving
+  # path anymore — this job builds the image into the minikube daemon,
+  # applies the k8s manifests, and keeps kubectl port-forward alive via
+  # a launchd agent so that localhost:3000 reaches the pod.
   # ──────────────────────────────────────────────────────────────
   backend-ngrok:
     runs-on: [self-hosted, macOS, ARM64]
@@ -28,7 +33,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── Docker Compose Lifecycle ────────────────────────────
+      # ── Minikube / k8s Lifecycle ────────────────────────────
       - name: Ensure Docker is running
         run: |
           if ! docker info >/dev/null 2>&1; then
@@ -47,30 +52,114 @@ jobs:
           fi
           echo "Docker is already running"
 
-      - name: Docker Compose — clean shutdown
-        working-directory: ${{ github.workspace }}
+      - name: Ensure minikube is running
         run: |
-          echo "=== Stopping any running containers... ==="
-          docker compose down --remove-orphans || true
-          echo "=== All containers stopped. Volumes preserved. ==="
+          export PATH="/opt/homebrew/bin:$PATH"
+          if minikube status >/dev/null 2>&1; then
+            echo "minikube is already running"
+            minikube status
+          else
+            echo "Starting minikube..."
+            minikube start --driver=docker --memory=4096 --cpus=4
+            echo "minikube started"
+          fi
+          minikube update-context
+          kubectl config use-context minikube
+          kubectl get nodes
 
-      - name: Docker Compose — rebuild and start
-        working-directory: ${{ github.workspace }}
-        env:
-          # REQ-SEC-006 / SEC-03: the GitHub Pages frontend calls the backend
-          # cross-site through the ngrok tunnel, so auth cookies MUST be
-          # SameSite=None + Secure. docker-compose defaults to 'strict' for local
-          # dev; the ngrok deploy flow explicitly opts into 'none'.
-          COOKIE_SAMESITE: none
+      - name: Build backend image into minikube
         run: |
-          echo "=== Rebuilding and starting services... ==="
-          docker compose up -d --build
-          echo "=== Services started. Waiting for health check... ==="
+          export PATH="/opt/homebrew/bin:$PATH"
+          echo "Building rrfashion:local into the minikube daemon..."
+          minikube image build -t rrfashion:local ./backend
+          echo "Image build complete."
+          minikube image ls | grep rrfashion || true
+
+      - name: Apply k8s manifests
+        run: |
+          export PATH="/opt/homebrew/bin:$PATH"
+          echo "=== Applying k8s manifests (idempotent) ==="
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/secrets.yaml
+          kubectl apply -f k8s/configmap.yaml
+          kubectl apply -f k8s/postgres.yaml
+          kubectl apply -f k8s/redis.yaml
+          kubectl apply -f k8s/minio.yaml
+          kubectl apply -f k8s/deployment-minikube.yaml
+          echo "=== Manifests applied ==="
+
+      - name: Rollout restart and wait for API deployment
+        run: |
+          export PATH="/opt/homebrew/bin:$PATH"
+          echo "Restarting deployment to pick up the new image..."
+          kubectl rollout restart deployment/rrfashion-api -n rrfashion || true
+          kubectl rollout status deployment/rrfashion-api -n rrfashion --timeout=300s
+          echo "=== Pods ==="
+          kubectl get pods -n rrfashion
+
+      # ── Port-forward: localhost:3000 -> minikube pod ───────
+      # The API is reached ONLY via the k8s service. GitHub Actions
+      # kills step-spawned background processes at job end, so the
+      # port-forward runs as a launchd agent (same pattern as ngrok's
+      # com.ngrok.tunnel) and stays alive after the job completes.
+      - name: Ensure kubectl port-forward via launchd
+        run: |
+          export PATH="/opt/homebrew/bin:$PATH"
+          PLIST="$HOME/Library/LaunchAgents/com.rrfashion.portforward.plist"
+
+          # Stop the current port-forward so the service can bind :3000
+          pkill -f "kubectl port-forward" || true
+
+          cat > "$PLIST" <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>Label</key>
+              <string>com.rrfashion.portforward</string>
+              <key>ProgramArguments</key>
+              <array>
+                  <string>/opt/homebrew/bin/kubectl</string>
+                  <string>port-forward</string>
+                  <string>-n</string>
+                  <string>rrfashion</string>
+                  <string>deployment/rrfashion-api</string>
+                  <string>3000:3000</string>
+              </array>
+              <key>RunAtLoad</key>
+              <true/>
+              <key>KeepAlive</key>
+              <true/>
+              <key>StandardOutPath</key>
+              <string>/tmp/kubectl-port-forward.log</string>
+              <key>StandardErrorPath</key>
+              <string>/tmp/kubectl-port-forward.log</string>
+              <key>EnvironmentVariables</key>
+              <dict>
+                  <key>PATH</key>
+                  <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+              </dict>
+          </dict>
+          </plist>
+          EOF
+
+          launchctl bootout gui/$(id -u) "$PLIST" 2>/dev/null || true
+          launchctl bootstrap gui/$(id -u) "$PLIST"
+          sleep 5
+          echo "--- port-forward log ---"
+          cat /tmp/kubectl-port-forward.log 2>/dev/null || echo "(no log yet)"
+          if pgrep -f "kubectl port-forward" >/dev/null; then
+            echo "port-forward is running (launchd com.rrfashion.portforward)"
+          else
+            echo "port-forward FAILED to start"
+            exit 1
+          fi
 
       # ── Backend Health Check ───────────────────────────────
       - name: Wait for backend health
         id: health-check
         run: |
+          export PATH="/opt/homebrew/bin:$PATH"
           MAX_RETRIES=30
           for i in $(seq 1 $MAX_RETRIES); do
             if curl -sf http://localhost:3000/api/health > /dev/null 2>&1; then
@@ -82,10 +171,12 @@ jobs:
             sleep 2
           done
           echo "Backend failed to become healthy within $((MAX_RETRIES * 2))s"
-          echo "--- Container status ---"
-          docker compose ps
+          echo "--- Pod status ---"
+          kubectl get pods -n rrfashion || true
           echo "--- Backend logs (last 50 lines) ---"
-          docker compose logs --tail=50 backend
+          kubectl logs deployment/rrfashion-api -n rrfashion --tail=50 || true
+          echo "--- port-forward log ---"
+          tail -20 /tmp/kubectl-port-forward.log 2>/dev/null || true
           echo "healthy=false" >> $GITHUB_OUTPUT
           exit 1
 
@@ -116,8 +207,19 @@ jobs:
       - name: Print diagnostics
         if: always()
         run: |
-          echo "=== Docker Container Status ==="
-          docker compose ps
+          export PATH="/opt/homebrew/bin:$PATH"
+          echo "=== k8s Pod Status ==="
+          kubectl get pods -n rrfashion || true
+          echo ""
+          echo "=== k8s Deployments ==="
+          kubectl get deployments -n rrfashion || true
+          echo ""
+          echo "=== PVCs ==="
+          kubectl get pvc -n rrfashion || true
+          echo ""
+          echo "=== port-forward (launchd) ==="
+          pgrep -f "kubectl port-forward" && echo "(running)" || echo "(not running)"
+          tail -10 /tmp/kubectl-port-forward.log 2>/dev/null || echo "(no port-forward log)"
           echo ""
           echo "=== ngrok Process ==="
           pgrep -f ngrok && echo "(running)" || echo "(not running)"

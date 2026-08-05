@@ -61,7 +61,21 @@ spec:
             periodSeconds: 5
       volumes:
         - name: minio-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: minio-data-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-data-pvc
+  namespace: rrfashion
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 2Gi
 ---
 apiVersion: v1
 kind: Service
