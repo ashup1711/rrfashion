@@ -14,7 +14,6 @@ export class RegisterDto {
     minLength: 10,
     readOnly: false,
   })
-  // REQ-BE-010: replace the old MinLength(6) with the strong-password policy.
   @IsStrongPassword()
   password!: string;
 
@@ -40,12 +39,4 @@ export class RegisterDto {
   @IsOptional()
   @IsUUID()
   guestSessionId?: string;
-
-  @ApiPropertyOptional({
-    description: 'Legacy guest user ID to merge on registration (deprecated)',
-    deprecated: true,
-  })
-  @IsOptional()
-  @IsUUID()
-  guestId?: string;
 }

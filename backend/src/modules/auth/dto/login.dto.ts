@@ -14,12 +14,4 @@ export class LoginDto {
   @IsOptional()
   @IsUUID()
   guestSessionId?: string;
-
-  @ApiPropertyOptional({
-    description: 'Legacy guest user ID to merge on login (deprecated)',
-    deprecated: true,
-  })
-  @IsOptional()
-  @IsUUID()
-  guestId?: string;
 }

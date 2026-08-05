@@ -27,8 +27,15 @@ export const useWishlist = () => {
     queryFn: getWishlist,
     staleTime: 1000 * 60,
     enabled: hasCredentials,
-    retry: false,
+    retry: 1,
+    retryDelay: 1000,
   });
+
+  useEffect(() => {
+    if (wishlistQuery.error) {
+      console.warn('Wishlist fetch failed:', wishlistQuery.error);
+    }
+  }, [wishlistQuery.error]);
 
   useEffect(() => {
     if (wishlistQuery.data && !isAuthenticated) {

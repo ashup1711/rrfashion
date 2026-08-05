@@ -861,7 +861,109 @@ async function main() {
     console.log(`  ✔  2 sample orders created for ${sampleCustomer.email}`);
   }
 
-  // ── 12. Summary ────────────────────────────────────
+  // ── 12. News (REQ-DB-001) ─────────────────────────
+  console.log('  Creating sample news items …');
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  const newsData = [
+    {
+      title: 'Grand Summer Sale — Up to 60% Off',
+      excerpt: 'Discover incredible deals on our latest ethnic wear collection. Limited time offer on sarees, lehengas, and more.',
+      content: '<p>Our biggest summer sale is here! Shop the finest ethnic wear at unbeatable prices.</p>',
+      imageUrl: 'https://example.com/images/summer-sale.jpg',
+      linkUrl: '/shop?sale=summer',
+      linkText: 'Shop Now',
+      category: 'sale',
+      isActive: true,
+      startDate: thirtyDaysAgo,
+      endDate: thirtyDaysFromNow,
+      sortOrder: 1,
+    },
+    {
+      title: 'New Arrivals: Wedding Collection 2026',
+      excerpt: 'Explore our stunning new wedding collection featuring handcrafted lehengas and sherwanis.',
+      content: '<p>The wedding season brings an exclusive range of bridal and groom wear.</p>',
+      imageUrl: 'https://example.com/images/wedding-collection.jpg',
+      linkUrl: '/shop?collection=wedding',
+      linkText: 'Explore',
+      category: 'featured',
+      isActive: true,
+      startDate: thirtyDaysAgo,
+      endDate: thirtyDaysFromNow,
+      sortOrder: 2,
+    },
+    {
+      title: 'Free Shipping on Orders Above ₹2999',
+      excerpt: 'Enjoy free shipping on all orders above ₹2999. No coupon code required.',
+      content: '<p>Free shipping is automatically applied at checkout for eligible orders.</p>',
+      category: 'announcement',
+      isActive: true,
+      startDate: thirtyDaysAgo,
+      endDate: thirtyDaysFromNow,
+      sortOrder: 3,
+    },
+  ];
+
+  let newsCount = 0;
+  for (const item of newsData) {
+    await prisma.news.create({ data: item });
+    newsCount++;
+  }
+  console.log(`  ✔  ${newsCount} news items created`);
+
+  // ── 13. Blog Posts (REQ-DB-002) ─────────────────────
+  console.log('  Creating sample blog posts …');
+  const publishedDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const blogData = [
+    {
+      title: 'How to Style a Saree for a Modern Look',
+      slug: 'how-to-style-saree-modern-look',
+      excerpt: 'Learn the art of draping a saree with contemporary flair. Our expert tips will transform your traditional wardrobe.',
+      content: '<h2>The Modern Saree Drape</h2><p>Gone are the days when sarees were only for formal occasions...</p>',
+      imageUrl: 'https://example.com/images/blog-saree.jpg',
+      category: 'styling',
+      tags: ['saree', 'styling', 'fashion-tips'],
+      author: 'Priya Mehta',
+      isPublished: true,
+      publishedAt: publishedDate,
+    },
+    {
+      title: 'Top 10 Bridal Lehenga Trends for 2026',
+      slug: 'top-10-bridal-lehenga-trends-2026',
+      excerpt: 'From pastel hues to intricate embroidery, discover the trends dominating the bridal fashion scene this year.',
+      content: '<h2>Bridal Lehenga Trends</h2><p>This year brings a fresh perspective to bridal fashion...</p>',
+      imageUrl: 'https://example.com/images/blog-lehenga.jpg',
+      category: 'trends',
+      tags: ['lehenga', 'bridal', 'trends', 'wedding'],
+      author: 'Ananya Sharma',
+      isPublished: true,
+      publishedAt: publishedDate,
+    },
+    {
+      title: 'Sustainable Fashion: Our Eco-Friendly Initiative',
+      slug: 'sustainable-fashion-eco-friendly-initiative',
+      excerpt: 'Learn about our commitment to sustainable fashion and how we are reducing our environmental footprint.',
+      content: '<h2>Our Green Promise</h2><p>Sustainability is at the heart of our brand...</p>',
+      imageUrl: 'https://example.com/images/blog-sustainable.jpg',
+      category: 'sustainability',
+      tags: ['sustainability', 'eco-friendly', 'fashion'],
+      author: 'Rohit Patel',
+      isPublished: false,
+      publishedAt: null,
+    },
+  ];
+
+  let blogCount = 0;
+  for (const item of blogData) {
+    await prisma.blogPost.create({ data: item });
+    blogCount++;
+  }
+  console.log(`  ✔  ${blogCount} blog posts created`);
+
+  // ── 14. Summary ────────────────────────────────────
   console.log('\n  ── Seed Summary ──────────────────────');
   console.log(`  🏪  Store:             ${mainStore.name}`);
   console.log(`  👤  Admin:             ${superAdmin.email}`);
@@ -874,6 +976,8 @@ async function main() {
   console.log(`  🔐  Permissions:       ${createdPermissions.length}`);
   console.log(`  📦  Products:          5`);
   console.log(`  🔄  Product Variants:  varies per product`);
+  console.log(`  📰  News Items:        ${newsCount}`);
+  console.log(`  📝  Blog Posts:        ${blogCount}`);
 
   console.log('\n✅  Seeding complete.');
 }

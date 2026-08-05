@@ -165,7 +165,7 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('merge-guest-account')
-  @ApiCommonResponse({ summary: 'Merge guest account into registered account' })
+  @ApiCommonResponse({ summary: 'Merge guest session into registered account' })
   async mergeGuestAccount(@CurrentUser('id') userId: string, @Body() mergeGuestDto: MergeGuestDto) {
     if (mergeGuestDto.guestSessionId) {
       const result = await this.authService.migrateGuestSessionToUser(
@@ -178,16 +178,7 @@ export class AuthController {
         mergedWishlistItems: result.wishlistItems,
       };
     }
-    if (mergeGuestDto.guestId) {
-      const result = await this.authService.mergeGuestAccount(mergeGuestDto.guestId, userId);
-      return {
-        message: result.message,
-        mergedOrders: result.mergedOrders,
-        mergedCart: result.mergedCart,
-        mergedWishlist: result.mergedWishlist,
-      };
-    }
-    return { message: 'No guest identifier provided' };
+    return { message: 'No guest session identifier provided' };
   }
 
   private setAuthCookies(res: Response, accessToken: string, refreshToken: string): void {

@@ -13,19 +13,16 @@ import {
 import type { InitiateReturnData, ApplyCouponData, CancellationReason } from '../api/orders';
 import { QUERY_KEYS, STALE_TIMES } from '../utils/constants';
 import { useAuthStore } from '../store/authStore';
+import { getGuestToken } from '../utils/guestSession';
 
 export const useMyOrders = (filters?: { page?: number; limit?: number; status?: string }) => {
-  // BUG-FIX: Only fire the orders query after auth has resolved.
-  // Without this guard the query fires before initializeAuth() completes,
-  // hitting the API with no session → empty result → blank orders page.
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const hasGuestToken = !!getGuestToken();
+
   return useQuery({
     queryKey: [QUERY_KEYS.myOrders, filters],
     queryFn: () => getMyOrders(filters),
-    enabled: isAuthenticated,
-    // REQ-FE-002: Add staleTime to prevent showing stale empty cache.
-    // Without this, navigating away and back shows cached empty data briefly
-    // before the background refetch completes.
+    enabled: isAuthenticated || hasGuestToken,
     staleTime: STALE_TIMES.orders,
   });
 };

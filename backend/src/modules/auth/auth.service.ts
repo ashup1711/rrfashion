@@ -165,21 +165,6 @@ export class AuthService {
       }
     }
 
-    if (dto.guestId) {
-      try {
-        await this.mergeGuestAccount(dto.guestId, user.id);
-        this.logger.log({
-          guestId: dto.guestId,
-          userId: user.id,
-          action: 'guest.merged.on.register',
-        });
-      } catch (error) {
-        this.logger.warn(
-          `Legacy guest merge failed for guest ${dto.guestId}: ${(error as Error).message}`,
-        );
-      }
-    }
-
     return response;
   }
 
@@ -224,21 +209,6 @@ export class AuthService {
       } catch (error) {
         this.logger.warn(
           `Guest session migration failed for ${dto.guestSessionId}: ${(error as Error).message}`,
-        );
-      }
-    }
-
-    if (dto.guestId) {
-      try {
-        await this.mergeGuestAccount(dto.guestId, user.id);
-        this.logger.log({
-          guestId: dto.guestId,
-          userId: user.id,
-          action: 'guest.merged.on.login',
-        });
-      } catch (error) {
-        this.logger.warn(
-          `Legacy guest merge failed for guest ${dto.guestId}: ${(error as Error).message}`,
         );
       }
     }

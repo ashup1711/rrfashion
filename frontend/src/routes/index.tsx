@@ -55,6 +55,10 @@ const AdminOrderDetail = lazy(() => import('../pages/Admin/Orders/OrderDetail'))
 const AdminReturns = lazy(() => import('../pages/Admin/Returns'));
 const AdminConflicts = lazy(() => import('../pages/Admin/Conflicts/ConflictList'));
 const AdminAuditLogs = lazy(() => import('../pages/Admin/AuditLogs/AuditLogsPage'));
+const AdminNewsList = lazy(() => import('../pages/Admin/News/NewsList'));
+const AdminNewsForm = lazy(() => import('../pages/Admin/News/NewsForm'));
+const AdminBlogList = lazy(() => import('../pages/Admin/Blogs/BlogList'));
+const AdminBlogForm = lazy(() => import('../pages/Admin/Blogs/BlogForm'));
 const PosPage = lazy(() => import('../pages/POS/PosPage'));
 
 export const AppRoutes = () => {
@@ -118,6 +122,12 @@ export const AppRoutes = () => {
           <Route path="/admin/returns" element={<ProtectedRoute requireAdmin><AdminReturns /></ProtectedRoute>} />
           <Route path="/admin/pos/conflicts" element={<ProtectedRoute requireAdmin><AdminConflicts /></ProtectedRoute>} />
           <Route path="/admin/audit-logs" element={<ProtectedRoute requireAdmin><AdminAuditLogs /></ProtectedRoute>} />
+          <Route path="/admin/news" element={<ProtectedRoute requireAdmin><AdminNewsList /></ProtectedRoute>} />
+          <Route path="/admin/news/new" element={<ProtectedRoute requireAdmin><AdminNewsForm /></ProtectedRoute>} />
+          <Route path="/admin/news/:id/edit" element={<ProtectedRoute requireAdmin><AdminNewsForm /></ProtectedRoute>} />
+          <Route path="/admin/blogs" element={<ProtectedRoute requireAdmin><AdminBlogList /></ProtectedRoute>} />
+          <Route path="/admin/blogs/new" element={<ProtectedRoute requireAdmin><AdminBlogForm /></ProtectedRoute>} />
+          <Route path="/admin/blogs/:id/edit" element={<ProtectedRoute requireAdmin><AdminBlogForm /></ProtectedRoute>} />
         </Routes>
       </Suspense>
     </ErrorBoundary>

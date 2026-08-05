@@ -50,6 +50,8 @@ import { ReturnsModule } from './modules/returns/returns.module';
 import { RefundsModule } from './modules/refunds/refunds.module';
 import { SearchModule } from './modules/search/search.module';
 import { SeoModule } from './modules/seo/seo.module';
+import { NewsModule } from './modules/news/news.module';
+import { BlogModule } from './modules/blog/blog.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { AdminJwtStrategy } from './common/strategies/admin-jwt.strategy';
 import { ThrottlerProxyGuard } from './common/guards/throttler-proxy.guard';
@@ -192,6 +194,8 @@ import { StorageModule } from './storage/storage.module';
     RefundsModule,
     SearchModule,
     SeoModule,
+    NewsModule,
+    BlogModule,
   ],
   providers: [
     JwtStrategy,

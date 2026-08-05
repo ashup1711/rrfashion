@@ -2,6 +2,7 @@ import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
 import type { ApiError, ApiErrorResponse } from '../types/api';
 import { GUEST_TOKEN_KEY } from '../utils/guestConstants';
 import { navigate } from '../utils/navigation';
+import { setGuestToken } from '../utils/guestSession';
 
 function getApiUrl() {
   return localStorage.getItem('api_url') || window.__RUNTIME_ENV__?.API_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
@@ -77,10 +78,29 @@ apiClient.interceptors.response.use(
   async (error: AxiosError<ApiErrorResponse | ApiError>) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
-    // Auto-refresh: on 401, try refresh_token cookie before navigating to login
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const isRefreshRequest = originalRequest.url?.includes('/auth/refresh');
+    const isGuestRefreshRequest = originalRequest.url?.includes('/guest/refresh');
+    const hadGuestAuth = !!(originalRequest.headers as Record<string, string>)?.Authorization?.startsWith('Bearer ');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest && !isGuestRefreshRequest) {
+      // Guest token refresh path
+      if (hadGuestAuth && !originalRequest.url?.includes('/auth/')) {
+        originalRequest._retry = true;
+        try {
+          const { data } = await apiClient.post('/guest/refresh');
+          if (data.guestToken) {
+            setGuestToken(data.guestToken);
+            (originalRequest.headers as Record<string, string>).Authorization = `Bearer ${data.guestToken}`;
+          }
+          return apiClient(originalRequest);
+        } catch {
+          // Guest refresh failed — clear token and propagate error
+          return Promise.reject(error);
+        }
+      }
+
+      // Customer token refresh path
       if (isRefreshing) {
-        // Queue concurrent requests while refresh is in progress
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         }).then(() => apiClient(originalRequest));
@@ -90,13 +110,11 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Try refresh — refresh_token cookie is sent automatically
         await apiClient.post('/auth/refresh');
         processQueue(null);
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError);
-        // Refresh failed — navigate to login
         const isAdminRoute = window.location.hash.startsWith('#/admin');
         navigate(isAdminRoute ? '/admin/login' : '/auth/login');
         return Promise.reject(error);

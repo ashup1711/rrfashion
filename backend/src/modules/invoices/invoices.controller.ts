@@ -1,9 +1,12 @@
-import { Controller, Get, Post, Param, Body, UseGuards, Res } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, UseGuards, Res, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Response } from 'express';
 import { ApiCommonResponse } from '../../common/decorators/api-response.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { GuestSessionId } from '../../common/decorators/guest-session-id.decorator';
+import { AllowGuest } from '../../common/decorators/allow-guest.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { StoreAuthGuard } from '../../common/guards/store-auth.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AdminJwtAuthGuard } from '../../common/guards/admin-jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -40,27 +43,51 @@ export class InvoicesController {
     return this.invoicesService.getById(id, userId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(StoreAuthGuard)
+  @AllowGuest(false)
   @Get('order/:orderId')
-  @ApiOperation({ summary: 'Get invoices for an order' })
-  @ApiCommonResponse({ summary: 'Get invoices for an order', auth: true })
-  async getByOrder(@CurrentUser('id') userId: string, @Param('orderId') orderId: string) {
-    return this.invoicesService.getByOrder(orderId, userId);
+  @ApiOperation({ summary: 'Get invoice data for an order (customer or guest)' })
+  @ApiCommonResponse({ summary: 'Get invoice data for an order', auth: true })
+  async getByOrder(
+    @CurrentUser('id') userId: string | null,
+    @Param('orderId') orderId: string,
+    @GuestSessionId() guestSessionId?: string,
+  ) {
+    return this.invoicesService.getByOrder(orderId, userId ?? undefined, guestSessionId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(StoreAuthGuard)
+  @AllowGuest(false)
+  @Get('order/:orderId/data')
+  @ApiOperation({ summary: 'Get full invoice data for display (customer or guest)' })
+  @ApiCommonResponse({ summary: 'Get full invoice data for display', auth: true })
+  async getInvoiceData(
+    @CurrentUser('id') userId: string | null,
+    @Param('orderId') orderId: string,
+    @GuestSessionId() guestSessionId?: string,
+  ) {
+    return this.invoicesService.getInvoiceData(orderId, userId ?? undefined, guestSessionId);
+  }
+
+  @UseGuards(StoreAuthGuard)
+  @AllowGuest(false)
   @Get('order/:orderId/download')
   @ApiCommonResponse({ summary: 'Download invoice PDF for an order' })
   async downloadInvoice(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('id') userId: string | null,
     @Param('orderId') orderId: string,
-    @Res() res: Response,
+    @GuestSessionId() guestSessionId?: string,
+    @Res() res?: Response,
   ) {
-    const { buffer, filename } = await this.invoicesService.getPdfForOrder(orderId, userId);
-    res.set({
+    const { buffer, filename } = await this.invoicesService.getPdfForOrder(
+      orderId,
+      userId ?? undefined,
+      guestSessionId,
+    );
+    res!.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${filename}"`,
     });
-    res.send(buffer);
+    res!.send(buffer);
   }
 }

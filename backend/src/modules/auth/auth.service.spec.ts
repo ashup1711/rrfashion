@@ -247,11 +247,10 @@ describe('AuthService', () => {
         password: 'Password123!',
         firstName: 'Test',
         lastName: 'User',
-        guestId: 'guest-1',
+        guestSessionId: 'session-1',
       });
 
       expect(result.user.email).toBe('test@test.com');
-      expect(mockCartService.mergeGuestCartIntoUserCart).toHaveBeenCalled();
     });
   });
 
@@ -326,11 +325,10 @@ describe('AuthService', () => {
       const result = await service.login({
         email: 'test@test.com',
         password: 'Password123!',
-        guestId: 'guest-1',
+        guestSessionId: 'session-1',
       });
 
       expect(result.user.email).toBe('test@test.com');
-      expect(mockCartService.mergeGuestCartIntoUserCart).toHaveBeenCalled();
     });
   });
 

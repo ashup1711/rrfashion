@@ -1,7 +1,6 @@
 import adminClient from './admin-client';
 import type { PaginatedResponse } from '../types/api';
 import type { Invoice, InvoiceFilters } from '../types/invoice';
-
 export const getAll = async (
   filters?: InvoiceFilters,
 ): Promise<PaginatedResponse<Invoice>> => {
@@ -24,7 +23,4 @@ export const downloadPdf = async (id: string): Promise<Blob> => {
   return data;
 };
 
-/**
- * Use downloadOrderInvoice from ./orders.ts instead
- * @deprecated Use GET /orders/:orderId/invoice via orders.downloadOrderInvoice
- */
+

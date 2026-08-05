@@ -7,10 +7,12 @@ import Testimonials from './components/Testimonials';
 import InstagramShop from './components/InstagramShop';
 import CountdownBanner from './components/CountdownBanner';
 import BlogSection from './components/BlogSection';
+import NewsSection from './components/NewsSection';
 import BrandCarousel from './components/BrandCarousel';
 import TrustBar from '../../components/common/TrustBar';
 import PromoBanner from '../../components/common/PromoBanner';
 import MarqueeTicker from '../../components/common/MarqueeTicker';
+import ReminderBanner from './components/ReminderBanner';
 import { useLandingPageData } from '../../hooks/useLandingPageData';
 import { CATEGORY_SLUGS, ROUTES } from '../../utils/constants';
 
@@ -29,6 +31,9 @@ const Home = () => {
 
   return (
     <div>
+      {/* Reminder Banner */}
+      <ReminderBanner />
+
       {/* Hero Section */}
       <HeroBanner />
 
@@ -68,6 +73,9 @@ const Home = () => {
 
       {/* Brand Carousel - between products and blog */}
       <BrandCarousel />
+
+      {/* News Section */}
+      <NewsSection />
 
       {/* Blog Section */}
       <BlogSection />

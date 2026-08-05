@@ -5,6 +5,7 @@ import { useMyOrder, useRepurchase, useDownloadInvoice, useOrderTracking } from 
 import CancelOrderModal from './components/CancelOrderModal';
 import ReturnRequestForm from './components/ReturnRequestForm';
 import RefundTimeline from './components/RefundTimeline';
+import InvoicePreview from './components/InvoicePreview';
 import { getPaymentStatus, verifyPayment } from '../../api/payments';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
@@ -53,6 +54,9 @@ const OrderDetail = () => {
 
   // REQ-FE-001: cancellation modal state
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Invoice preview modal state
+  const [showInvoicePreview, setShowInvoicePreview] = useState(false);
 
   // Invoice state
   const [invoiceGenerated, setInvoiceGenerated] = useState(false);
@@ -467,14 +471,21 @@ const OrderDetail = () => {
             <span className={`text-sm ${invoiceJustReady ? 'text-green-700 font-medium' : 'text-gray-700'}`}>
               Invoice ready
             </span>
-            <Button
-              variant="outline"
-              onClick={handleDownloadInvoice}
-              isLoading={downloadMutation.isPending}
-              className="ml-auto"
-            >
-              Download Invoice
-            </Button>
+            <div className="ml-auto flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowInvoicePreview(true)}
+              >
+                View Invoice
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleDownloadInvoice}
+                isLoading={downloadMutation.isPending}
+              >
+                Download Invoice
+              </Button>
+            </div>
           </div>
         ) : isInvoiceGenerating ? (
           <div className="flex items-center gap-3">
@@ -515,6 +526,15 @@ const OrderDetail = () => {
         order={order}
         onCancelled={() => refetchOrder()}
       />
+
+      {/* Invoice Preview Modal */}
+      {id && (
+        <InvoicePreview
+          isOpen={showInvoicePreview}
+          onClose={() => setShowInvoicePreview(false)}
+          orderId={id}
+        />
+      )}
     </div>
   );
 };

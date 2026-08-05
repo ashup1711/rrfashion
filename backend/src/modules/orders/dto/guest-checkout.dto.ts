@@ -76,14 +76,6 @@ class ShippingAddressDto {
 }
 
 export class GuestCheckoutDto {
-  @ApiProperty({
-    description: 'Guest user ID',
-    example: '550e8400-e29b-41d4-a716-446655440000',
-    readOnly: false,
-  })
-  @IsString()
-  guestId!: string;
-
   @ApiProperty({ description: 'Guest email', example: 'guest@example.com', readOnly: false })
   @IsEmail()
   email!: string;

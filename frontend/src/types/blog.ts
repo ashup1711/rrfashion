@@ -1,20 +1,20 @@
+import type { PaginatedResponse } from './api';
+
 export interface BlogPost {
   id: string;
   title: string;
+  slug: string;
   excerpt: string;
-  image: string;
-  category: string;
-  date: string;
+  content: string;
+  imageUrl?: string;
+  category?: string;
+  tags: string[];
   author?: string;
-  slug?: string;
+  isPublished: boolean;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  date?: string;
 }
 
-export interface BlogListResponse {
-  items: BlogPost[];
-  meta: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
-}
+export type BlogListResponse = PaginatedResponse<BlogPost>;

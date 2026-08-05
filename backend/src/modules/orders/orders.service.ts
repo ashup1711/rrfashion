@@ -1077,13 +1077,17 @@ export class OrdersService {
     };
   }
 
-  async guestCheckout(dto: GuestCheckoutDto) {
-    const guestUser = await this.prisma.user.findUnique({
-      where: { id: dto.guestId },
+  async guestCheckout(dto: GuestCheckoutDto, guestSessionId?: string) {
+    if (!guestSessionId) {
+      throw new BadRequestException('Guest session token required — identity must come from JWT');
+    }
+
+    const session = await this.prisma.guestSession.findUnique({
+      where: { id: guestSessionId },
     });
 
-    if (!guestUser || !guestUser.isGuest) {
-      throw new NotFoundException('Guest user not found');
+    if (!session || session.expiresAt < new Date()) {
+      throw new NotFoundException('Guest session not found or expired');
     }
 
     if (!dto.items || dto.items.length === 0) {
@@ -1149,7 +1153,6 @@ export class OrdersService {
       const totalPrice = unitPrice.mul(item.quantity);
       subtotal += Number(totalPrice);
 
-      // Calculate tax for this item
       const interState = isInterStateShipping();
       const tax = calculateTax(Number(unitPrice), item.quantity, interState);
 
@@ -1174,7 +1177,6 @@ export class OrdersService {
       inventoryDecrementMap.set(item.variantId, currentQty + item.quantity);
     }
 
-    // Apply coupon if provided
     let discountAmount = 0;
     let appliedCouponId: string | null = null;
 
@@ -1198,7 +1200,7 @@ export class OrdersService {
       const created = await tx.order.create({
         data: {
           orderNumber,
-          userId: dto.guestId,
+          guestSessionId,
           totalAmount,
           subtotal,
           taxAmount,
@@ -1213,11 +1215,6 @@ export class OrdersService {
           },
         },
         include: ORDER_INCLUDE,
-      });
-
-      await tx.user.update({
-        where: { id: dto.guestId },
-        data: { email: dto.email },
       });
 
       const variantIds = Array.from(inventoryDecrementMap.keys()).sort();

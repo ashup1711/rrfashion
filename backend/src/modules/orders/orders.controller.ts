@@ -147,20 +147,20 @@ export class OrdersController {
     return this.ordersService.cancel(id, dto, userId ?? null, guestSessionId ?? null, !!isAdmin);
   }
 
-  /**
-   * @deprecated Use POST /orders with a guest session token instead.
-   * This legacy endpoint will be removed in a future release.
-   */
-  @Public()
+  @UseGuards(StoreAuthGuard)
+  @AllowGuest(false)
   @Post('guest')
   @ApiCommonResponse({
-    summary: 'Place order as guest',
+    summary: 'Place order as guest (requires guest JWT)',
     status: 201,
     type: CreateOrderDto,
-    auth: false,
+    auth: true,
   })
-  async guestCheckout(@Body() dto: GuestCheckoutDto) {
-    return this.ordersService.guestCheckout(dto);
+  async guestCheckout(
+    @Body() dto: GuestCheckoutDto,
+    @GuestSessionId() guestSessionId?: string,
+  ) {
+    return this.ordersService.guestCheckout(dto, guestSessionId);
   }
 
   @UseGuards(StoreAuthGuard)

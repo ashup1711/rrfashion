@@ -331,19 +331,26 @@ export class InvoicesService {
 
   async getPdfForOrder(
     orderId: string,
-    userId: string,
+    userId?: string,
+    guestSessionId?: string,
   ): Promise<{ buffer: Buffer; filename: string }> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      select: { userId: true },
+      select: { userId: true, guestSessionId: true },
     });
 
     if (!order) {
       throw new NotFoundException('Order not found');
     }
 
-    if (order.userId !== userId) {
-      throw new UnauthorizedException('This order does not belong to you');
+    // Ownership check: customer (userId) or guest (guestSessionId) must match
+    if (userId || guestSessionId) {
+      const ownsOrder = guestSessionId
+        ? order.guestSessionId === guestSessionId
+        : order.userId === userId;
+      if (!ownsOrder) {
+        throw new UnauthorizedException('This order does not belong to you');
+      }
     }
 
     const invoice = await this.prisma.invoice.findFirst({
@@ -376,25 +383,139 @@ export class InvoicesService {
     return { buffer, filename };
   }
 
-  async getByOrder(orderId: string, userId?: string) {
+  async getByOrder(orderId: string, userId?: string, guestSessionId?: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      select: { userId: true },
+      select: { userId: true, guestSessionId: true },
     });
 
     if (!order) {
       throw new NotFoundException('Order not found');
     }
 
-    // Ownership check: only the order owner or an admin should access invoice data
-    if (userId && order.userId !== userId) {
-      throw new UnauthorizedException("You do not have access to this order's invoices");
+    // Ownership check: customer (userId) or guest (guestSessionId) must match
+    if (userId || guestSessionId) {
+      const ownsOrder = guestSessionId
+        ? order.guestSessionId === guestSessionId
+        : order.userId === userId;
+      if (!ownsOrder) {
+        throw new UnauthorizedException("You do not have access to this order's invoices");
+      }
     }
 
     return this.prisma.invoice.findMany({
       where: { orderId },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async getInvoiceData(orderId: string, userId?: string, guestSessionId?: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: {
+          include: {
+            product: { select: { name: true, hsnCode: true } },
+          },
+        },
+        user: { select: { firstName: true, lastName: true, email: true, phone: true } },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    // Ownership check
+    if (userId || guestSessionId) {
+      const ownsOrder = guestSessionId
+        ? order.guestSessionId === guestSessionId
+        : order.userId === userId;
+      if (!ownsOrder) {
+        throw new UnauthorizedException('You do not have access to this invoice');
+      }
+    }
+
+    const [invoice, store] = await Promise.all([
+      this.prisma.invoice.findFirst({
+        where: { orderId, type: 'INVOICE' },
+        orderBy: { createdAt: 'desc' },
+      }),
+      order.storeId
+        ? this.prisma.storeLocation.findUnique({ where: { id: order.storeId } })
+        : Promise.resolve(null),
+    ]);
+
+    if (!invoice) {
+      throw new NotFoundException('No invoice found for this order');
+    }
+
+    const shippingAddr = this.parseShippingAddress(order.shippingAddress);
+
+    let taxableValue = 0;
+    let totalCgst = 0;
+    let totalSgst = 0;
+    let totalIgst = 0;
+
+    const items = order.items.map((item) => {
+      const unitPrice = item.unitPrice.toNumber();
+      const cgstAmount = item.cgstAmount?.toNumber() || 0;
+      const sgstAmount = item.sgstAmount?.toNumber() || 0;
+      const igstAmount = item.igstAmount?.toNumber() || 0;
+      const totalPrice = item.totalPrice.toNumber();
+
+      taxableValue += unitPrice * item.quantity;
+      totalCgst += cgstAmount;
+      totalSgst += sgstAmount;
+      totalIgst += igstAmount;
+
+      return {
+        productName: item.product.name,
+        hsnCode: item.product.hsnCode,
+        quantity: item.quantity,
+        unitPrice,
+        totalPrice,
+        cgstAmount,
+        sgstAmount,
+        igstAmount,
+      };
+    });
+
+    const totalAmount = taxableValue + totalCgst + totalSgst + totalIgst;
+    const amountInWords = numberToWordsInr(totalAmount);
+
+    return {
+      id: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      date: invoice.createdAt.toISOString(),
+      store: {
+        name: store?.name || 'RR Fashion',
+        address: store?.address || '',
+        city: store?.city || '',
+        state: store?.state || '',
+        pincode: store?.pincode || '',
+        gstin: store?.gstin || '',
+        phone: store?.phone || '',
+        email: '',
+      },
+      customer: {
+        name: order.user
+          ? `${order.user.firstName} ${order.user.lastName}`
+          : shippingAddr?.name || 'Guest',
+        email: order.user?.email,
+        phone: order.user?.phone || shippingAddr?.phone || '',
+        address: shippingAddr || {},
+      },
+      items,
+      taxableValue,
+      totalCgst,
+      totalSgst,
+      totalIgst,
+      totalAmount,
+      amountInWords,
+    };
   }
 
   private async nextInvoiceNumber(storeId: string, financialYear: string): Promise<string> {
@@ -409,9 +530,23 @@ export class InvoicesService {
       this.logger.warn(
         `next_invoice_number function failed, using fallback: ${(error as Error).message}`,
       );
-      const fallbackSeq = Math.floor(Math.random() * 900000) + 100000;
-      return `${financialYear}/${storeId.slice(0, 8)}/${String(fallbackSeq).padStart(6, '0')}-${randomUUID().slice(0, 4)}`;
+      const count = await this.prisma.invoice.count({ where: { storeId, financialYear } });
+      const seq = count + 1;
+      return `${financialYear}/${storeId.slice(0, 8)}/${String(seq).padStart(6, '0')}`;
     }
+  }
+
+  private parseShippingAddress(raw: unknown): Record<string, string> | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const result: Record<string, string> = {};
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof value === 'string') {
+        result[key] = value;
+      } else if (value !== null && value !== undefined) {
+        result[key] = String(value);
+      }
+    }
+    return Object.keys(result).length > 0 ? result : null;
   }
 
   private getFinancialYear(): string {
