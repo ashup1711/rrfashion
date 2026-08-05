@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SearchQueryDto, SearchResponseDto } from './dto/search-query.dto';
-import {
-  SearchAnalyticsQueryDto,
-  SearchAnalyticsResult,
-} from './dto/search-analytics-query.dto';
+import { SearchAnalyticsQueryDto, SearchAnalyticsResult } from './dto/search-analytics-query.dto';
 
 /** Minimum query length for tsvector full-text search. */
 const TSVECTOR_MIN_LENGTH = 3;
@@ -48,35 +45,34 @@ export class SearchService {
 
     const { clause: whereClause, params: whereParams } = this.buildAnalyticsWhereClause(from, to);
 
-    const [totalRow, uniqueRow, zeroResultRow, topQueries, zeroResultQueries] =
-      await Promise.all([
-        this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
-          `SELECT COUNT(*)::bigint AS count FROM search_logs${whereClause}`,
-          ...whereParams,
-        ),
-        this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
-          `SELECT COUNT(DISTINCT query)::bigint AS count FROM search_logs${whereClause}`,
-          ...whereParams,
-        ),
-        this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
-          `SELECT COUNT(*)::bigint AS count FROM search_logs${whereClause} AND result_count = 0`,
-          ...whereParams,
-        ),
-        this.prisma.$queryRawUnsafe<Array<{ query: string; count: bigint; avg_results: number }>>(
-          `SELECT query, COUNT(*)::bigint AS count, COALESCE(AVG(result_count), 0)::float AS avg_results
+    const [totalRow, uniqueRow, zeroResultRow, topQueries, zeroResultQueries] = await Promise.all([
+      this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+        `SELECT COUNT(*)::bigint AS count FROM search_logs${whereClause}`,
+        ...whereParams,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+        `SELECT COUNT(DISTINCT query)::bigint AS count FROM search_logs${whereClause}`,
+        ...whereParams,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+        `SELECT COUNT(*)::bigint AS count FROM search_logs${whereClause} AND result_count = 0`,
+        ...whereParams,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ query: string; count: bigint; avg_results: number }>>(
+        `SELECT query, COUNT(*)::bigint AS count, COALESCE(AVG(result_count), 0)::float AS avg_results
            FROM search_logs${whereClause}
            GROUP BY query ORDER BY count DESC LIMIT $${whereParams.length + 1}`,
-          ...whereParams,
-          top,
-        ),
-        this.prisma.$queryRawUnsafe<Array<{ query: string; count: bigint }>>(
-          `SELECT query, COUNT(*)::bigint AS count
+        ...whereParams,
+        top,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ query: string; count: bigint }>>(
+        `SELECT query, COUNT(*)::bigint AS count
            FROM search_logs${whereClause} AND result_count = 0
            GROUP BY query ORDER BY count DESC LIMIT $${whereParams.length + 1}`,
-          ...whereParams,
-          top,
-        ),
-      ]);
+        ...whereParams,
+        top,
+      ),
+    ]);
 
     const totalSearches = totalRow[0] ? Number(totalRow[0].count) : 0;
     const uniqueQueries = uniqueRow[0] ? Number(uniqueRow[0].count) : 0;
@@ -130,8 +126,7 @@ export class SearchService {
       conditions.push('p.stock > 0');
     }
 
-    const whereExtra =
-      conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
+    const whereExtra = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
 
     const results = await this.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
       `SELECT p.id, p.name, p.slug, p.description, p."basePrice", p."salePrice",
@@ -237,10 +232,7 @@ export class SearchService {
    */
   private logSearchAnalytics(query: string): Promise<void> {
     return this.prisma
-      .$executeRawUnsafe(
-        `INSERT INTO search_logs (query, "createdAt") VALUES ($1, NOW())`,
-        query,
-      )
+      .$executeRawUnsafe(`INSERT INTO search_logs (query, "createdAt") VALUES ($1, NOW())`, query)
       .then(() => undefined)
       .catch(() => undefined);
   }
@@ -265,7 +257,10 @@ export class SearchService {
       .catch(() => undefined);
   }
 
-  private buildAnalyticsWhereClause(from?: string, to?: string): { clause: string; params: unknown[] } {
+  private buildAnalyticsWhereClause(
+    from?: string,
+    to?: string,
+  ): { clause: string; params: unknown[] } {
     const conditions: string[] = [];
     const params: unknown[] = [];
     let paramIndex = 1;

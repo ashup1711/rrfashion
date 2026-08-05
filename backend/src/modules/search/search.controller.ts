@@ -7,10 +7,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { SearchService } from './search.service';
 import { SearchQueryDto, SearchResponseDto } from './dto/search-query.dto';
-import {
-  SearchAnalyticsQueryDto,
-  SearchAnalyticsResult,
-} from './dto/search-analytics-query.dto';
+import { SearchAnalyticsQueryDto, SearchAnalyticsResult } from './dto/search-analytics-query.dto';
 
 @ApiTags('Search')
 @Controller('search')

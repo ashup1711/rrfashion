@@ -65,11 +65,7 @@ export class AuditLogsService {
    * Scoped entirely from server-side filter values — never trusts a client
    * id for ownership (SEC-06). Returns 1-based pagination metadata.
    */
-  async query(
-    filters: AuditLogQueryFilters,
-    page = 1,
-    limit = 20,
-  ): Promise<AuditLogQueryResult> {
+  async query(filters: AuditLogQueryFilters, page = 1, limit = 20): Promise<AuditLogQueryResult> {
     const where: Prisma.AuditLogWhereInput = {};
     if (filters.actorId) where.adminId = filters.actorId;
     if (filters.action) where.action = filters.action;

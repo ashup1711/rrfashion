@@ -10,9 +10,7 @@ describe('SearchService', () => {
     prisma = {
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
       $executeRawUnsafe: jest.fn().mockResolvedValue(0),
-      $transaction: jest.fn().mockImplementation((fns: unknown[]) =>
-        Promise.all(fns),
-      ),
+      $transaction: jest.fn().mockImplementation((fns: unknown[]) => Promise.all(fns)),
       product: {
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
@@ -20,10 +18,7 @@ describe('SearchService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        SearchService,
-        { provide: PrismaService, useValue: prisma },
-      ],
+      providers: [SearchService, { provide: PrismaService, useValue: prisma }],
     }).compile();
 
     service = module.get<SearchService>(SearchService);
@@ -88,8 +83,8 @@ describe('SearchService', () => {
     it('should return analytics with default values', async () => {
       (prisma.$queryRawUnsafe as jest.Mock)
         .mockResolvedValueOnce([{ count: 100n }]) // total
-        .mockResolvedValueOnce([{ count: 50n }])  // unique
-        .mockResolvedValueOnce([{ count: 10n }])  // zero result
+        .mockResolvedValueOnce([{ count: 50n }]) // unique
+        .mockResolvedValueOnce([{ count: 10n }]) // zero result
         .mockResolvedValueOnce([]) // top queries
         .mockResolvedValueOnce([]); // zero result queries
 

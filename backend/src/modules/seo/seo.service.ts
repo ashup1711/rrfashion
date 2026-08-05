@@ -157,9 +157,7 @@ ${urls
         priceCurrency: 'INR',
         price,
         availability:
-          product.stock > 0
-            ? 'https://schema.org/InStock'
-            : 'https://schema.org/OutOfStock',
+          product.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
         url,
       },
     };
@@ -200,9 +198,7 @@ ${urls
   /**
    * Generate BreadcrumbList JSON-LD for product pages.
    */
-  getBreadcrumbJsonLd(
-    items: Array<{ name: string; url: string }>,
-  ): Record<string, unknown> {
+  getBreadcrumbJsonLd(items: Array<{ name: string; url: string }>): Record<string, unknown> {
     return {
       '@context': 'https://schema.org',
       '@type': 'BreadcrumbList',

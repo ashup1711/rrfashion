@@ -219,10 +219,7 @@ export class ProductsController {
   @Post('bulk/update')
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @ApiCommonResponse({ summary: 'Bulk update products (price, stock, status)', status: 200 })
-  async bulkUpdate(
-    @Body() dto: BulkUpdateDto,
-    @CurrentUser('id') userId: string,
-  ) {
+  async bulkUpdate(@Body() dto: BulkUpdateDto, @CurrentUser('id') userId: string) {
     return this.productsService.bulkUpdate(dto, userId);
   }
 
@@ -277,7 +274,10 @@ export class ProductsController {
 
     const buffer = await workbook.xlsx.writeBuffer();
 
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
     res.setHeader('Content-Disposition', 'attachment; filename=products.xlsx');
     res.setHeader('Cache-Control', 'no-store');
     res.send(Buffer.from(buffer));

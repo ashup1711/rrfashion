@@ -1,3 +1,31 @@
+export interface RentStats {
+  rentOrders: number;
+  rentRevenue: number;
+  depositCollected: number;
+  lateFees: number;
+  damageCharges: number;
+}
+
+export interface PurchaseStats {
+  purchaseOrders: number;
+  purchaseRevenue: number;
+  cashOrders: number;
+  cashRevenue: number;
+  onlineOrders: number;
+  onlineRevenue: number;
+}
+
+export interface ChannelBreakdown {
+  online: { orders: number; revenue: number };
+  offline: { orders: number; revenue: number };
+}
+
+export interface AbandonedCarts {
+  abandoned: number;
+  recovered: number;
+  recoveryRate: number;
+}
+
 export interface DashboardData {
   totalRevenue: number;
   totalOrders: number;
@@ -5,8 +33,12 @@ export interface DashboardData {
   totalCustomers: number;
   totalProducts: number;
   activeRentals: number;
-  revenueGrowth: number;
-  ordersGrowth: number;
+  revenueGrowth: number | null;
+  ordersGrowth: number | null;
+  abandonedCarts: AbandonedCarts;
+  rentStats: RentStats;
+  purchaseStats: PurchaseStats;
+  channelBreakdown: ChannelBreakdown;
 }
 
 export interface RevenueDataPoint {

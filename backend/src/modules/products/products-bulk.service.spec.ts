@@ -19,9 +19,7 @@ describe('ProductsService — Bulk Operations', () => {
       category: {
         findUnique: jest.fn().mockResolvedValue({ id: 'cat-1', name: 'Sarees' }),
       },
-      $transaction: jest.fn().mockImplementation((fns: unknown[]) =>
-        Promise.all(fns),
-      ),
+      $transaction: jest.fn().mockImplementation((fns: unknown[]) => Promise.all(fns)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -156,9 +154,7 @@ describe('ProductsService — Bulk Operations', () => {
       });
 
       const dto = {
-        updates: [
-          { productId: 'prod-1', basePrice: 3000, stock: 50 },
-        ],
+        updates: [{ productId: 'prod-1', basePrice: 3000, stock: 50 }],
       };
 
       const result = await service.bulkUpdate(dto, 'admin-1');
@@ -172,9 +168,7 @@ describe('ProductsService — Bulk Operations', () => {
       (prisma.product.findUnique as jest.Mock).mockResolvedValue(null);
 
       const dto = {
-        updates: [
-          { productId: 'nonexistent', basePrice: 3000 },
-        ],
+        updates: [{ productId: 'nonexistent', basePrice: 3000 }],
       };
 
       const result = await service.bulkUpdate(dto, 'admin-1');
@@ -191,9 +185,7 @@ describe('ProductsService — Bulk Operations', () => {
       });
 
       const dto = {
-        updates: [
-          { productId: 'prod-1', basePrice: 3000 },
-        ],
+        updates: [{ productId: 'prod-1', basePrice: 3000 }],
       };
 
       const result = await service.bulkUpdate(dto, 'admin-1');

@@ -6,11 +6,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { OnSaleQueryDto } from './dto/on-sale-query.dto';
 import { SetSaleDto } from './dto/set-sale.dto';
-import {
-  BulkUpdateDto,
-  BulkImportResult,
-  BulkUpdateResult,
-} from './dto/bulk-operations.dto';
+import { BulkUpdateDto, BulkImportResult, BulkUpdateResult } from './dto/bulk-operations.dto';
 import { slugify } from '../../common/utils/slugify';
 
 export interface ProductFilters {

@@ -12,7 +12,11 @@ export class SearchAnalyticsQueryDto {
   @IsString()
   to?: string;
 
-  @ApiProperty({ description: 'Top-N popular/zero-result queries to return', required: false, default: 20 })
+  @ApiProperty({
+    description: 'Top-N popular/zero-result queries to return',
+    required: false,
+    default: 20,
+  })
   @IsOptional()
   @IsInt()
   @Min(1)

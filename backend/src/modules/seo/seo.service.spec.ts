@@ -15,10 +15,7 @@ describe('SeoService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        SeoService,
-        { provide: PrismaService, useValue: prisma },
-      ],
+      providers: [SeoService, { provide: PrismaService, useValue: prisma }],
     }).compile();
 
     service = module.get<SeoService>(SeoService);

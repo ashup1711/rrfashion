@@ -11,6 +11,8 @@ export class AnalyticsService {
   async dashboard(view: 'day' | 'week' | 'month' | 'year') {
     const { startDate, endDate, previousStart } = this.getDateRange(view);
 
+    this.logger.log({ action: 'dashboard.fetch', view, startDate, endDate });
+
     const [
       currentPeriod,
       previousPeriod,
@@ -18,6 +20,8 @@ export class AnalyticsService {
       totalCustomers,
       totalProducts,
       abandonedCarts,
+      rentStats,
+      purchaseStats,
     ] = await Promise.all([
       this.aggregateOrders(startDate, endDate),
       this.aggregateOrders(previousStart, startDate),
@@ -25,7 +29,21 @@ export class AnalyticsService {
       this.getTotalCustomersCount(),
       this.getTotalProductsCount(),
       this.getAbandonedCarts(),
+      this.getRentStats(startDate, endDate),
+      this.getPurchaseStats(startDate, endDate),
     ]);
+
+    // Build channel breakdown from existing aggregateOrders data (no separate query needed)
+    const channelBreakdown = {
+      online: { orders: currentPeriod.onlineOrders, revenue: currentPeriod.onlineRevenue },
+      offline: { orders: currentPeriod.offlineOrders, revenue: currentPeriod.offlineRevenue },
+    };
+
+    this.logger.log({
+      action: 'dashboard.fetched',
+      totalRevenue: currentPeriod.revenue,
+      totalOrders: currentPeriod.orderCount,
+    });
 
     return {
       totalRevenue: currentPeriod.revenue,
@@ -37,6 +55,9 @@ export class AnalyticsService {
       abandonedCarts,
       revenueGrowth: this.calcGrowth(currentPeriod.revenue, previousPeriod.revenue),
       ordersGrowth: this.calcGrowth(currentPeriod.orderCount, previousPeriod.orderCount),
+      rentStats,
+      purchaseStats,
+      channelBreakdown,
     };
   }
 
@@ -258,7 +279,9 @@ export class AnalyticsService {
         COALESCE(SUM("totalAmount"), 0) as revenue,
         COALESCE(AVG("totalAmount"), 0) as avg_order_value,
         COUNT(*) FILTER (WHERE channel = 'online')::int as online_orders,
-        COUNT(*) FILTER (WHERE channel = 'offline')::int as offline_orders
+        COUNT(*) FILTER (WHERE channel = 'offline')::int as offline_orders,
+        COALESCE(SUM("totalAmount") FILTER (WHERE channel = 'online'), 0) as online_revenue,
+        COALESCE(SUM("totalAmount") FILTER (WHERE channel = 'offline'), 0) as offline_revenue
       FROM orders
       WHERE "createdAt" >= $1::timestamptz AND "createdAt" < $2::timestamptz
         AND status NOT IN ('CANCELLED')`,
@@ -273,40 +296,112 @@ export class AnalyticsService {
       avgOrderValue: Number(row.avg_order_value || 0),
       onlineOrders: Number(row.online_orders || 0),
       offlineOrders: Number(row.offline_orders || 0),
+      onlineRevenue: Number(row.online_revenue || 0),
+      offlineRevenue: Number(row.offline_revenue || 0),
     };
   }
 
-  private async channelSplit(startDate: Date, endDate: Date) {
-    const result = await this.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
-      `SELECT
-        channel,
-        COUNT(*)::int as orders,
-        COALESCE(SUM("totalAmount"), 0) as revenue
-      FROM orders
-      WHERE "createdAt" >= $1::timestamptz AND "createdAt" < $2::timestamptz
-        AND status NOT IN ('CANCELLED')
-      GROUP BY channel`,
-      startDate,
-      endDate,
-    );
-    return result;
+  private async getRentStats(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<{
+    rentOrders: number;
+    rentRevenue: number;
+    depositCollected: number;
+    lateFees: number;
+    damageCharges: number;
+  }> {
+    const [rentItems, rentalAggregates] = await Promise.all([
+      this.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `SELECT COUNT(*)::int as rent_orders,
+                COALESCE(SUM("totalPrice"), 0) as rent_revenue
+         FROM order_items oi
+         JOIN orders o ON o.id = oi."orderId"
+         WHERE o."createdAt" >= $1::timestamptz AND o."createdAt" < $2::timestamptz
+           AND o.status NOT IN ('CANCELLED')
+           AND oi.type = 'rent'`,
+        startDate,
+        endDate,
+      ),
+      this.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `SELECT COALESCE(SUM(rb."depositAmount"), 0) as deposit_collected,
+                COALESCE(SUM(rb."lateFee"), 0) as late_fees,
+                COALESCE(SUM(rb."damageCharge"), 0) as damage_charges
+         FROM rental_bookings rb
+         JOIN order_items oi ON oi.id = rb."orderItemId"
+         JOIN orders o ON o.id = oi."orderId"
+         WHERE o."createdAt" >= $1::timestamptz AND o."createdAt" < $2::timestamptz
+           AND o.status NOT IN ('CANCELLED')`,
+        startDate,
+        endDate,
+      ),
+    ]);
+
+    return {
+      rentOrders: Number(rentItems[0]?.rent_orders || 0),
+      rentRevenue: Number(rentItems[0]?.rent_revenue || 0),
+      depositCollected: Number(rentalAggregates[0]?.deposit_collected || 0),
+      lateFees: Number(rentalAggregates[0]?.late_fees || 0),
+      damageCharges: Number(rentalAggregates[0]?.damage_charges || 0),
+    };
   }
 
-  private async typeSplit(startDate: Date, endDate: Date) {
-    const result = await this.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
-      `SELECT
-        type,
-        COUNT(*)::int as items,
-        COALESCE(SUM("totalPrice"), 0) as revenue
-      FROM order_items oi
-      JOIN orders o ON o.id = oi."orderId"
-      WHERE o."createdAt" >= $1::timestamptz AND o."createdAt" < $2::timestamptz
-        AND o.status NOT IN ('CANCELLED')
-      GROUP BY type`,
-      startDate,
-      endDate,
-    );
-    return result;
+  /**
+   * REQ-BE-003: Aggregate purchase (sale) metrics with payment method breakdown.
+   *
+   * Data sources:
+   * - order_items: sale item count and revenue (type = 'sale')
+   * - payments: cash vs online payment method aggregation
+   *   - Cash: CASH, POS_CARD
+   *   - Online: CARD, UPI, NETBANKING, WALLET
+   */
+  private async getPurchaseStats(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<{
+    purchaseOrders: number;
+    purchaseRevenue: number;
+    cashOrders: number;
+    cashRevenue: number;
+    onlineOrders: number;
+    onlineRevenue: number;
+  }> {
+    const [saleItems, paymentSplit] = await Promise.all([
+      this.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `SELECT COUNT(*)::int as purchase_orders,
+                COALESCE(SUM("totalPrice"), 0) as purchase_revenue
+         FROM order_items oi
+         JOIN orders o ON o.id = oi."orderId"
+         WHERE o."createdAt" >= $1::timestamptz AND o."createdAt" < $2::timestamptz
+           AND o.status NOT IN ('CANCELLED')
+           AND oi.type = 'sale'`,
+        startDate,
+        endDate,
+      ),
+      this.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `SELECT
+           COUNT(*) FILTER (WHERE p.method IN ('CASH', 'POS_CARD'))::int as cash_orders,
+           COALESCE(SUM(p.amount) FILTER (WHERE p.method IN ('CASH', 'POS_CARD')), 0) as cash_revenue,
+           COUNT(*) FILTER (WHERE p.method IN ('CARD', 'UPI', 'NETBANKING', 'WALLET'))::int as online_orders,
+           COALESCE(SUM(p.amount) FILTER (WHERE p.method IN ('CARD', 'UPI', 'NETBANKING', 'WALLET')), 0) as online_revenue
+         FROM payments p
+         JOIN orders o ON o.id = p."orderId"
+         WHERE o."createdAt" >= $1::timestamptz AND o."createdAt" < $2::timestamptz
+           AND o.status NOT IN ('CANCELLED')
+           AND p.status = 'PAID'`,
+        startDate,
+        endDate,
+      ),
+    ]);
+
+    return {
+      purchaseOrders: Number(saleItems[0]?.purchase_orders || 0),
+      purchaseRevenue: Number(saleItems[0]?.purchase_revenue || 0),
+      cashOrders: Number(paymentSplit[0]?.cash_orders || 0),
+      cashRevenue: Number(paymentSplit[0]?.cash_revenue || 0),
+      onlineOrders: Number(paymentSplit[0]?.online_orders || 0),
+      onlineRevenue: Number(paymentSplit[0]?.online_revenue || 0),
+    };
   }
 
   getDateRange(view: string) {
