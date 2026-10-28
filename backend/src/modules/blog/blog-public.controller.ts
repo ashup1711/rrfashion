@@ -12,9 +12,7 @@ export class BlogPublicController {
   @Public()
   @Get()
   @ApiOperation({ summary: 'List published blog posts (paginated)' })
-  async findPublished(
-    @Query() query: PaginationDto & { category?: string },
-  ) {
+  async findPublished(@Query() query: PaginationDto & { category?: string }) {
     return this.blogService.findPublished(query);
   }
 

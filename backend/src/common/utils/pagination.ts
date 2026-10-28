@@ -1,17 +1,17 @@
-import type { PaginatedResponse, PaginationMeta } from '../types/pagination';
+import type { PaginatedResponse } from '../types/pagination';
 
 interface PaginateModel {
-  findMany: (args: any) => Promise<any[]>;
-  count: (args: any) => Promise<number>;
+  findMany(args: unknown): Promise<unknown[]>;
+  count(args: unknown): Promise<number>;
 }
 
 export interface PaginateArgs {
-  where?: any;
-  orderBy?: any;
+  where?: unknown;
+  orderBy?: unknown;
   page?: number;
   limit?: number;
-  include?: any;
-  select?: any;
+  include?: unknown;
+  select?: unknown;
 }
 
 export async function paginate<T>(
@@ -28,7 +28,7 @@ export async function paginate<T>(
   ]);
 
   return {
-    data,
+    data: data as T[],
     meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
   };
 }

@@ -18,7 +18,7 @@ describe('SearchController', () => {
               total: 0,
               page: 1,
               limit: 20,
-              query: 'test',
+              query: 'silk',
             }),
             getAnalytics: jest.fn().mockResolvedValue({
               totalSearches: 0,

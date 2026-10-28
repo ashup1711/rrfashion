@@ -10,7 +10,6 @@ import {
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import { ApiCommonResponse } from '../../common/decorators/api-response.decorator';
-import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AllowGuest } from '../../common/decorators/allow-guest.decorator';
 import { GuestSessionId } from '../../common/decorators/guest-session-id.decorator';
@@ -156,10 +155,7 @@ export class OrdersController {
     type: CreateOrderDto,
     auth: true,
   })
-  async guestCheckout(
-    @Body() dto: GuestCheckoutDto,
-    @GuestSessionId() guestSessionId?: string,
-  ) {
+  async guestCheckout(@Body() dto: GuestCheckoutDto, @GuestSessionId() guestSessionId?: string) {
     return this.ordersService.guestCheckout(dto, guestSessionId);
   }
 

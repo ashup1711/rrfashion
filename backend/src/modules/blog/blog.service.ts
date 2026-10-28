@@ -8,9 +8,29 @@ import type { PaginatedResponse } from '../../common/types/pagination';
 import DOMPurify from 'isomorphic-dompurify';
 
 const ALLOWED_TAGS = [
-  'p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4',
-  'ul', 'ol', 'li', 'a', 'img', 'blockquote', 'code', 'pre',
-  'table', 'thead', 'tbody', 'tr', 'td', 'th',
+  'p',
+  'br',
+  'strong',
+  'em',
+  'u',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'ul',
+  'ol',
+  'li',
+  'a',
+  'img',
+  'blockquote',
+  'code',
+  'pre',
+  'table',
+  'thead',
+  'tbody',
+  'tr',
+  'td',
+  'th',
 ];
 
 const ALLOWED_ATTR = ['href', 'src', 'alt', 'title', 'class', 'target', 'rel'];
@@ -33,7 +53,7 @@ function slugify(text: string): string {
 export class BlogService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async generateUniqueSlug(title: string, excludeId?: string): Promise<string> {
+  private async generateUniqueSlug(title: string, _excludeId?: string): Promise<string> {
     const baseSlug = slugify(title).slice(0, 60);
 
     const existing = await this.prisma.blogPost.findMany({
@@ -43,7 +63,7 @@ export class BlogService {
 
     if (existing.length === 0) return baseSlug;
 
-    const slugs = new Set(existing.map(e => e.slug));
+    const slugs = new Set(existing.map((e) => e.slug));
     if (!slugs.has(baseSlug)) return baseSlug;
 
     let i = 2;
@@ -73,7 +93,9 @@ export class BlogService {
     });
   }
 
-  async findAll(query: PaginationDto & { status?: string; category?: string }): Promise<PaginatedResponse<any>> {
+  async findAll(
+    query: PaginationDto & { status?: string; category?: string },
+  ): Promise<PaginatedResponse<unknown>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
@@ -95,7 +117,9 @@ export class BlogService {
     });
   }
 
-  async findPublished(query: PaginationDto & { category?: string }): Promise<PaginatedResponse<any>> {
+  async findPublished(
+    query: PaginationDto & { category?: string },
+  ): Promise<PaginatedResponse<unknown>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const now = new Date();
@@ -142,7 +166,8 @@ export class BlogService {
     if (dto.tags !== undefined) data.tags = dto.tags;
     if (dto.author !== undefined) data.author = dto.author;
     if (dto.isPublished !== undefined) data.isPublished = dto.isPublished;
-    if (dto.publishedAt !== undefined) data.publishedAt = dto.publishedAt ? new Date(dto.publishedAt) : null;
+    if (dto.publishedAt !== undefined)
+      data.publishedAt = dto.publishedAt ? new Date(dto.publishedAt) : null;
 
     if (dto.slug !== undefined) {
       data.slug = await this.generateUniqueSlug(dto.slug, id);

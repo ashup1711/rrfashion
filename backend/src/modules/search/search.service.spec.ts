@@ -4,7 +4,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 describe('SearchService', () => {
   let service: SearchService;
-  let prisma: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let prisma: Record<string, any>;
 
   beforeEach(async () => {
     prisma = {
@@ -107,7 +108,8 @@ describe('SearchService', () => {
       await service.getAnalytics({ from: '2026-01-01', to: '2026-01-31' });
 
       const firstCall = (prisma.$queryRawUnsafe as jest.Mock).mock.calls[0];
-      expect(firstCall[0]).toContain("createdAt >= '2026-01-01'");
+      expect(firstCall[0]).toContain('"createdAt" >= $1');
+      expect(JSON.stringify(firstCall.slice(1))).toContain('2026-01-01');
     });
   });
 });
