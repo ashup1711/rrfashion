@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { AdminUser } from '../types/admin';
+import type { AdminUser, TenantSummary } from '../types/admin';
+import { getActiveTenantId, setActiveTenantId as persistActiveTenantId } from '../utils/tenant';
 
 interface AdminState {
   // Session
@@ -11,6 +12,10 @@ interface AdminState {
   sidebarCollapsed: boolean;
   activeStoreId: string | null;
 
+  // Tenancy
+  tenants: TenantSummary[];
+  activeTenantId: string | null;
+
   // Actions
   setAdminSession: (
     admin: AdminUser,
@@ -20,6 +25,7 @@ interface AdminState {
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setActiveStoreId: (storeId: string | null) => void;
+  setTenants: (tenants: TenantSummary[], activeTenantId?: string | null) => void;
   hasPermission: (module: string, action: string) => boolean;
 }
 
@@ -29,6 +35,8 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   isAuthenticated: false,
   sidebarCollapsed: false,
   activeStoreId: null,
+  tenants: [],
+  activeTenantId: getActiveTenantId(),
 
   setAdminSession: (admin, permissions) => {
     set({
@@ -44,7 +52,10 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       permissions: [],
       isAuthenticated: false,
       activeStoreId: null,
+      tenants: [],
+      activeTenantId: null,
     });
+    persistActiveTenantId(null);
   },
 
   toggleSidebar: () => {
@@ -57,6 +68,12 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
   setActiveStoreId: (storeId) => {
     set({ activeStoreId: storeId });
+  },
+
+  setTenants: (tenants, activeTenantId) => {
+    const active = activeTenantId ?? get().activeTenantId ?? tenants[0]?.id ?? null;
+    persistActiveTenantId(active);
+    set({ tenants, activeTenantId: active });
   },
 
   hasPermission: (module, action) => {

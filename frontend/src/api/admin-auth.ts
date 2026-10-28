@@ -1,5 +1,6 @@
 import { adminClient } from './admin-client';
-import type { AdminAuthResponse, AdminMeResponse } from '../types/admin';
+import type { AdminAuthResponse, AdminMeResponse, SwitchTenantResponse } from '../types/admin';
+import { setActiveTenantId } from '../utils/tenant';
 
 interface AdminLoginCredentials {
   email: string;
@@ -9,6 +10,8 @@ interface AdminLoginCredentials {
 export const adminLogin = async (
   credentials: AdminLoginCredentials,
 ): Promise<AdminAuthResponse> => {
+  // Let the server pick a tenant the admin can access instead of a stale stored one.
+  setActiveTenantId(null);
   const { data } = await adminClient.post<AdminAuthResponse>(
     '/admin/auth/login',
     credentials,
@@ -23,6 +26,13 @@ export const adminRefresh = async (): Promise<void> => {
 
 export const adminGetMe = async (): Promise<AdminMeResponse> => {
   const { data } = await adminClient.get<AdminMeResponse>('/admin/auth/me');
+  return data;
+};
+
+export const adminSwitchTenant = async (tenantId: string): Promise<SwitchTenantResponse> => {
+  const { data } = await adminClient.post<SwitchTenantResponse>('/admin/auth/switch-tenant', {
+    tenantId,
+  });
   return data;
 };
 

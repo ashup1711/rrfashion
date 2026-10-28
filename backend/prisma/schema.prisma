@@ -240,6 +240,7 @@ enum RefundStatus {
 
 model User {
   id              String    @id @default(uuid())
+  tenantId        String    @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   email           String    @unique
   passwordHash    String
   firstName       String
@@ -271,11 +272,13 @@ model User {
   @@index([email])
   @@index([phone])
   @@index([deletedAt])
+  @@index([tenantId])
   @@map("users")
 }
 
 model UserAddress {
   id        String   @id @default(uuid())
+  tenantId  String   @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   userId    String   @map("user_id")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   label     String   @default("Home")
@@ -291,6 +294,7 @@ model UserAddress {
 
   @@index([userId])
   @@index([userId, isDefault])
+  @@index([tenantId])
   @@map("user_addresses")
 }
 
@@ -347,6 +351,7 @@ model ProcessedWebhookEvent {
 
 model Category {
   id          String  @id @default(uuid())
+  tenantId    String  @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   name        String
   slug        String  @unique
   description String?
@@ -370,11 +375,13 @@ model Category {
   @@index([parentId])
   @@index([brandId])
   @@index([slug])
+  @@index([tenantId])
   @@map("categories")
 }
 
 model Brand {
   id          String  @id @default(uuid())
+  tenantId    String  @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   name        String  @unique
   description String?
   isActive    Boolean @default(true)
@@ -385,11 +392,13 @@ model Brand {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([tenantId])
   @@map("brands")
 }
 
 model Product {
   id               String    @id @default(uuid())
+  tenantId         String    @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   name             String
   slug             String    @unique
   description      String?
@@ -462,11 +471,13 @@ model Product {
   // REQ-DB-009 — fuzzy / typo-tolerant matching on name (pg_trgm `%` and
   // similarity()). Requires the pg_trgm extension (created in the migration).
   @@index([name(ops: raw("gin_trgm_ops"))], map: "products_name_trgm_idx", type: Gin)
+  @@index([tenantId])
   @@map("products")
 }
 
 model ProductVariant {
   id              String    @id @default(uuid())
+  tenantId        String    @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   productId       String
   product         Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
   size            String
@@ -499,11 +510,13 @@ model ProductVariant {
   @@index([productId])
   @@index([sku])
   @@index([deletedAt])
+  @@index([tenantId])
   @@map("product_variants")
 }
 
 model ProductImage {
   id            String           @id @default(uuid())
+  tenantId      String           @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   variantId     String
   variant       ProductVariant   @relation(fields: [variantId], references: [id], onDelete: Cascade)
   url           String
@@ -526,22 +539,26 @@ model ProductImage {
   @@index([storageKey])
   @@index([parentImageId])
   @@index([variantId, variantType])
+  @@index([tenantId])
   @@map("product_images")
 }
 
 model ProductTag {
   id        String  @id @default(uuid())
+  tenantId  String  @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   key       String
   value     String
 
   @@unique([productId, key, value])
+  @@index([tenantId])
   @@map("product_tags")
 }
 
 model SizeGuide {
   id               String   @id @default(uuid())
+  tenantId         String   @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   categoryId       String
   category         Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   measurementsJson Json?
@@ -549,6 +566,7 @@ model SizeGuide {
   createdAt        DateTime @default(now())
 
   @@index([categoryId])
+  @@index([tenantId])
   @@map("size_guides")
 }
 
@@ -557,11 +575,12 @@ model SizeGuide {
 // ══════════════════════════════════════════════════════════
 
 model Review {
-  id      String       @id @default(uuid())
-  rating  Int
-  comment String?
-  photos  String[]
-  status  ReviewStatus @default(PENDING)
+  id       String       @id @default(uuid())
+  tenantId String       @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
+  rating   Int
+  comment  String?
+  photos   String[]
+  status   ReviewStatus @default(PENDING)
 
   userId String?
   user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -591,6 +610,7 @@ model Review {
   @@index([variantId])
   @@index([orderItemId])
   @@index([status])
+  @@index([tenantId])
   @@map("reviews")
 }
 
@@ -600,6 +620,7 @@ model Review {
 
 model StoreLocation {
   id       String  @id @default(uuid())
+  tenantId String  @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   name     String
   address  String
   city     String?
@@ -619,6 +640,7 @@ model StoreLocation {
 
   createdAt DateTime @default(now())
 
+  @@index([tenantId])
   @@map("store_locations")
 }
 
@@ -628,6 +650,7 @@ model StoreLocation {
 
 model Order {
   id                 String              @id @default(uuid())
+  tenantId           String              @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   orderNumber        String              @unique
   userId             String?
   user               User?               @relation(fields: [userId], references: [id])
@@ -678,11 +701,13 @@ model Order {
   @@index([userId, createdAt])
   @@index([guestSessionId, createdAt])
   @@index([adminUserId])
+  @@index([tenantId])
   @@map("orders")
 }
 
 model OrderStatusLog {
   id         String     @id @default(uuid())
+  tenantId   String     @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   orderId    String     @map("order_id")
   order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
   fromStatus String     @map("from_status")
@@ -697,11 +722,13 @@ model OrderStatusLog {
   @@index([orderId])
   @@index([orderId, createdAt])
   @@index([actorType])
+  @@index([tenantId])
   @@map("order_status_logs")
 }
 
 model OrderItem {
   id            String          @id @default(uuid())
+  tenantId      String          @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   orderId       String
   order         Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId     String
@@ -732,11 +759,13 @@ model OrderItem {
   @@index([orderId])
   @@index([productId])
   @@index([variantId])
+  @@index([tenantId])
   @@map("order_items")
 }
 
 model Cart {
   id             String     @id @default(uuid())
+  tenantId       String     @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   userId         String?    @unique
   user           User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
   guestSessionId String?    @unique @map("guest_session_id")
@@ -750,11 +779,13 @@ model Cart {
 
   @@index([updatedAt])
   @@index([abandonedAt])
+  @@index([tenantId])
   @@map("carts")
 }
 
 model CartItem {
   id            String          @id @default(uuid())
+  tenantId      String          @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   cartId        String
   cart          Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade)
   productId     String
@@ -772,6 +803,7 @@ model CartItem {
   @@index([productId])
   @@index([variantId])
   @@index([cartId, addedAt])
+  @@index([tenantId])
   @@map("cart_items")
 }
 
@@ -780,9 +812,10 @@ model CartItem {
 // ══════════════════════════════════════════════════════════
 
 model ShippingAddress {
-  id      String @id @default(uuid())
-  orderId String
-  order   Order  @relation(fields: [orderId], references: [id])
+  id       String @id @default(uuid())
+  tenantId String @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
+  orderId  String
+  order    Order  @relation(fields: [orderId], references: [id])
 
   name    String
   phone   String
@@ -794,11 +827,13 @@ model ShippingAddress {
   country String  @default("IND")
 
   @@index([orderId])
+  @@index([tenantId])
   @@map("shipping_addresses")
 }
 
 model CourierReceipt {
   id               String     @id @default(uuid())
+  tenantId         String     @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   orderId          String
   order            Order      @relation(fields: [orderId], references: [id])
   courierName      String
@@ -813,6 +848,7 @@ model CourierReceipt {
   createdAt        DateTime   @default(now())
 
   @@index([orderId])
+  @@index([tenantId])
   @@map("courier_receipts")
 }
 
@@ -822,6 +858,7 @@ model CourierReceipt {
 
 model InventoryUnit {
   id             String         @id @default(uuid())
+  tenantId       String         @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   variantId      String
   variant        ProductVariant @relation(fields: [variantId], references: [id])
   storeId        String
@@ -836,11 +873,13 @@ model InventoryUnit {
 
   @@index([variantId, storeId])
   @@index([status])
+  @@index([tenantId])
   @@map("inventory_units")
 }
 
 model InventorySummary {
   variantId         String
+  tenantId          String         @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   variant           ProductVariant @relation(fields: [variantId], references: [id])
   storeId           String
   store             StoreLocation  @relation(fields: [storeId], references: [id])
@@ -853,11 +892,13 @@ model InventorySummary {
   updatedAt DateTime @updatedAt
 
   @@id([variantId, storeId])
+  @@index([tenantId])
   @@map("inventory_summary")
 }
 
 model InventoryLock {
   id              String         @id @default(uuid())
+  tenantId        String         @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   variantId       String
   variant         ProductVariant @relation(fields: [variantId], references: [id])
   storeId         String
@@ -876,11 +917,13 @@ model InventoryLock {
   createdAt       DateTime       @default(now())
 
   @@index([variantId, storeId, status])
+  @@index([tenantId])
   @@map("inventory_locks")
 }
 
 model StockMovement {
   id               String            @id @default(uuid())
+  tenantId         String            @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   variantId        String
   variant          ProductVariant    @relation(fields: [variantId], references: [id])
   storeId          String
@@ -898,6 +941,7 @@ model StockMovement {
   @@index([type])
   @@index([createdByAdminId])
   @@index([reference])
+  @@index([tenantId])
   @@map("stock_movements")
 }
 
@@ -907,6 +951,7 @@ model StockMovement {
 
 model Payment {
   id                       String         @id @default(uuid())
+  tenantId                 String         @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   orderId                  String
   order                    Order          @relation(fields: [orderId], references: [id])
   razorpayOrderId          String?
@@ -929,6 +974,7 @@ model Payment {
 
   @@index([orderId])
   @@index([razorpayPaymentId])
+  @@index([tenantId])
   @@map("payments")
 }
 
@@ -938,6 +984,7 @@ model Payment {
 
 model RentalBooking {
   id                 String                    @id @default(uuid())
+  tenantId           String                    @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   orderItemId        String
   orderItem          OrderItem                 @relation(fields: [orderItemId], references: [id])
   unitId             String
@@ -1009,11 +1056,13 @@ model RentalBooking {
   @@index([customerNotifiedAt])
   // REQ-DB-012 — admin "open disputes" queue: disputed, not yet resolved.
   @@index([customerDisputedAt, disputeResolvedAt])
+  @@index([tenantId])
   @@map("rental_bookings")
 }
 
 model RentalExtension {
   id                String        @id @default(uuid())
+  tenantId          String        @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   rentalBookingId   String
   rentalBooking     RentalBooking @relation(fields: [rentalBookingId], references: [id])
   originalDueDate   DateTime
@@ -1025,6 +1074,7 @@ model RentalExtension {
   createdAt         DateTime      @default(now())
 
   @@index([rentalBookingId])
+  @@index([tenantId])
   @@map("rental_extensions")
 }
 
@@ -1034,15 +1084,18 @@ model RentalExtension {
 
 model InvoiceSequence {
   storeId       String
+  tenantId      String @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   financialYear String
   lastNumber    Int    @default(0)
 
   @@id([storeId, financialYear])
+  @@index([tenantId])
   @@map("invoice_sequences")
 }
 
 model Invoice {
   id              String        @id @default(uuid())
+  tenantId        String        @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   orderId         String
   order           Order         @relation(fields: [orderId], references: [id])
   invoiceNumber   String        @unique
@@ -1074,6 +1127,7 @@ model Invoice {
   @@index([orderId])
   @@index([invoiceNumber])
   @@index([storeId, financialYear])
+  @@index([tenantId])
   @@map("invoices")
 }
 
@@ -1144,6 +1198,8 @@ model AdminUser {
   inquiries          Inquiry[]         @relation("InquiryAssignee")
   orders             Order[]
 
+  tenantMemberships TenantMembership[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1158,6 +1214,7 @@ model AdminUser {
 
 model AuditLog {
   id         String     @id @default(uuid())
+  tenantId   String     @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   adminId    String?
   admin      AdminUser? @relation(fields: [adminId], references: [id])
   action     String
@@ -1172,6 +1229,7 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([adminId])
   @@index([createdAt])
+  @@index([tenantId])
   @@map("audit_logs")
 }
 
@@ -1191,21 +1249,24 @@ model AuditLog {
 // Indexes cover the two read paths: time-window scans (createdAt) and
 // popular-query grouping (normalized + createdAt).
 model SearchQuery {
-  id         String   @id @default(uuid())
-  text       String   @db.VarChar(256)
-  normalized String   @db.VarChar(256)
+  id          String   @id @default(uuid())
+  tenantId    String   @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
+  text        String   @db.VarChar(256)
+  normalized  String   @db.VarChar(256)
   resultCount Int
-  userId     String?
-  sessionId  String?
-  createdAt  DateTime @default(now())
+  userId      String?
+  sessionId   String?
+  createdAt   DateTime @default(now())
 
   @@index([createdAt])
   @@index([normalized, createdAt])
+  @@index([tenantId])
   @@map("search_queries")
 }
 
 model Wishlist {
   id                String         @id @default(uuid())
+  tenantId          String         @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   userId            String
   user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   variantId         String
@@ -1215,6 +1276,7 @@ model Wishlist {
   createdAt         DateTime       @default(now())
 
   @@unique([userId, variantId])
+  @@index([tenantId])
   @@map("wishlists")
 }
 
@@ -1224,6 +1286,7 @@ model Wishlist {
 
 model GuestSession {
   id             String   @id @default(uuid())
+  tenantId       String   @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   expiresAt      DateTime
   lastActivityAt DateTime @default(now())
   tokenVersion   Int      @default(0) // REQ-SEC-007 / SEC-05: incremented on every refresh; embedded as `ver` claim in guest JWT
@@ -1238,11 +1301,13 @@ model GuestSession {
   @@index([expiresAt])
   @@index([lastActivityAt])
   @@index([expiresAt, lastActivityAt])
+  @@index([tenantId])
   @@map("guest_sessions")
 }
 
 model GuestCartItem {
   id             String          @id @default(uuid())
+  tenantId       String          @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   guestSessionId String          @map("guest_session_id")
   guestSession   GuestSession    @relation(fields: [guestSessionId], references: [id], onDelete: Cascade)
   productId      String
@@ -1258,11 +1323,13 @@ model GuestCartItem {
 
   @@unique([guestSessionId, variantId, type])
   @@index([guestSessionId])
+  @@index([tenantId])
   @@map("guest_cart_items")
 }
 
 model GuestWishlistItem {
   id                String         @id @default(uuid())
+  tenantId          String         @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   guestSessionId    String         @map("guest_session_id")
   guestSession      GuestSession   @relation(fields: [guestSessionId], references: [id], onDelete: Cascade)
   variantId         String
@@ -1273,6 +1340,7 @@ model GuestWishlistItem {
 
   @@unique([guestSessionId, variantId])
   @@index([guestSessionId])
+  @@index([tenantId])
   @@map("guest_wishlist_items")
 }
 
@@ -1282,6 +1350,7 @@ model GuestWishlistItem {
 
 model GuestAddress {
   id             String       @id @default(uuid())
+  tenantId       String       @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   guestSessionId String       @map("guest_session_id")
   guestSession   GuestSession @relation(fields: [guestSessionId], references: [id], onDelete: Cascade)
 
@@ -1300,11 +1369,13 @@ model GuestAddress {
   updatedAt DateTime @updatedAt
 
   @@index([guestSessionId])
+  @@index([tenantId])
   @@map("guest_addresses")
 }
 
 model Notification {
   id           String              @id @default(uuid())
+  tenantId     String              @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   userId       String?
   user         User?               @relation(fields: [userId], references: [id])
   adminId      String?
@@ -1319,11 +1390,13 @@ model Notification {
   createdAt    DateTime            @default(now())
 
   @@index([userId, status])
+  @@index([tenantId])
   @@map("notifications")
 }
 
 model Inquiry {
   id              String        @id @default(uuid())
+  tenantId        String        @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   name            String
   email           String?
   phone           String?
@@ -1337,6 +1410,7 @@ model Inquiry {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
+  @@index([tenantId])
   @@map("inquiries")
 }
 
@@ -1346,6 +1420,7 @@ model Inquiry {
 
 model Coupon {
   id               String          @id @default(uuid())
+  tenantId         String          @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   code             String          @unique
   description      String?
   type             CouponType
@@ -1366,11 +1441,13 @@ model Coupon {
 
   usages CouponUsage[]
 
+  @@index([tenantId])
   @@map("coupons")
 }
 
 model CouponUsage {
   id            String   @id @default(uuid())
+  tenantId      String   @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   couponId      String
   coupon        Coupon   @relation(fields: [couponId], references: [id])
   userId        String?
@@ -1379,6 +1456,7 @@ model CouponUsage {
   createdAt     DateTime @default(now())
 
   @@index([couponId])
+  @@index([tenantId])
   @@map("coupon_usages")
 }
 
@@ -1388,6 +1466,7 @@ model CouponUsage {
 
 model PosDevice {
   id                  String    @id @default(uuid())
+  tenantId            String    @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   storeId             String
   deviceName          String
   deviceUuid          String    @unique
@@ -1399,11 +1478,13 @@ model PosDevice {
   registeredByAdminId String?
   registeredAt        DateTime  @default(now())
 
+  @@index([tenantId])
   @@map("pos_devices")
 }
 
 model WalletTransaction {
   id            String   @id @default(uuid())
+  tenantId      String   @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   userId        String
   user          User     @relation(fields: [userId], references: [id])
   amount        Decimal  @db.Decimal(12, 2)
@@ -1414,6 +1495,7 @@ model WalletTransaction {
   createdAt     DateTime @default(now())
 
   @@index([userId])
+  @@index([tenantId])
   @@map("wallet_transactions")
 }
 
@@ -1423,6 +1505,7 @@ model WalletTransaction {
 
 model StockAudit {
   id                 String    @id @default(uuid())
+  tenantId           String    @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   storeId            String
   variantId          String
   systemQty          Int
@@ -1435,6 +1518,7 @@ model StockAudit {
   conductedAt        DateTime  @default(now())
   approvedAt         DateTime?
 
+  @@index([tenantId])
   @@map("stock_audits")
 }
 
@@ -1454,6 +1538,7 @@ model FeatureFlag {
 
 model ReturnPolicy {
   id               String   @id @default(uuid())
+  tenantId         String   @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   type             String   @unique
   windowDays       Int?
   penaltyPercent   Decimal? @db.Decimal(5, 2)
@@ -1462,6 +1547,7 @@ model ReturnPolicy {
   updatedByAdminId String?
   updatedAt        DateTime @updatedAt
 
+  @@index([tenantId])
   @@map("return_policies")
 }
 
@@ -1471,6 +1557,7 @@ model ReturnPolicy {
 
 model ReportExport {
   id                 String       @id @default(uuid())
+  tenantId           String       @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   requestedByAdminId String
   reportType         String
   format             String
@@ -1481,6 +1568,7 @@ model ReportExport {
   createdAt          DateTime     @default(now())
   completedAt        DateTime?
 
+  @@index([tenantId])
   @@map("reports_exports")
 }
 
@@ -1490,6 +1578,7 @@ model ReportExport {
 
 model SiteReminder {
   id        String   @id @default(uuid())
+  tenantId  String   @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   title     String
   message   String
   linkUrl   String?  @map("link_url")
@@ -1501,6 +1590,7 @@ model SiteReminder {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([isActive, startDate, endDate])
+  @@index([tenantId])
   @@map("site_reminders")
 }
 
@@ -1509,19 +1599,20 @@ model SiteReminder {
 // ══════════════════════════════════════════════════════════
 
 model News {
-  id        String   @id @default(uuid())
-  title     String   @db.VarChar(255)
-  excerpt   String   @db.VarChar(500)
-  content   String?  @db.Text
-  imageUrl  String?  @map("image_url") @db.Text
-  linkUrl   String?  @map("link_url") @db.Text
-  linkText  String?  @map("link_text") @db.VarChar(100)
-  category  String?  @db.VarChar(64)
-  isActive  Boolean  @default(true) @map("is_active")
+  id        String    @id @default(uuid())
+  tenantId  String    @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
+  title     String    @db.VarChar(255)
+  excerpt   String    @db.VarChar(500)
+  content   String?   @db.Text
+  imageUrl  String?   @map("image_url") @db.Text
+  linkUrl   String?   @map("link_url") @db.Text
+  linkText  String?   @map("link_text") @db.VarChar(100)
+  category  String?   @db.VarChar(64)
+  isActive  Boolean   @default(true) @map("is_active")
   startDate DateTime? @map("start_date")
   endDate   DateTime? @map("end_date")
-  sortOrder Int      @default(0) @map("sort_order")
-  createdBy String?  @map("created_by")
+  sortOrder Int       @default(0) @map("sort_order")
+  createdBy String?   @map("created_by")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1529,6 +1620,7 @@ model News {
   @@index([isActive, startDate, endDate])
   @@index([sortOrder])
   @@index([category])
+  @@index([tenantId])
   @@map("news")
 }
 
@@ -1537,24 +1629,26 @@ model News {
 // ══════════════════════════════════════════════════════════
 
 model BlogPost {
-  id          String   @id @default(uuid())
-  title       String   @db.VarChar(255)
-  slug        String   @unique
-  excerpt     String   @db.VarChar(500)
-  content     String   @db.Text
-  imageUrl    String?  @map("image_url") @db.Text
-  category    String?  @db.VarChar(64)
+  id          String    @id @default(uuid())
+  tenantId    String    @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
+  title       String    @db.VarChar(255)
+  slug        String    @unique
+  excerpt     String    @db.VarChar(500)
+  content     String    @db.Text
+  imageUrl    String?   @map("image_url") @db.Text
+  category    String?   @db.VarChar(64)
   tags        String[]
-  author      String?  @db.VarChar(128)
-  isPublished Boolean  @default(false) @map("is_published")
+  author      String?   @db.VarChar(128)
+  isPublished Boolean   @default(false) @map("is_published")
   publishedAt DateTime? @map("published_at")
-  createdBy   String?  @map("created_by")
+  createdBy   String?   @map("created_by")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([isPublished, publishedAt])
   @@index([category])
+  @@index([tenantId])
   @@map("blog_posts")
 }
 
@@ -1564,6 +1658,7 @@ model BlogPost {
 
 model Color {
   id        String  @id @default(uuid())
+  tenantId  String  @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   name      String
   hexCode   String  @map("hex_code")
   isActive  Boolean @default(true) @map("is_active")
@@ -1573,6 +1668,7 @@ model Color {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([isActive, sortOrder])
+  @@index([tenantId])
   @@map("colors")
 }
 
@@ -1582,6 +1678,7 @@ model Color {
 
 model Size {
   id        String  @id @default(uuid())
+  tenantId  String  @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   name      String  @unique
   sortOrder Int     @default(0) @map("sort_order")
   isActive  Boolean @default(true) @map("is_active")
@@ -1590,6 +1687,7 @@ model Size {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([isActive, sortOrder])
+  @@index([tenantId])
   @@map("sizes")
 }
 
@@ -1604,6 +1702,7 @@ model Size {
 
 model ReturnRequest {
   id         String       @id @default(uuid())
+  tenantId   String       @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   orderId    String       @map("order_id")
   order      Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   status     ReturnStatus @default(PENDING)
@@ -1619,11 +1718,13 @@ model ReturnRequest {
   @@index([orderId, createdAt])
   @@index([status])
   @@index([orderId, status])
+  @@index([tenantId])
   @@map("return_requests")
 }
 
 model ReturnRequestItem {
   id              String           @id @default(uuid())
+  tenantId        String           @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   returnRequestId String           @map("return_request_id")
   returnRequest   ReturnRequest    @relation(fields: [returnRequestId], references: [id], onDelete: Cascade)
   orderItemId     String           @map("order_item_id")
@@ -1641,6 +1742,7 @@ model ReturnRequestItem {
   @@index([returnRequestId])
   @@index([orderItemId])
   @@index([status])
+  @@index([tenantId])
   @@map("return_request_items")
 }
 
@@ -1658,6 +1760,7 @@ model ReturnRequestItem {
 
 model Refund {
   id               String         @id @default(uuid())
+  tenantId         String         @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   orderId          String         @map("order_id")
   order            Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
   returnRequestId  String?        @map("return_request_id")
@@ -1679,6 +1782,7 @@ model Refund {
   @@index([status])
   @@index([orderId, status])
   @@index([initiatedAt])
+  @@index([tenantId])
   @@map("refunds")
 }
 
@@ -1694,6 +1798,7 @@ model Refund {
 
 model InventoryReconciliationLog {
   id          String          @id @default(uuid())
+  tenantId    String          @default(dbgenerated("COALESCE(NULLIF(current_setting('app.current_tenant_id', true), ''), '00000000-0000-4000-8000-000000000001')"))
   productId   String          @map("product_id")
   product     Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
   variantId   String?         @map("variant_id")
@@ -1712,6 +1817,7 @@ model InventoryReconciliationLog {
   @@index([productId])
   @@index([variantId])
   @@index([resolved, runAt])
+  @@index([tenantId])
   @@map("inventory_reconciliation_logs")
 }
 
@@ -1759,4 +1865,81 @@ model ShippingRateCache {
   /// Expiry sweep / TTL cleanup job.
   @@index([ttl])
   @@map("shipping_rate_cache")
+}
+
+// ─────────────────────────────────────────────────────────
+//  BusinessOS multi-tenancy
+// ─────────────────────────────────────────────────────────
+
+enum BusinessType {
+  RETAIL
+  SERVICES
+  MANUFACTURING
+  RESTAURANT
+  RENTAL
+}
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  DELETED
+}
+
+enum SubscriptionPlan {
+  STARTER
+  GROWTH
+  PRO
+  ENTERPRISE
+}
+
+enum TenantRole {
+  OWNER
+  ADMIN
+  ACCOUNTANT
+  STAFF
+}
+
+model Tenant {
+  id           String           @id @default(uuid())
+  name         String
+  legalName    String?
+  slug         String           @unique
+  businessType BusinessType
+  gstin        String?          @db.VarChar(15)
+  pan          String?          @db.VarChar(10)
+  tan          String?          @db.VarChar(10)
+  cin          String?          @db.VarChar(21)
+  status       TenantStatus     @default(ACTIVE)
+  plan         SubscriptionPlan @default(STARTER)
+  trialEndsAt  DateTime?
+  ownerAdminId String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  deletedAt    DateTime?
+
+  memberships TenantMembership[]
+
+  @@index([slug, status])
+  @@map("tenants")
+}
+
+model TenantMembership {
+  id          String     @id @default(uuid())
+  tenantId    String
+  adminUserId String
+  role        TenantRole @default(STAFF)
+  invitedBy   String?
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  adminUser AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, adminUserId])
+  @@index([adminUserId])
+  @@map("tenant_memberships")
 }

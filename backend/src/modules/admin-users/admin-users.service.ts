@@ -1,3 +1,6 @@
+import { TenantRole } from '@prisma/client';
+import { TenantContext } from '../../common/tenancy/tenant-context';
+import { DEFAULT_TENANT_ID } from '../../common/tenancy/tenant.constants';
 import {
   Injectable,
   NotFoundException,
@@ -26,8 +29,10 @@ export class AdminUsersService {
     const limit = params.limit ?? 10;
     const skip = (page - 1) * limit;
 
+    const tenantId = TenantContext.tenantId();
     const where: Record<string, unknown> = {
       deletedAt: null,
+      ...(tenantId && { tenantMemberships: { some: { tenantId, revokedAt: null } } }),
     };
 
     if (params.roleId) {
@@ -144,6 +149,13 @@ export class AdminUsersService {
         roleId: dto.roleId,
         storeIds: dto.storeIds ?? [],
         isActive: true,
+        tenantMemberships: {
+          create: {
+            tenantId: TenantContext.tenantId() ?? DEFAULT_TENANT_ID,
+            role: TenantRole.STAFF,
+            acceptedAt: new Date(),
+          },
+        },
       },
       select: {
         id: true,

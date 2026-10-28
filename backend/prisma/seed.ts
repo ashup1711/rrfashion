@@ -10,6 +10,8 @@ import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
+const DEFAULT_TENANT_ID = '00000000-0000-4000-8000-000000000001';
+
 // ── Helpers ────────────────────────────────────────────
 
 const SALT_ROUNDS = 12;
@@ -392,6 +394,30 @@ async function main() {
       roleId: superAdminRole.id,
       storeIds: [mainStore.id],
       isActive: true,
+    },
+  });
+  await prisma.tenant.upsert({
+    where: { id: DEFAULT_TENANT_ID },
+    update: {},
+    create: {
+      id: DEFAULT_TENANT_ID,
+      name: 'RR Fashion',
+      legalName: 'RR Fashion',
+      slug: 'rr-fashion',
+      businessType: 'RETAIL',
+      status: 'ACTIVE',
+      plan: 'ENTERPRISE',
+      ownerAdminId: superAdmin.id,
+    },
+  });
+  await prisma.tenantMembership.upsert({
+    where: { tenantId_adminUserId: { tenantId: DEFAULT_TENANT_ID, adminUserId: superAdmin.id } },
+    update: { role: 'OWNER', revokedAt: null },
+    create: {
+      tenantId: DEFAULT_TENANT_ID,
+      adminUserId: superAdmin.id,
+      role: 'OWNER',
+      acceptedAt: new Date(),
     },
   });
   console.log(`  ✔  Admin: ${superAdmin.email} (password: Admin\@123)`);

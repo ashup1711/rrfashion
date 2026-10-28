@@ -4,6 +4,8 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TenantContext } from '../../common/tenancy/tenant-context';
+import { TenantsService, TenantSummary } from '../tenants/tenants.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { AdminRefreshDto } from './dto/admin-refresh.dto';
 
@@ -24,8 +26,15 @@ export interface AdminAuthResponse {
     permissions: string[];
     storeIds: string[];
   };
+  tenants: TenantSummary[];
+  activeTenantId: string;
   accessToken: string;
   refreshToken: string;
+}
+
+export interface SwitchTenantResponse extends AdminAuthTokens {
+  activeTenantId: string;
+  tenants: TenantSummary[];
 }
 
 export interface AdminMeResponse {
@@ -39,6 +48,8 @@ export interface AdminMeResponse {
   };
   storeIds: string[];
   isActive: boolean;
+  tenants: TenantSummary[];
+  activeTenantId: string | null;
 }
 
 @Injectable()
@@ -51,6 +62,7 @@ export class AdminAuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly tenantsService: TenantsService,
   ) {
     this.jwtAdminSecret = this.configService.get<string>(
       'auth.jwtAdminSecret',
@@ -93,6 +105,11 @@ export class AdminAuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    const membership = await this.tenantsService.resolvePreferredMembership(
+      admin.id,
+      TenantContext.store()?.requestedTenantId,
+    );
+
     // Update lastLoginAt
     await this.prisma.adminUser.update({
       where: { id: admin.id },
@@ -103,7 +120,13 @@ export class AdminAuthService {
       (rp) => `${rp.permission.module}:${rp.permission.action}`,
     );
 
-    const tokens = await this.generateTokens(admin.id, admin.email, admin.role.id);
+    const tokens = await this.generateTokens(
+      admin.id,
+      admin.email,
+      admin.role.id,
+      membership.tenantId,
+    );
+    const tenants = await this.tenantsService.listSummaries(admin.id);
 
     return {
       admin: {
@@ -114,6 +137,8 @@ export class AdminAuthService {
         permissions,
         storeIds: admin.storeIds,
       },
+      tenants,
+      activeTenantId: membership.tenantId,
       ...tokens,
     };
   }
@@ -156,7 +181,25 @@ export class AdminAuthService {
       throw new UnauthorizedException('Admin not found');
     }
 
-    return this.generateTokens(admin.id, admin.email, admin.roleId);
+    const membership = await this.tenantsService.resolvePreferredMembership(
+      admin.id,
+      TenantContext.store()?.requestedTenantId,
+    );
+    return this.generateTokens(admin.id, admin.email, admin.roleId, membership.tenantId);
+  }
+
+  async switchTenant(adminId: string, tenantId: string): Promise<SwitchTenantResponse> {
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: adminId },
+      select: { id: true, email: true, roleId: true, isActive: true, deletedAt: true },
+    });
+    if (!admin || !admin.isActive || admin.deletedAt) {
+      throw new UnauthorizedException('Admin not found');
+    }
+    await this.tenantsService.resolveMembership(admin.id, tenantId);
+    const tokens = await this.generateTokens(admin.id, admin.email, admin.roleId, tenantId);
+    const tenants = await this.tenantsService.listSummaries(admin.id);
+    return { ...tokens, activeTenantId: tenantId, tenants };
   }
 
   async getMe(adminId: string): Promise<AdminMeResponse> {
@@ -204,6 +247,8 @@ export class AdminAuthService {
       },
       storeIds: admin.storeIds,
       isActive: admin.isActive,
+      tenants: await this.tenantsService.listSummaries(admin.id),
+      activeTenantId: TenantContext.tenantId() ?? null,
     };
   }
 
@@ -282,11 +327,13 @@ export class AdminAuthService {
     adminId: string,
     email: string,
     roleId: string,
+    tenantId: string,
   ): Promise<AdminAuthTokens> {
     const payload = {
       sub: adminId,
       email,
       roleId,
+      tid: tenantId,
       type: 'admin' as const,
     };
 

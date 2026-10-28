@@ -17,7 +17,7 @@ interface AdminLoginCredentials {
 export const useAdminAuth = () => {
   const navigate = useNavigate();
   const { setAdminAuth, adminLogout, isAdminAuthenticated } = useAuthStore();
-  const { setAdminSession, clearAdminSession } = useAdminStore();
+  const { setAdminSession, clearAdminSession, setTenants } = useAdminStore();
 
   const loginMutation = useMutation({
     mutationFn: (credentials: AdminLoginCredentials) =>
@@ -37,6 +37,7 @@ export const useAdminAuth = () => {
         data.admin.permissions,
       );
       setAdminSession(adminUser, data.admin.permissions);
+      setTenants(data.tenants ?? [], data.activeTenantId);
       navigate('/admin');
     },
   });

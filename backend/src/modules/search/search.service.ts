@@ -128,6 +128,7 @@ export class SearchService {
               ts_rank(p."searchVector", websearch_to_tsquery('english', $1)) AS rank
        FROM products p
        WHERE p."searchVector" @@ websearch_to_tsquery('english', $1)
+         AND app_tenant_visible(p."tenantId")
          AND p."isActive" = true AND p."deletedAt" IS NULL
          ${whereExtra}
        ORDER BY rank DESC
@@ -141,6 +142,7 @@ export class SearchService {
       `SELECT COUNT(*)::int AS total
        FROM products p
        WHERE p."searchVector" @@ websearch_to_tsquery('english', $1)
+         AND app_tenant_visible(p."tenantId")
          AND p."isActive" = true AND p."deletedAt" IS NULL
          ${whereExtra}`,
       ...params,

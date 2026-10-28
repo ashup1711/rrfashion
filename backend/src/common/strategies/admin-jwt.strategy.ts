@@ -3,13 +3,18 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Request } from 'express';
+import { TenantRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TenantContext } from '../tenancy/tenant-context';
+import { TenantsService } from '../../modules/tenants/tenants.service';
 
 export interface AdminJwtPayload {
   sub: string;
   email: string;
   roleId: string;
   type: 'admin';
+  /** Active tenant at token issue time. */
+  tid?: string;
   iat?: number;
   exp?: number;
 }
@@ -25,6 +30,8 @@ export interface AuthenticatedAdmin {
   };
   permissions: string[];
   storeIds: string[];
+  tenantId: string;
+  tenantRole: TenantRole;
 }
 
 @Injectable()
@@ -32,6 +39,7 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
   constructor(
     configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly tenantsService: TenantsService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
@@ -43,6 +51,7 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
         ExtractJwt.fromAuthHeaderAsBearerToken(),
       ]),
       ignoreExpiration: false,
+      passReqToCallback: true,
       secretOrKey: configService.get<string>(
         'auth.jwtAdminSecret',
         'rr-fashion-admin-jwt-secret-dev',
@@ -50,7 +59,7 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
     });
   }
 
-  async validate(payload: AdminJwtPayload): Promise<AuthenticatedAdmin> {
+  async validate(req: Request, payload: AdminJwtPayload): Promise<AuthenticatedAdmin> {
     if (payload.type !== 'admin') {
       throw new UnauthorizedException('Invalid token type');
     }
@@ -92,6 +101,15 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
       throw new UnauthorizedException('Admin account is deactivated');
     }
 
+    // The X-Tenant-Id header wins over the token's tenant; membership is re-checked on
+    // every request so revocations and suspensions take effect immediately.
+    const membership = await this.tenantsService.resolveActiveMembership(
+      admin.id,
+      TenantContext.store()?.requestedTenantId ?? payload.tid,
+      req.method,
+    );
+    TenantContext.setTenantId(membership.tenantId);
+
     const permissions = admin.role.rolePermissions.map(
       (rp) => `${rp.permission.module}:${rp.permission.action}`,
     );
@@ -107,6 +125,8 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
       },
       permissions,
       storeIds: admin.storeIds,
+      tenantId: membership.tenantId,
+      tenantRole: membership.role,
     };
   }
 }

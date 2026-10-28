@@ -6,6 +6,8 @@ import { ThrottlerModule, ThrottlerModuleOptions } from '@nestjs/throttler';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { APP_GUARD } from '@nestjs/core';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { TenantContextMiddleware } from './common/tenancy/tenant-context.middleware';
+import { TenantsModule } from './modules/tenants/tenants.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { BullQueueModule } from './bull/bull.module';
@@ -153,6 +155,7 @@ import { StorageModule } from './storage/storage.module';
     BullQueueModule,
     StorageModule,
     AuthModule,
+    TenantsModule,
     AdminAuthModule,
     AdminUsersModule,
     RolesPermissionsModule,
@@ -214,6 +217,6 @@ import { StorageModule } from './storage/storage.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
+    consumer.apply(CorrelationIdMiddleware, TenantContextMiddleware).forRoutes('*');
   }
 }

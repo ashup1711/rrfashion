@@ -14,6 +14,20 @@ export interface AdminUser {
   updatedAt?: string;
 }
 
+export type BusinessType = 'RETAIL' | 'SERVICES' | 'MANUFACTURING' | 'RESTAURANT' | 'RENTAL';
+export type TenantStatus = 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'SUSPENDED' | 'DELETED';
+export type TenantRole = 'OWNER' | 'ADMIN' | 'ACCOUNTANT' | 'STAFF';
+
+export interface TenantSummary {
+  id: string;
+  name: string;
+  slug: string;
+  businessType: BusinessType;
+  status: TenantStatus;
+  plan: string;
+  role: TenantRole;
+}
+
 export interface AdminAuthResponse {
   admin: {
     id: string;
@@ -24,6 +38,8 @@ export interface AdminAuthResponse {
     storeIds: string[];
     isActive: boolean;
   };
+  tenants?: TenantSummary[];
+  activeTenantId?: string;
   accessToken?: string;
   refreshToken?: string;
 }
@@ -36,6 +52,13 @@ export interface AdminMeResponse {
   permissions: string[];
   storeIds: string[];
   isActive: boolean;
+  tenants?: TenantSummary[];
+  activeTenantId?: string | null;
+}
+
+export interface SwitchTenantResponse {
+  activeTenantId: string;
+  tenants: TenantSummary[];
 }
 
 export interface CreateAdminUserData {
