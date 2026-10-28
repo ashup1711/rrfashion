@@ -29,7 +29,7 @@ export class NewsService {
     });
   }
 
-  async findAll(query: PaginationDto, search?: string): Promise<PaginatedResponse<any>> {
+  async findAll(query: PaginationDto, search?: string): Promise<PaginatedResponse<unknown>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
@@ -70,7 +70,9 @@ export class NewsService {
         ...(dto.linkText !== undefined && { linkText: dto.linkText }),
         ...(dto.category !== undefined && { category: dto.category }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
-        ...(dto.startDate !== undefined && { startDate: dto.startDate ? new Date(dto.startDate) : null }),
+        ...(dto.startDate !== undefined && {
+          startDate: dto.startDate ? new Date(dto.startDate) : null,
+        }),
         ...(dto.endDate !== undefined && { endDate: dto.endDate ? new Date(dto.endDate) : null }),
         ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
       },

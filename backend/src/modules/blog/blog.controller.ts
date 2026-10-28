@@ -36,9 +36,7 @@ export class BlogController {
   @Roles('SUPER_ADMIN', 'ADMIN')
   @Get()
   @ApiOperation({ summary: 'List all blog posts (paginated)' })
-  async findAll(
-    @Query() query: PaginationDto & { status?: string; category?: string },
-  ) {
+  async findAll(@Query() query: PaginationDto & { status?: string; category?: string }) {
     return this.blogService.findAll(query);
   }
 

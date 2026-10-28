@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body, UseGuards, Res, Query } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, UseGuards, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Response } from 'express';
 import { ApiCommonResponse } from '../../common/decorators/api-response.decorator';

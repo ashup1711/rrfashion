@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
+import { TenantSwitcher } from '../admin/TenantSwitcher';
 import { useAuthStore } from '../../store/authStore';
 import { ROUTES } from '../../utils/constants';
 
@@ -358,6 +359,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
           </div>
 
           <div className="flex items-center gap-4">
+            <TenantSwitcher />
             <Link
               to={ROUTES.HOME}
               className="text-sm text-gray-500 hover:text-primary-600 transition-colors"

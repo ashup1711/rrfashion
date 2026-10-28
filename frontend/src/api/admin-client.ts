@@ -1,5 +1,6 @@
 import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
 import { navigate } from '../utils/navigation';
+import { getActiveTenantId, TENANT_HEADER } from '../utils/tenant';
 
 function getAdminApiUrl() {
   return localStorage.getItem('api_url') || window.__RUNTIME_ENV__?.API_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
@@ -17,6 +18,12 @@ const adminClient = axios.create({
   withCredentials: true,
   headers: { ...(isDevHost ? { 'ngrok-skip-browser-warning': 'true' } : {}) },
   timeout: 15000,
+});
+
+adminClient.interceptors.request.use((config) => {
+  const tenantId = getActiveTenantId();
+  if (tenantId) config.headers.set(TENANT_HEADER, tenantId);
+  return config;
 });
 
 // ── Auto-refresh queue for admin 401s ────────────────────────────────

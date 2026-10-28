@@ -6,6 +6,7 @@ import { mergeCart } from '../api/cart';
 import { mergeWishlist } from '../api/wishlist';
 import { getMe } from '../api/auth';
 import { adminGetMe } from '../api/admin-auth';
+import { useAdminStore } from './adminStore';
 
 interface AuthState {
   user: User | null;
@@ -121,6 +122,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         storeIds: response.storeIds ?? [],
         isActive: response.isActive,
       };
+      useAdminStore.getState().setTenants(response.tenants ?? [], response.activeTenantId);
       set({
         adminUser,
         adminPermissions: response.permissions,

@@ -17,6 +17,7 @@ import { AdminJwtAuthGuard } from '../../common/guards/admin-jwt-auth.guard';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { AdminRefreshDto } from './dto/admin-refresh.dto';
+import { SwitchTenantDto } from '../tenants/dto/switch-tenant.dto';
 
 @ApiTags('Admin Auth')
 @Controller('admin/auth')
@@ -29,7 +30,11 @@ export class AdminAuthController {
   async login(@Body() loginDto: AdminLoginDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.adminAuthService.login(loginDto);
     this.setAdminAuthCookies(res, result.accessToken, result.refreshToken);
-    return { admin: result.admin };
+    return {
+      admin: result.admin,
+      tenants: result.tenants,
+      activeTenantId: result.activeTenantId,
+    };
   }
 
   @Public()
@@ -49,6 +54,19 @@ export class AdminAuthController {
     const tokens = await this.adminAuthService.refresh({ refreshToken });
     this.setAdminAuthCookies(res, tokens.accessToken, tokens.refreshToken);
     return { message: 'Token refreshed' };
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('switch-tenant')
+  @ApiCommonResponse({ summary: 'Switch the active tenant and reissue tokens' })
+  async switchTenant(
+    @CurrentUser('id') adminId: string,
+    @Body() dto: SwitchTenantDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.adminAuthService.switchTenant(adminId, dto.tenantId);
+    this.setAdminAuthCookies(res, result.accessToken, result.refreshToken);
+    return { activeTenantId: result.activeTenantId, tenants: result.tenants };
   }
 
   @UseGuards(AdminJwtAuthGuard)

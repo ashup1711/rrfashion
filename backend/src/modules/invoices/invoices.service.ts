@@ -8,7 +8,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import PDFDocument from 'pdfkit';
 import { PrismaService } from '../../prisma/prisma.service';
-import { randomUUID } from 'crypto';
 import { StorageService } from '../../storage/storage.service';
 import { numberToWordsInr } from '../../common/utils/number-to-words.util';
 import { GenerateInvoiceDto } from './dto/generate-invoice.dto';
@@ -326,7 +325,10 @@ export class InvoicesService {
 
     // Fallback: regenerate PDF if missing from storage
     if (!buffer) {
-      this.logger.warn({ invoiceId: invoice.id, orderId }, 'Invoice PDF missing from storage — regenerating');
+      this.logger.warn(
+        { invoiceId: invoice.id, orderId },
+        'Invoice PDF missing from storage — regenerating',
+      );
       buffer = await this.regeneratePdfBuffer(invoice.id);
     }
 
@@ -386,7 +388,10 @@ export class InvoicesService {
 
     // Fallback: regenerate PDF if missing from storage
     if (!buffer) {
-      this.logger.warn({ invoiceId: invoice.id, orderId }, 'Invoice PDF missing from storage — regenerating');
+      this.logger.warn(
+        { invoiceId: invoice.id, orderId },
+        'Invoice PDF missing from storage — regenerating',
+      );
       buffer = await this.regeneratePdfBuffer(invoice.id);
     }
 

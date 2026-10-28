@@ -5,7 +5,8 @@ import { NotificationsGateway } from '../notifications/notifications.gateway';
 
 describe('ProductsService — Bulk Operations', () => {
   let service: ProductsService;
-  let prisma: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let prisma: Record<string, any>;
 
   beforeEach(async () => {
     prisma = {

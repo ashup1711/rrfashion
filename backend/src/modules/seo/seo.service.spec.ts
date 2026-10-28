@@ -1,10 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SeoService } from './seo.service';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 
 describe('SeoService', () => {
   let service: SeoService;
-  let prisma: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let prisma: Record<string, any>;
 
   beforeEach(async () => {
     prisma = {
@@ -15,7 +17,14 @@ describe('SeoService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [SeoService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        SeoService,
+        { provide: PrismaService, useValue: prisma },
+        {
+          provide: ConfigService,
+          useValue: { get: (_key: string, fallback?: unknown) => fallback },
+        },
+      ],
     }).compile();
 
     service = module.get<SeoService>(SeoService);

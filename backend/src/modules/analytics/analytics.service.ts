@@ -120,7 +120,7 @@ export class AnalyticsService {
         COALESCE(SUM("totalAmount"), 0) as revenue,
         COUNT(*)::int as orders
       FROM orders
-      WHERE "createdAt" >= $1::timestamptz AND "createdAt" < $2::timestamptz
+      WHERE app_tenant_visible("tenantId") AND "createdAt" >= $1::timestamptz AND "createdAt" < $2::timestamptz
         AND status NOT IN ('CANCELLED')
       GROUP BY DATE_TRUNC('${truncExpr}', "createdAt")
       ORDER BY date ASC`,
@@ -196,7 +196,7 @@ export class AnalyticsService {
       FROM order_items oi
       JOIN orders o ON o.id = oi."orderId"
       JOIN products p ON p.id = oi."productId"
-      WHERE ${conditions.join(' AND ')} ${typeFilter}
+      WHERE app_tenant_visible(o."tenantId") AND ${conditions.join(' AND ')} ${typeFilter}
         AND o.status NOT IN ('CANCELLED')
       GROUP BY p.id, p.name, p.slug, p.fabric, p."hsnCode"
       ORDER BY revenue DESC
@@ -236,7 +236,7 @@ export class AnalyticsService {
           JOIN orders o ON o.id = oi."orderId"
           JOIN products p ON p.id = oi."productId"
           LEFT JOIN product_variants pv ON pv.id = oi."variantId"
-          WHERE o."createdAt" >= $1::timestamptz AND o."createdAt" < $2::timestamptz
+          WHERE app_tenant_visible(o."tenantId") AND o."createdAt" >= $1::timestamptz AND o."createdAt" < $2::timestamptz
           ORDER BY o."createdAt" DESC`,
           startDate,
           endDate,
@@ -251,6 +251,7 @@ export class AnalyticsService {
           FROM inventory_units ius
           JOIN product_variants pv ON pv.id = ius."variantId"
           JOIN products p ON p.id = pv."productId"
+          WHERE app_tenant_visible(ius."tenantId")
           GROUP BY p.name, pv.sku, pv.size, pv.color, ius.status
           ORDER BY p.name`,
         );
@@ -264,6 +265,7 @@ export class AnalyticsService {
           JOIN inventory_units iu ON iu.id = rb."unitId"
           JOIN product_variants pv ON pv.id = iu."variantId"
           JOIN products p ON p.id = pv."productId"
+          WHERE app_tenant_visible(rb."tenantId")
           ORDER BY rb."createdAt" DESC`,
         );
 
@@ -283,7 +285,7 @@ export class AnalyticsService {
         COALESCE(SUM("totalAmount") FILTER (WHERE channel = 'online'), 0) as online_revenue,
         COALESCE(SUM("totalAmount") FILTER (WHERE channel = 'offline'), 0) as offline_revenue
       FROM orders
-      WHERE "createdAt" >= $1::timestamptz AND "createdAt" < $2::timestamptz
+      WHERE app_tenant_visible("tenantId") AND "createdAt" >= $1::timestamptz AND "createdAt" < $2::timestamptz
         AND status NOT IN ('CANCELLED')`,
       startDate,
       endDate,
@@ -317,7 +319,7 @@ export class AnalyticsService {
                 COALESCE(SUM("totalPrice"), 0) as rent_revenue
          FROM order_items oi
          JOIN orders o ON o.id = oi."orderId"
-         WHERE o."createdAt" >= $1::timestamptz AND o."createdAt" < $2::timestamptz
+         WHERE app_tenant_visible(o."tenantId") AND o."createdAt" >= $1::timestamptz AND o."createdAt" < $2::timestamptz
            AND o.status NOT IN ('CANCELLED')
            AND oi.type = 'rent'`,
         startDate,
@@ -330,7 +332,7 @@ export class AnalyticsService {
          FROM rental_bookings rb
          JOIN order_items oi ON oi.id = rb."orderItemId"
          JOIN orders o ON o.id = oi."orderId"
-         WHERE o."createdAt" >= $1::timestamptz AND o."createdAt" < $2::timestamptz
+         WHERE app_tenant_visible(o."tenantId") AND o."createdAt" >= $1::timestamptz AND o."createdAt" < $2::timestamptz
            AND o.status NOT IN ('CANCELLED')`,
         startDate,
         endDate,
@@ -372,7 +374,7 @@ export class AnalyticsService {
                 COALESCE(SUM("totalPrice"), 0) as purchase_revenue
          FROM order_items oi
          JOIN orders o ON o.id = oi."orderId"
-         WHERE o."createdAt" >= $1::timestamptz AND o."createdAt" < $2::timestamptz
+         WHERE app_tenant_visible(o."tenantId") AND o."createdAt" >= $1::timestamptz AND o."createdAt" < $2::timestamptz
            AND o.status NOT IN ('CANCELLED')
            AND oi.type = 'sale'`,
         startDate,
@@ -386,7 +388,7 @@ export class AnalyticsService {
            COALESCE(SUM(p.amount) FILTER (WHERE p.method IN ('CARD', 'UPI', 'NETBANKING', 'WALLET')), 0) as online_revenue
          FROM payments p
          JOIN orders o ON o.id = p."orderId"
-         WHERE o."createdAt" >= $1::timestamptz AND o."createdAt" < $2::timestamptz
+         WHERE app_tenant_visible(o."tenantId") AND o."createdAt" >= $1::timestamptz AND o."createdAt" < $2::timestamptz
            AND o.status NOT IN ('CANCELLED')
            AND p.status = 'PAID'`,
         startDate,
